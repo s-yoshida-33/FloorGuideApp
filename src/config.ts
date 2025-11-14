@@ -36,7 +36,7 @@ export const GENRE_ORDER: string[] = [
   "ファッション",
   "ファッション雑貨",
   "雑貨",
-  "飲食・食品",
+  "飲食店・食品",
   "サービス",
 ];
 
@@ -45,6 +45,6 @@ export const GENRE_ENGLISH: Record<string, string> = {
   "ファッション": "Fashion",
   "ファッション雑貨": "Fashion Goods",
   "雑貨": "Goods",
-  "飲食・食品": "Food & Beverage",
+  "飲食店・食品": "Food & Beverage",
   "サービス": "Services",
 };
