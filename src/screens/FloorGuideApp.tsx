@@ -4,17 +4,34 @@ import React, { useEffect, useState } from "react";
 import ShopList from "../components/ShopList";
 import type { Shop } from "../types/shop";
 
-import floorMap from "../assets/floor-1F-map.svg";
+import floorMap1F from "../assets/floor-1F-map.svg";
+import floorMap2F from "../assets/floor-2F-map.svg";
+import floorMap3F from "../assets/floor-3F-map.svg";
+import floorMap4F from "../assets/floor-4F-map.svg";
+
 import { APP_CONFIG } from "../config";
 import { fetchShops } from "../repositories/shopRepository";
 
 const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
 
+// Map floor id to image asset
+const FLOOR_MAPS: Record<string, string> = {
+  "1F": floorMap1F,
+  "2F": floorMap2F,
+  "3F": floorMap3F,
+  "4F": floorMap4F,
+};
+
 const FloorGuideApp: React.FC = () => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Current floor for this screen
   const floor = APP_CONFIG.floor;
+
+  // Select floor map by floor id, fallback to 1F
+  const floorMap = FLOOR_MAPS[floor] ?? floorMap1F;
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +84,7 @@ const FloorGuideApp: React.FC = () => {
         >
           <img
             src={floorMap}
-            alt="Floor Map"
+            alt={`Floor map ${floor}`}
             style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
           />
         </div>
