@@ -232,7 +232,7 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
                         width: "100%",
                       }}
                     >
-                      <span>{`${s.number}　${s.genreMemo}`}</span>
+                      <span>{s.genreMemo ? `${s.number}　${s.genreMemo}` : `${s.number}`}</span>
                       <span style={{ marginLeft: "12px" }}>{s.name}</span>
                     </div>
                   ))}

@@ -6,7 +6,7 @@ export const APP_CONFIG = {
   defaultApiBaseUrl: "http://localhost:8080",
 
   // Default floor for this screen (this screen is dedicated to one floor)
-  floor: "1F",
+  floor: "3F",
 
   // Layout configuration (4K display assumed)
   listHeightVh: (800 / 2160) * 100, // ≒ 37vh

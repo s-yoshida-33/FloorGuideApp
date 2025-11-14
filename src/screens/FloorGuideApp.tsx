@@ -33,6 +33,9 @@ const FloorGuideApp: React.FC = () => {
   // Select floor map by floor id, fallback to 1F
   const floorMap = FLOOR_MAPS[floor] ?? floorMap1F;
 
+  // Video area width (16:9 aspect ratio)
+  const videoWidthVh = TOP_HEIGHT_VH * (9 / 16);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -92,13 +95,14 @@ const FloorGuideApp: React.FC = () => {
         {/* Video area (placeholder) */}
         <div
           style={{
-            flex: 1,
+            width: `${videoWidthVh}vh`,
             background: "#000",
             color: "#aaa",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
             fontSize: "18px",
+            flexShrink: 0,
           }}
         >
           Video Area (reserved)
