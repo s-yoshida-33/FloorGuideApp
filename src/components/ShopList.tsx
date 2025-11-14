@@ -1,74 +1,163 @@
 // src/components/ShopList.tsx
 import React from "react";
+import type { Shop } from "../types/shop";
+import { APP_CONFIG, GENRE_ORDER } from "../config";
 
-export interface RawShop {
-  shop_id?: string;
-  shop_name: string;
-  genre: string;       // ex) "ファッション"
-  genre_memo: string;  // ex) "レディース"
-  number: string;      // ex) "103"
-  floor: string;       // ex) "1F"
+interface ShopListProps {
+  shops: Shop[];
+  floor: string;
 }
 
-interface Props {
-  shops: RawShop[];
-  floor: string;       // ex) "1F"
-}
+// Internal line representation for layout
+type Line =
+  | { kind: "header"; genre: string }
+  | { kind: "shop"; genre: string; shop: Shop };
 
-// fixed genre order (we will gradually add)
-const GENRE_FASHION = "ファッション";
-const GENRE_FASHION_GOODS = "ファッション雑貨";
-
-const ROWS_PER_COLUMN = 20; // 1 column = 20 rows (for 4K, 800px height / ~20px font)
-
-/** normalize "1Ｆ", "1階" etc → "1F" */
+// Normalize floor strings such as "1Ｆ", "1階" to "1F"
 function normalizeFloor(value: string): string {
   if (!value) return "";
   const m = value.match(/(\d+)/);
   return m ? `${m[1]}F` : value;
 }
 
-/** sort by number asc (e.g. "103" < "110" < "112") */
-function sortByNumberAsc(a: RawShop, b: RawShop): number {
+// Compare shops by number in ascending order
+function compareShopNumberAsc(a: Shop, b: Shop): number {
   return (a.number || "").localeCompare(b.number || "", "ja", {
     numeric: true,
     sensitivity: "base",
   });
 }
 
-/** split flat list into columns, each with at most rowsPerColumn rows */
-function splitByRows<T>(items: T[], rowsPerColumn: number, maxColumns: number): T[][] {
-  if (items.length === 0) return [];
-  const colCount = Math.min(maxColumns, Math.max(1, Math.ceil(items.length / rowsPerColumn)));
-  const cols: T[][] = [];
-  for (let i = 0; i < colCount; i++) {
-    const start = i * rowsPerColumn;
-    const end = start + rowsPerColumn;
-    cols.push(items.slice(start, end));
+// Build column sections (genre + shops) from line sequence
+function buildSectionsForColumn(lines: Line[]): { genre: string; shops: Shop[] }[] {
+  const sections: { genre: string; shops: Shop[] }[] = [];
+  let current: { genre: string; shops: Shop[] } | null = null;
+
+  for (const line of lines) {
+    if (line.kind === "header") {
+      if (current && current.shops.length > 0) {
+        sections.push(current);
+      }
+      current = { genre: line.genre, shops: [] };
+    } else {
+      if (!current || current.genre !== line.genre) {
+        current = { genre: line.genre, shops: [] };
+      }
+      current.shops.push(line.shop);
+    }
   }
-  return cols;
+
+  if (current && current.shops.length > 0) {
+    sections.push(current);
+  }
+
+  return sections;
 }
 
-const ShopList: React.FC<Props> = ({ shops, floor }) => {
-  const targetFloor = normalizeFloor(floor);
-
-  // ----- filter by floor -----
+const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
+  // 1) Filter by floor
+  const normalizedFloor = normalizeFloor(floor);
   const floorShops = shops.filter(
-    (s) => normalizeFloor(s.floor) === targetFloor
+    (s) => normalizeFloor(s.floor) === normalizedFloor
   );
 
-  // ----- per-genre lists -----
-  const fashion = floorShops
-    .filter((s) => s.genre === GENRE_FASHION)
-    .sort(sortByNumberAsc);
+  // 2) Build ordered line list (genre header + shops)
+  const lines: Line[] = [];
 
-  const fashionGoods = floorShops
-    .filter((s) => s.genre === GENRE_FASHION_GOODS)
-    .sort(sortByNumberAsc);
+  // Known genres in fixed order
+  for (const genre of GENRE_ORDER) {
+    const list = floorShops
+      .filter((s) => s.genre === genre)
+      .sort(compareShopNumberAsc);
 
-  // columns: 20 rows per column, max 3 columns
-  const fashionColumns = splitByRows(fashion, ROWS_PER_COLUMN, 3);
-  const fashionGoodsColumns = splitByRows(fashionGoods, ROWS_PER_COLUMN, 3);
+    if (list.length === 0) continue;
+
+    // Header
+    lines.push({ kind: "header", genre });
+
+    // Shops
+    for (const shop of list) {
+      lines.push({ kind: "shop", genre, shop });
+    }
+  }
+
+  // Optional: handle genres not in GENRE_ORDER at the end
+  const knownSet = new Set(GENRE_ORDER);
+  const otherGenres = Array.from(
+    new Set(
+      floorShops
+        .map((s) => s.genre)
+        .filter((g) => g && !knownSet.has(g))
+    )
+  );
+
+  for (const genre of otherGenres) {
+    const list = floorShops
+      .filter((s) => s.genre === genre)
+      .sort(compareShopNumberAsc);
+
+    if (list.length === 0) continue;
+
+    lines.push({ kind: "header", genre });
+
+    for (const shop of list) {
+      lines.push({ kind: "shop", genre, shop });
+    }
+  }
+
+  // 3) Split lines into columns with max row count
+  const rowsPerColumn = APP_CONFIG.approxRowsPerCol;
+  const maxColumns = APP_CONFIG.maxColumns;
+
+  const columns: Line[][] = [[]];
+  let currentColIndex = 0;
+  let currentRows = 0;
+
+  const startNewColumn = (continuationGenre?: string) => {
+    if (currentColIndex >= maxColumns - 1) {
+      // No more columns available. Everything will overflow in the last column.
+      // This is a safety fallback; ideally rowsPerColumn should be tuned
+      // so that all lines fit within maxColumns.
+      if (continuationGenre) {
+        columns[currentColIndex].push({ kind: "header", genre: continuationGenre });
+        currentRows += 1;
+      }
+      return;
+    }
+
+    currentColIndex += 1;
+    columns[currentColIndex] = [];
+    currentRows = 0;
+
+    if (continuationGenre) {
+      columns[currentColIndex].push({ kind: "header", genre: continuationGenre });
+      currentRows += 1;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineCost = 1;
+
+    // If this line does not fit in current column, move to the next column
+    if (currentRows + lineCost > rowsPerColumn && currentRows > 0) {
+      if (line.kind === "shop") {
+        // When we move to the next column in the middle of a genre,
+        // we repeat the genre header at the top of the new column.
+        startNewColumn(line.genre);
+      } else {
+        // Header itself does not fit, just move to next column
+        startNewColumn();
+      }
+    }
+
+    columns[currentColIndex].push(line);
+    currentRows += lineCost;
+  }
+
+  // Remove empty last column if any
+  const nonEmptyColumns = columns.filter((col) => col.length > 0);
+  const columnCount = nonEmptyColumns.length || 1;
 
   return (
     <div
@@ -77,80 +166,49 @@ const ShopList: React.FC<Props> = ({ shops, floor }) => {
         boxSizing: "border-box",
         width: "100%",
         height: "100%",
-        fontSize: "20px",       // about 20px on 4K
-        lineHeight: 1.4,        // ~28px line height → 20行で約560px
-        overflow: "hidden",     // no scroll
+        fontSize: `${APP_CONFIG.fontSizeVmin}vmin`,
+        lineHeight: 1.4,
+        overflow: "hidden",
       }}
     >
-      {/* --- Fashion section --- */}
-      {fashion.length > 0 && (
-        <section style={{ marginBottom: "24px" }}>
-          <div
-            style={{
-              fontWeight: "bold",
-              marginBottom: "8px",
-            }}
-          >
-            ファッション
-          </div>
+      <div
+        style={{
+          display: "flex",
+          gap: "40px",
+          alignItems: "flex-start",
+          height: "100%",
+        }}
+      >
+        {nonEmptyColumns.map((colLines, colIdx) => {
+          const sections = buildSectionsForColumn(colLines);
 
-          <div
-            style={{
-              display: "flex",
-              gap: "40px",
-              alignItems: "flex-start",
-            }}
-          >
-            {fashionColumns.map((col, colIdx) => (
-              <div key={colIdx} style={{ minWidth: 0 }}>
-                {col.map((s) => (
+          return (
+            <div key={colIdx} style={{ flex: 1, minWidth: 0 }}>
+              {sections.map((section) => (
+                <section key={`${colIdx}-${section.genre}`} style={{ marginBottom: "24px" }}>
                   <div
-                    key={`${s.number}-${s.shop_name}`}
-                    style={{ whiteSpace: "nowrap" }}
+                    style={{
+                      fontWeight: "bold",
+                      marginBottom: "8px",
+                    }}
                   >
-                    {s.number}　{s.genre_memo}　{s.shop_name}
+                    {section.genre}
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
-      {/* --- Fashion goods section --- */}
-      {fashionGoods.length > 0 && (
-        <section>
-          <div
-            style={{
-              fontWeight: "bold",
-              marginBottom: "8px",
-            }}
-          >
-            ファッション雑貨
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "40px",
-              alignItems: "flex-start",
-            }}
-          >
-            {fashionGoodsColumns.map((col, colIdx) => (
-              <div key={colIdx} style={{ minWidth: 0 }}>
-                {col.map((s) => (
-                  <div
-                    key={`${s.number}-${s.shop_name}`}
-                    style={{ whiteSpace: "nowrap" }}
-                  >
-                    {s.number}　{s.genre_memo}　{s.shop_name}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+                  {section.shops.map((s) => (
+                    <div
+                      key={`${s.number}-${s.name}`}
+                      style={{ whiteSpace: "nowrap" }}
+                    >
+                      {s.number}　{s.genreMemo}　{s.name}
+                    </div>
+                  ))}
+                </section>
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

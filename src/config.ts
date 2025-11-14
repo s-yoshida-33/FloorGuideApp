@@ -1,19 +1,41 @@
-// Global app configuration (English-only comments)
+// src/config.ts
+
+// Global app configuration (do not use Japanese in comments to avoid encoding issues)
 export const APP_CONFIG = {
-    baseUrl: "http://localhost:8080",
-    floor: "1F",
-  
-    // 800 / 2160 ≒ 37.037% height for the bottom area (ratio, not px)
-    listHeightVh: (800 / 2160) * 100,
-  
-    // Section column policy (per-genre)
-    maxColumns: 3,          // hard cap
-    minColumns: 2,          // ensure at least 2 like the reference
-    approxRowsPerCol: 20,   // target rows per column
-  
-    // Row display policy
-    showGenreMemo: false,   // image-like: only number + name
-    numberColWidthVmin: 6,  // width of number badge
-    fontSizeVmin: 1.0,      // base text scale
-  };
-  
+  // Default base URL for BridgeWebPopper HTTP server
+  defaultApiBaseUrl: "http://localhost:8080",
+
+  // Default floor for this screen (this screen is dedicated to one floor)
+  floor: "4F",
+
+  // Layout configuration (4K display assumed)
+  listHeightVh: (800 / 2160) * 100, // ≒ 37vh
+  maxColumns: 3,
+  minColumns: 2,
+  approxRowsPerCol: 20,
+  showGenreMemo: true,
+  numberColWidthVmin: 6,
+  fontSizeVmin: 1.0,
+};
+
+// Effective API base URL
+// Priority: window.__BWP_BASE_URL__ (injected by BridgeWebPopper) > Vite env > default
+export const API_BASE_URL: string =
+  (window as any).__BWP_BASE_URL__ ??
+  import.meta.env.VITE_API_BASE ??
+  APP_CONFIG.defaultApiBaseUrl;
+
+// Data source switch (prepared for future extensions)
+export type DataSource = "bridge" | "api" | "cms" | "hybrid";
+
+export const DATA_SOURCE: DataSource =
+  (import.meta.env.VITE_DATA_SOURCE as DataSource) ?? "bridge";
+
+// Genre order used for floor guide sections (display order)
+export const GENRE_ORDER: string[] = [
+  "ファッション",
+  "ファッション雑貨",
+  "雑貨",
+  "飲食・食品",
+  "サービス",
+];

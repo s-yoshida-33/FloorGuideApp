@@ -2,36 +2,40 @@
 import React, { useEffect, useState } from "react";
 
 import ShopList from "../components/ShopList";
-import type { RawShop } from "../components/ShopList";
+import type { Shop } from "../types/shop";
 
 import floorMap from "../assets/floor-1F-map.svg";
+import { APP_CONFIG } from "../config";
+import { fetchShops } from "../repositories/shopRepository";
 
-const LIST_HEIGHT_VH = 37;
+const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
-const API_BASE = "http://localhost:8080";
 
 const FloorGuideApp: React.FC = () => {
-  const [shops, setShops] = useState<RawShop[]>([]);
+  const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const floor = "1F";
+  const floor = APP_CONFIG.floor;
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/shops`);
-        const json = await res.json();
-
-        const arr: RawShop[] = Array.isArray(json.data)
-          ? json.data
-          : Array.isArray(json.items)
-          ? json.items
-          : json;
-
-        setShops(arr);
+        const data = await fetchShops();
+        if (!cancelled) {
+          setShops(data);
+        }
       } catch (e: any) {
-        setError(e?.message ?? "failed to load");
+        console.error(e);
+        if (!cancelled) {
+          setError(e?.message ?? "failed to load");
+        }
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -39,11 +43,11 @@ const FloorGuideApp: React.FC = () => {
       style={{
         width: "100vw",
         height: "100vh",
-        overflow: "hidden", // no scroll
+        overflow: "hidden",
         fontFamily: "'Yu Gothic', system-ui, sans-serif",
       }}
     >
-      {/* top: map + video */}
+      {/* Top: map + video area */}
       <div
         style={{
           display: "flex",
@@ -51,7 +55,7 @@ const FloorGuideApp: React.FC = () => {
           borderBottom: "1px solid #ddd",
         }}
       >
-        {/* map */}
+        {/* Floor map */}
         <div
           style={{
             flex: 2,
@@ -68,7 +72,7 @@ const FloorGuideApp: React.FC = () => {
           />
         </div>
 
-        {/* video placeholder */}
+        {/* Video area (placeholder) */}
         <div
           style={{
             flex: 1,
@@ -84,7 +88,7 @@ const FloorGuideApp: React.FC = () => {
         </div>
       </div>
 
-      {/* bottom: plain text shop list */}
+      {/* Bottom: shop list */}
       <div style={{ height: `${LIST_HEIGHT_VH}vh` }}>
         {error ? (
           <div style={{ padding: "16px 32px", color: "red" }}>Error: {error}</div>
