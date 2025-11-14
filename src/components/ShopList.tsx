@@ -1,7 +1,7 @@
 // src/components/ShopList.tsx
 import React from "react";
 import type { Shop } from "../types/shop";
-import { APP_CONFIG, GENRE_ORDER } from "../config";
+import { APP_CONFIG, GENRE_ORDER, GENRE_ENGLISH } from "../config";
 
 interface ShopListProps {
   shops: Shop[];
@@ -214,11 +214,15 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
                   {section.showHeader && (
                     <div
                       style={{
+                        display: "flex",
+                        justifyContent: "space-between",
                         fontWeight: "bold",
                         marginBottom: "8px",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      {section.genre}
+                      <span>{section.genre}</span>
+                      <span style={{ opacity: 0.7 }}>{GENRE_ENGLISH[section.genre] ?? ""}</span>
                     </div>
                   )}
 

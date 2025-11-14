@@ -6,7 +6,7 @@ export const APP_CONFIG = {
   defaultApiBaseUrl: "http://localhost:8080",
 
   // Default floor for this screen (this screen is dedicated to one floor)
-  floor: "3F",
+  floor: "1F",
 
   // Layout configuration (4K display assumed)
   listHeightVh: (800 / 2160) * 100, // ≒ 37vh
@@ -39,3 +39,12 @@ export const GENRE_ORDER: string[] = [
   "飲食・食品",
   "サービス",
 ];
+
+// Japanese → English genre dictionary
+export const GENRE_ENGLISH: Record<string, string> = {
+  "ファッション": "Fashion",
+  "ファッション雑貨": "Fashion Goods",
+  "雑貨": "Goods",
+  "飲食・食品": "Food & Beverage",
+  "サービス": "Services",
+};
