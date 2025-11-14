@@ -13,6 +13,13 @@ type Line =
   | { kind: "header"; genre: string }
   | { kind: "shop"; genre: string; shop: Shop };
 
+// Section inside a single column
+interface ColumnSection {
+  genre: string;
+  shops: Shop[];
+  showHeader: boolean;
+}
+
 // Normalize floor strings such as "1Ｆ", "1階" to "1F"
 function normalizeFloor(value: string): string {
   if (!value) return "";
@@ -28,20 +35,26 @@ function compareShopNumberAsc(a: Shop, b: Shop): number {
   });
 }
 
-// Build column sections (genre + shops) from line sequence
-function buildSectionsForColumn(lines: Line[]): { genre: string; shops: Shop[] }[] {
-  const sections: { genre: string; shops: Shop[] }[] = [];
-  let current: { genre: string; shops: Shop[] } | null = null;
+// Build column sections (genre + shops) from line sequence.
+// showHeader is true only if this column actually contains a header line.
+function buildSectionsForColumn(lines: Line[]): ColumnSection[] {
+  const sections: ColumnSection[] = [];
+  let current: ColumnSection | null = null;
 
   for (const line of lines) {
     if (line.kind === "header") {
       if (current && current.shops.length > 0) {
         sections.push(current);
       }
-      current = { genre: line.genre, shops: [] };
+      current = { genre: line.genre, shops: [], showHeader: true };
     } else {
       if (!current || current.genre !== line.genre) {
-        current = { genre: line.genre, shops: [] };
+        // This happens when the column starts in the middle of a genre
+        // and there was no header line in this column.
+        if (current && current.shops.length > 0) {
+          sections.push(current);
+        }
+        current = { genre: line.genre, shops: [], showHeader: false };
       }
       current.shops.push(line.shop);
     }
@@ -55,13 +68,17 @@ function buildSectionsForColumn(lines: Line[]): { genre: string; shops: Shop[] }
 }
 
 const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
+  // ---------------------------------------------------------------------------
   // 1) Filter by floor
+  // ---------------------------------------------------------------------------
   const normalizedFloor = normalizeFloor(floor);
   const floorShops = shops.filter(
     (s) => normalizeFloor(s.floor) === normalizedFloor
   );
 
-  // 2) Build ordered line list (genre header + shops)
+  // ---------------------------------------------------------------------------
+  // 2) Build ordered line list (genre header + shops, in fixed genre order)
+  // ---------------------------------------------------------------------------
   const lines: Line[] = [];
 
   // Known genres in fixed order
@@ -105,60 +122,65 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
     }
   }
 
-  // 3) Split lines into columns with max row count
-  const rowsPerColumn = APP_CONFIG.approxRowsPerCol;
+  const totalLines = lines.length;
+
+  // ---------------------------------------------------------------------------
+  // 3) Decide column count and rows per column
+  // ---------------------------------------------------------------------------
+  const approxRows = APP_CONFIG.approxRowsPerCol;
   const maxColumns = APP_CONFIG.maxColumns;
 
-  const columns: Line[][] = [[]];
+  let columnCount = 1;
+  if (totalLines === 0) {
+    columnCount = 1;
+  } else {
+    const estimatedCols = Math.ceil(totalLines / approxRows);
+    columnCount = Math.min(maxColumns, Math.max(1, estimatedCols));
+  }
+
+  const rowsPerColumn =
+    columnCount > 0 ? Math.ceil(totalLines / columnCount) : totalLines;
+
+  // ---------------------------------------------------------------------------
+  // 4) Split lines into columns, allowing breaks inside genres
+  //
+  //    - We walk lines from top to bottom.
+  //    - When the current column reaches rowsPerColumn, we move to next column.
+  //    - If we move to the next column in the middle of a genre, we DO NOT
+  //      repeat the genre header. The new column starts with shop lines only.
+  // ---------------------------------------------------------------------------
+  const columns: Line[][] = Array.from({ length: columnCount }, () => []);
   let currentColIndex = 0;
   let currentRows = 0;
 
-  const startNewColumn = (continuationGenre?: string) => {
-    if (currentColIndex >= maxColumns - 1) {
-      // No more columns available. Everything will overflow in the last column.
-      // This is a safety fallback; ideally rowsPerColumn should be tuned
-      // so that all lines fit within maxColumns.
-      if (continuationGenre) {
-        columns[currentColIndex].push({ kind: "header", genre: continuationGenre });
-        currentRows += 1;
-      }
+  const startNewColumn = () => {
+    if (currentColIndex >= columnCount - 1) {
+      // No more columns available, append everything to the last column
+      // (this is a safety fallback; ideally approxRowsPerCol should be tuned).
       return;
     }
-
     currentColIndex += 1;
-    columns[currentColIndex] = [];
     currentRows = 0;
-
-    if (continuationGenre) {
-      columns[currentColIndex].push({ kind: "header", genre: continuationGenre });
-      currentRows += 1;
-    }
   };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineCost = 1;
 
-    // If this line does not fit in current column, move to the next column
     if (currentRows + lineCost > rowsPerColumn && currentRows > 0) {
-      if (line.kind === "shop") {
-        // When we move to the next column in the middle of a genre,
-        // we repeat the genre header at the top of the new column.
-        startNewColumn(line.genre);
-      } else {
-        // Header itself does not fit, just move to next column
-        startNewColumn();
-      }
+      // Move to next column; do NOT add header again
+      startNewColumn();
     }
 
     columns[currentColIndex].push(line);
     currentRows += lineCost;
   }
 
-  // Remove empty last column if any
   const nonEmptyColumns = columns.filter((col) => col.length > 0);
-  const columnCount = nonEmptyColumns.length || 1;
 
+  // ---------------------------------------------------------------------------
+  // 5) Render columns
+  // ---------------------------------------------------------------------------
   return (
     <div
       style={{
@@ -185,22 +207,33 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
           return (
             <div key={colIdx} style={{ flex: 1, minWidth: 0 }}>
               {sections.map((section) => (
-                <section key={`${colIdx}-${section.genre}`} style={{ marginBottom: "24px" }}>
-                  <div
-                    style={{
-                      fontWeight: "bold",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    {section.genre}
-                  </div>
+                <section
+                  key={`${colIdx}-${section.genre}-${section.showHeader ? "h" : "c"}`}
+                  style={{ marginBottom: "24px" }}
+                >
+                  {section.showHeader && (
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      {section.genre}
+                    </div>
+                  )}
 
                   {section.shops.map((s) => (
                     <div
                       key={`${s.number}-${s.name}`}
-                      style={{ whiteSpace: "nowrap" }}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        whiteSpace: "nowrap",
+                        width: "100%",
+                      }}
                     >
-                      {s.number}　{s.genreMemo}　{s.name}
+                      <span>{`${s.number}　${s.genreMemo}`}</span>
+                      <span style={{ marginLeft: "12px" }}>{s.name}</span>
                     </div>
                   ))}
                 </section>
