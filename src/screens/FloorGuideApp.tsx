@@ -79,7 +79,7 @@ const FloorGuideApp: React.FC = () => {
         <div
           style={{
             flex: 2,
-            padding: "20px",
+            // padding: "20px",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -88,7 +88,7 @@ const FloorGuideApp: React.FC = () => {
           <img
             src={floorMap}
             alt={`Floor map ${floor}`}
-            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+            style={{ maxWidth: "100%", maxHeight: "auto", objectFit: "contain" }}
           />
         </div>
 
