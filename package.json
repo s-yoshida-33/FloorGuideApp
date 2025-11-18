@@ -16,6 +16,7 @@
   "build": {
     "appId": "com.tti.floorguide",
     "productName": "FloorGuideDisplay",
+    "copyright": "© 2025 Toei Techno International Inc.",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -26,8 +27,26 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
       "artifactName": "FloorGuideDisplay-${version}-Setup.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FloorGuideDisplay",
+      "deleteAppDataOnUninstall": false,
+      "installerSidebar": "build/installer.bmp",
+      "uninstallerSidebar": "build/uninstaller.bmp"
     }
   },
   "dependencies": {
