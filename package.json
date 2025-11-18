@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.1.0-alpha.1",
   "type": "module",
+  "description": "Floor guide display system",
+  "author": "Toei Techno International Inc.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -44,9 +46,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "FloorGuideDisplay",
-      "deleteAppDataOnUninstall": false,
-      "installerSidebar": "build/installer.bmp",
-      "uninstallerSidebar": "build/uninstaller.bmp"
+      "deleteAppDataOnUninstall": false
     }
   },
   "dependencies": {
