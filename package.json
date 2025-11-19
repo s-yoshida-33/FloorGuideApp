@@ -1,7 +1,7 @@
 {
   "name": "floorguidedisplay",
   "private": true,
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
@@ -48,7 +48,8 @@
       "shortcutName": "Display",
       "deleteAppDataOnUninstall": false,
       "include": "build/installer.nsh",
-      "warningsAsErrors": false
+      "warningsAsErrors": false,
+      "runAfterFinish": false
     }
   },
   "dependencies": {
@@ -64,6 +65,8 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
     "autoprefixer": "^10.4.22",
+    "electron": "^39.2.2",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",

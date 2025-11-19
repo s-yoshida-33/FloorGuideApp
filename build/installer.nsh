@@ -76,4 +76,7 @@ FunctionEnd
     CreateDirectory "$SMPROGRAMS\Display"
     CreateShortCut "$SMPROGRAMS\Display\Display.lnk" "$INSTDIR\FloorGuideDisplay.exe"
   ${EndIf}
+
+  ; Launch the installed application after install/update
+  ExecShell "open" "$INSTDIR\FloorGuideDisplay.exe"
 !macroend

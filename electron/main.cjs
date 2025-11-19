@@ -3,7 +3,7 @@
 
 const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
-const { checkForUpdates } = require('./updateChecker.cjs');
+const { checkForUpdates, oneClickUpdate } = require('./updateChecker.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -43,7 +43,7 @@ function createWindow() {
 
 /**
  * Create and set the application menu.
- * Adds a "Help" menu with a "Check for updates" item.
+ * Adds both manual check and one-click update entries.
  */
 function createAppMenu() {
   const template = [
@@ -60,10 +60,17 @@ function createAppMenu() {
       label: 'Help',
       submenu: [
         {
-          label: 'Check for updates',
+          label: 'Check for updates (manual)',
           click: () => {
-            // Manual check: show dialogs even when there is no update or on error
+            // Manual check: always show a result dialog
             checkForUpdates(true);
+          },
+        },
+        {
+          label: 'Update now (one click)',
+          click: () => {
+            // One-click update flow
+            oneClickUpdate();
           },
         },
       ],
@@ -81,13 +88,15 @@ app.whenReady().then(() => {
   createWindow();
   createAppMenu();
 
-  // Automatic update check on startup (non-interactive)
-  // If you want to limit the frequency, add your own "last check" logic.
+  // Automatic update check on startup:
+  // - If a newer version exists -> show "Update available" dialog
+  // - If already latest -> do nothing (no dialog)
+  // - If error -> do nothing (no dialog)
   checkForUpdates(false);
 
-  // On macOS, re-create a window when the dock icon is clicked
-  // and there are no other open windows.
   app.on('activate', () => {
+    // On macOS it is common to re-create a window when the dock icon is clicked
+    // and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
@@ -96,7 +105,7 @@ app.whenReady().then(() => {
 
 /**
  * Quit the app when all windows are closed.
- * On macOS, typical behavior is to keep the app running until Cmd+Q.
+ * On macOS, apps typically stay open until the user quits explicitly with Cmd+Q.
  */
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
