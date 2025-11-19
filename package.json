@@ -1,7 +1,7 @@
 {
   "name": "floorguidedisplay",
   "private": true,
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
@@ -32,7 +32,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico",
@@ -51,7 +53,8 @@
   },
   "dependencies": {
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "semver": "^7.7.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
