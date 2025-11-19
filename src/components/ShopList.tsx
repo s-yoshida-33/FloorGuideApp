@@ -209,20 +209,21 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
               {sections.map((section) => (
                 <section
                   key={`${colIdx}-${section.genre}-${section.showHeader ? "h" : "c"}`}
-                  style={{ marginBottom: "24px" }}
+                  style={{ marginBottom: "10px" }}
                 >
                   {section.showHeader && (
                     <div
                       style={{
                         display: "flex",
                         justifyContent: "space-between",
-                        fontWeight: "bold",
+                        fontSize: "1.4em",
+                        fontWeight: "700",
                         marginBottom: "8px",
                         whiteSpace: "nowrap",
                       }}
                     >
                       <span>{section.genre}</span>
-                      <span style={{ opacity: 0.7 }}>{GENRE_ENGLISH[section.genre] ?? ""}</span>
+                      <span style={{ fontSize: "0.8em" }}>{GENRE_ENGLISH[section.genre] ?? ""}</span>
                     </div>
                   )}
 
@@ -236,7 +237,30 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
                         width: "100%",
                       }}
                     >
-                      <span>{s.genreMemo ? `${s.number}　${s.genreMemo}` : `${s.number}`}</span>
+                      <span>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            width: "4em",
+                            textAlign: "left",
+                          }}
+                        >
+                          {s.number}
+                        </span>
+
+                        {s.genreMemo && (
+                          <span
+                            style={{
+                              marginLeft: "0.5em",
+                              fontFamily: "Rounded Mplus 1c, sans-serif",
+                              fontWeight: 400,
+                            }}
+                          >
+                            {s.genreMemo ? `[${s.genreMemo}]` : ""}
+                          </span>
+                        )}
+                      </span>
+
                       <span style={{ marginLeft: "12px" }}>{s.name}</span>
                     </div>
                   ))}
