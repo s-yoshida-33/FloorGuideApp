@@ -8,29 +8,33 @@ Var CheckStartMenu
 Var WantDesktop
 Var WantStartMenu
 
-;-----------------------------------------
-; インストール先のデフォルト指定
-;-----------------------------------------
+; -----------------------------------------
+; (Optional) Pre-install initialization
+; NOTE:
+; The previous version forced installation to:
+;   C:\Program Files\FloorGuideDisplay
+; This caused UAC prompts and silent-updater failures.
+; The forced path has been removed to allow Electron's default
+; per-user installation under %LOCALAPPDATA%, which avoids UAC.
+; -----------------------------------------
 !macro preInit
-  StrCmp "$INSTDIR" "" 0 done
-  StrCpy $INSTDIR "C:\Program Files\FloorGuideDisplay"
-done:
+  ; No forced installation directory
 !macroend
 
-;-----------------------------------------
-; ディレクトリ選択の後にカスタムページを挟む
-;-----------------------------------------
+; -----------------------------------------
+; Custom page inserted AFTER the directory selection page
+; -----------------------------------------
 !macro customPageAfterChangeDir
-  ; Directory ページの「後」にカスタムページを1つ追加
+  ; Insert one custom page after directory page
   Page custom ShortcutSelectPageCreate ShortcutSelectPageLeave
 !macroend
 
-;-----------------------------------------
-; カスタムページ（表示時）
-;-----------------------------------------
+; -----------------------------------------
+; Custom Shortcut Selection Page (display)
+; -----------------------------------------
 Function ShortcutSelectPageCreate
-  ; ヘッダー部分
-  !insertmacro MUI_HEADER_TEXT "ショートカットの作成" "作成するショートカットを選択してください。"
+  ; Header text
+  !insertmacro MUI_HEADER_TEXT "Shortcut Creation" "Choose which shortcuts to create."
 
   nsDialogs::Create 1018
   Pop $PageHandle
@@ -39,44 +43,48 @@ Function ShortcutSelectPageCreate
     Abort
   ${EndIf}
 
-  ; ラベル
-  ${NSD_CreateLabel} 0 0 100% 20u "ショートカットの作成先を選択してください："
+  ; Label
+  ${NSD_CreateLabel} 0 0 100% 20u "Select where to create shortcuts:"
   Pop $0
 
-  ; デスクトップ用チェックボックス
-  ${NSD_CreateCheckbox} 0 30u 100% 12u "デスクトップにショートカットを作成"
+  ; Desktop checkbox
+  ${NSD_CreateCheckbox} 0 30u 100% 12u "Create desktop shortcut"
   Pop $CheckDesktop
-  ${NSD_Check} $CheckDesktop  ; デフォルト ON
+  ${NSD_Check} $CheckDesktop   ; Default: checked
 
-  ; スタートメニュー用チェックボックス
-  ${NSD_CreateCheckbox} 0 50u 100% 12u "スタートメニューにショートカットを作成"
+  ; Start Menu checkbox
+  ${NSD_CreateCheckbox} 0 50u 100% 12u "Create Start Menu shortcut"
   Pop $CheckStartMenu
-  ${NSD_Check} $CheckStartMenu ; デフォルト ON
+  ${NSD_Check} $CheckStartMenu ; Default: checked
 
   nsDialogs::Show
 FunctionEnd
 
-;-----------------------------------------
-; カスタムページ（Next/Back 押下時の値保存）
-;-----------------------------------------
+; -----------------------------------------
+; Custom page save values (when Next/Back pressed)
+; -----------------------------------------
 Function ShortcutSelectPageLeave
   ${NSD_GetState} $CheckDesktop   $WantDesktop
   ${NSD_GetState} $CheckStartMenu $WantStartMenu
 FunctionEnd
 
-;-----------------------------------------
-; インストール直前（ショートカット作成）
-;-----------------------------------------
+; -----------------------------------------
+; Custom actions during installation
+; -----------------------------------------
 !macro customInstall
+
+  ; Create desktop shortcut
   ${If} $WantDesktop == ${BST_CHECKED}
-    CreateShortCut "$DESKTOP\Display.lnk" "$INSTDIR\FloorGuideDisplay.exe"
+    CreateShortCut "$DESKTOP\FloorGuideDisplay.lnk" "$INSTDIR\FloorGuideDisplay.exe"
   ${EndIf}
 
+  ; Create Start Menu shortcut
   ${If} $WantStartMenu == ${BST_CHECKED}
-    CreateDirectory "$SMPROGRAMS\Display"
-    CreateShortCut "$SMPROGRAMS\Display\Display.lnk" "$INSTDIR\FloorGuideDisplay.exe"
+    CreateDirectory "$SMPROGRAMS\FloorGuideDisplay"
+    CreateShortCut "$SMPROGRAMS\FloorGuideDisplay\FloorGuideDisplay.lnk" "$INSTDIR\FloorGuideDisplay.exe"
   ${EndIf}
 
-  ; Launch the installed application after install/update
+  ; Launch the installed application after installation/update
   ExecShell "open" "$INSTDIR\FloorGuideDisplay.exe"
+
 !macroend

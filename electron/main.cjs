@@ -1,49 +1,79 @@
 // electron/main.cjs
-// Electron main process entry point
+// Electron main process entry point (with startup patch window)
 
 const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
-const { checkForUpdates, oneClickUpdate } = require('./updateChecker.cjs');
+const {
+  initAutoUpdater,
+  checkForUpdates,
+  oneClickUpdate,
+} = require('./updateChecker.cjs');
 
 const isDev = !app.isPackaged;
 
+let patchWindow = null;
 let mainWindow = null;
 
+// Determine base renderer URL (Vite dev server or built production files)
+const rendererBaseUrl = isDev
+  ? 'http://localhost:5173/'
+  : `file://${path.join(__dirname, '../dist/index.html')}`;
+
 /**
- * Create the main application window.
+ * Create the small startup patch window.
+ * This window appears first and shows update progress.
  */
-function createWindow() {
+function createPatchWindow() {
+  patchWindow = new BrowserWindow({
+    width: 480,
+    height: 260,
+    resizable: false,
+    frame: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  // Use #patch hash so renderer can show PatchScreen instead of app UI
+  patchWindow.loadURL(`${rendererBaseUrl}#patch`);
+
+  patchWindow.once('ready-to-show', () => {
+    if (patchWindow) patchWindow.show();
+  });
+
+  patchWindow.on('closed', () => {
+    patchWindow = null;
+  });
+}
+
+/**
+ * Create the main application window (fullscreen UI).
+ */
+function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
     fullscreen: true,
     autoHideMenuBar: true,
     webPreferences: {
-      // Disable Node integration in renderer for security
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
     },
   });
 
-  if (isDev) {
-    // In development, load Vite dev server
-    mainWindow.loadURL('http://localhost:5173/');
-    // mainWindow.webContents.openDevTools(); // Uncomment if you want devtools
-  } else {
-    // In production, load the built index.html file
-    const indexPath = path.join(__dirname, '../dist/index.html');
-    mainWindow.loadFile(indexPath);
-  }
+  mainWindow.loadURL(rendererBaseUrl);
 
-  // When the window is closed, dereference the window object
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
 /**
- * Create and set the application menu.
- * Adds both manual check and one-click update entries.
+ * Build application menu including manual update entries.
  */
 function createAppMenu() {
   const template = [
@@ -62,15 +92,13 @@ function createAppMenu() {
         {
           label: 'Check for updates (manual)',
           click: () => {
-            // Manual check: always show a result dialog
-            checkForUpdates(true);
+            checkForUpdates(true); // manual check
           },
         },
         {
           label: 'Update now (one click)',
           click: () => {
-            // One-click update flow
-            oneClickUpdate();
+            oneClickUpdate(); // one-click automatic update
           },
         },
       ],
@@ -82,33 +110,36 @@ function createAppMenu() {
 }
 
 /**
- * App ready event
+ * App ready event.
+ * - Show patch window.
+ * - Initialize auto-updater.
+ * - Automatically check for updates.
  */
 app.whenReady().then(() => {
-  createWindow();
+  createPatchWindow();
   createAppMenu();
 
-  // Automatic update check on startup:
-  // - If a newer version exists -> show "Update available" dialog
-  // - If already latest -> do nothing (no dialog)
-  // - If error -> do nothing (no dialog)
+  // Initialize autoUpdater with patch + main window references
+  initAutoUpdater({
+    getPatchWindow: () => patchWindow,
+    createMainWindow,
+  });
+
+  // Startup update check (silent, handled inside updateChecker)
   checkForUpdates(false);
 
   app.on('activate', () => {
-    // On macOS it is common to re-create a window when the dock icon is clicked
-    // and there are no other windows open.
+    // macOS: recreate main window if no windows are open
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      createMainWindow();
     }
   });
 });
 
 /**
- * Quit the app when all windows are closed.
- * On macOS, apps typically stay open until the user quits explicitly with Cmd+Q.
+ * Quit when all windows are closed.
+ * Except macOS where apps usually stay active.
  */
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });

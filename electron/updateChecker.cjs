@@ -1,326 +1,270 @@
 // electron/updateChecker.cjs
-// Update helper using GitHub Releases API (CommonJS version)
+// Auto-update logic using electron-updater (CommonJS)
 
-const { app, dialog, shell } = require('electron');
-const { gt } = require('semver');
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { spawn } = require('child_process');
+const { dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 
-// IMPORTANT: Set these to the repository where you create Releases.
-const REPO_OWNER = 's-yoshida-33';
-const REPO_NAME = 'FloorGuideApp';
-
-const RELEASE_API_URL =
-  `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
+let getPatchWindow = null;
+let createMainWindow = null;
 
 /**
- * Fetch JSON from GitHub Releases API.
+ * Initialize autoUpdater event handlers.
+ * This handles startup patch flow and sends progress updates to PatchWindow.
  */
-function fetchJson(url) {
-  return new Promise((resolve, reject) => {
-    https
-      .get(
-        url,
-        {
-          headers: {
-            'User-Agent': `${REPO_NAME}-updater`,
-            Accept: 'application/vnd.github+json',
-          },
-        },
-        (res) => {
-          let data = '';
+function initAutoUpdater(opts) {
+  getPatchWindow = opts.getPatchWindow;
+  createMainWindow = opts.createMainWindow;
 
-          res.on('data', (chunk) => {
-            data += chunk;
-          });
-          res.on('end', () => {
-            try {
-              resolve(JSON.parse(data));
-            } catch (err) {
-              reject(err);
-            }
-          });
-        }
-      )
-      .on('error', reject);
+  // Automatically download updates when available
+  autoUpdater.autoDownload = true;
+  // We call quitAndInstall manually
+  autoUpdater.autoInstallOnAppQuit = false;
+
+  autoUpdater.on('checking-for-update', () => {
+    const win = getPatchWindow && getPatchWindow();
+    if (!win) return;
+
+    win.webContents.send('update-status', {
+      state: 'checking',
+      message: 'Checking for updates…',
+    });
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    const win = getPatchWindow && getPatchWindow();
+    if (!win) return;
+
+    win.webContents.send('update-status', {
+      state: 'available',
+      message: `Downloading update ${info.version}…`,
+    });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    const win = getPatchWindow && getPatchWindow();
+    if (!win) return;
+
+    win.webContents.send('update-status', {
+      state: 'none',
+      message: 'You are running the latest version. Launching app…',
+    });
+
+    setTimeout(() => {
+      const w = getPatchWindow && getPatchWindow();
+      if (w) w.close();
+      if (createMainWindow) createMainWindow();
+    }, 800);
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    const win = getPatchWindow && getPatchWindow();
+    if (!win) return;
+
+    win.webContents.send('update-progress', {
+      percent: progress.percent,
+      transferred: progress.transferred,
+      total: progress.total,
+      speed: progress.bytesPerSecond,
+    });
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    const win = getPatchWindow && getPatchWindow();
+    if (!win) return;
+
+    win.webContents.send('update-status', {
+      state: 'downloaded',
+      message: 'Update downloaded. Restarting…',
+    });
+
+    setTimeout(() => {
+      autoUpdater.quitAndInstall(true, true);
+    }, 1000);
+  });
+
+  autoUpdater.on('error', (err) => {
+    const win = getPatchWindow && getPatchWindow();
+    if (!win) return;
+
+    win.webContents.send('update-status', {
+      state: 'error',
+      message: `Update error: ${err?.message ?? err}`,
+    });
+
+    setTimeout(() => {
+      const w = getPatchWindow && getPatchWindow();
+      if (w) w.close();
+      if (createMainWindow) createMainWindow();
+    }, 1500);
   });
 }
 
 /**
- * Download a file to the given destination path.
- * Follows HTTP redirects (e.g. 302 from GitHub to S3) up to 5 times.
- */
-function downloadFile(url, dest, redirectCount = 0) {
-    const maxRedirects = 5;
-  
-    return new Promise((resolve, reject) => {
-      https
-        .get(
-          url,
-          {
-            headers: {
-              'User-Agent': `${REPO_NAME}-updater`,
-            },
-          },
-          (res) => {
-            const statusCode = res.statusCode || 0;
-  
-            // Handle redirects (301, 302, 303, 307, 308)
-            if (
-              statusCode >= 300 &&
-              statusCode < 400 &&
-              res.headers.location
-            ) {
-              res.resume(); // discard response data
-  
-              if (redirectCount >= maxRedirects) {
-                return reject(
-                  new Error('Too many redirects while downloading installer.')
-                );
-              }
-  
-              const redirectedUrl = res.headers.location;
-              return resolve(
-                downloadFile(redirectedUrl, dest, redirectCount + 1)
-              );
-            }
-  
-            // Non-OK status (and not a redirect)
-            if (statusCode !== 200) {
-              res.resume();
-              return reject(
-                new Error(`Download failed with status code ${statusCode}`)
-              );
-            }
-  
-            // Status 200 OK -> write to file
-            const file = fs.createWriteStream(dest);
-  
-            res.pipe(file);
-  
-            file.on('finish', () => {
-              file.close(() => resolve(dest));
-            });
-  
-            file.on('error', (err) => {
-              file.close(() => {
-                fs.unlink(dest, () => {});
-                reject(err);
-              });
-            });
-          }
-        )
-        .on('error', (err) => {
-          reject(err);
-        });
-    });
-}
-
-/**
- * Normalize version string (e.g. "v1.0.0" → "1.0.0").
- */
-function normalizeVersion(v) {
-  return v.trim().replace(/^v/, '');
-}
-
-/**
- * Pick Windows installer asset from a release.
- * Prefer .exe (NSIS) over .msi.
- */
-function pickWindowsInstallerAsset(release) {
-  const assets = release.assets || [];
-  return (
-    assets.find((a) => a.name.toLowerCase().endsWith('.exe')) ||
-    assets.find((a) => a.name.toLowerCase().endsWith('.msi')) ||
-    null
-  );
-}
-
-/**
- * Manual update check with dialogs (Help -> Check for updates).
+ * Check for updates.
+ * - isManual = false → startup patch mode
+ * - isManual = true → manual check with dialogs
  */
 async function checkForUpdates(isManual = false) {
-  const currentVersion = app.getVersion();
+  const patchWindowExists = getPatchWindow && getPatchWindow();
 
-  try {
-    const release = await fetchJson(RELEASE_API_URL);
-
-    if (release.draft) {
-      if (isManual) {
-        await dialog.showMessageBox({
-          type: 'info',
-          title: 'Check for updates',
-          message: 'No published release found (latest is a draft).',
-        });
-      }
-      return;
-    }
-
-    const latest = normalizeVersion(release.tag_name);
-    const current = normalizeVersion(currentVersion);
-
-    if (gt(latest, current)) {
-      const asset = pickWindowsInstallerAsset(release);
-
-      const message = `A new version is available.\n\nCurrent: ${currentVersion}\nLatest: ${release.tag_name}`;
-
-      const buttons = asset
-        ? ['Download', 'Open release page', 'Later']
-        : ['Open release page', 'Later'];
-
-      const { response } = await dialog.showMessageBox({
-        type: 'info',
-        title: 'Update available',
-        message,
-        buttons,
-        defaultId: 0,
-        cancelId: buttons.length - 1,
-      });
-
-      if (asset) {
-        if (response === 0) {
-          // Open direct download URL in browser (manual flow)
-          shell.openExternal(asset.browser_download_url);
-        } else if (response === 1) {
-          shell.openExternal(release.html_url);
-        }
-      } else {
-        if (response === 0) {
-          shell.openExternal(release.html_url);
-        }
-      }
-    } else {
-      if (isManual) {
-        await dialog.showMessageBox({
-          type: 'info',
-          title: 'Check for updates',
-          message: `You are running the latest version (${currentVersion}).`,
-        });
-      }
-    }
-  } catch (err) {
-    if (isManual) {
-      await dialog.showMessageBox({
-        type: 'error',
-        title: 'Update check failed',
-        message: 'Failed to check for updates.',
-        detail: String(err),
-      });
-    }
+  // Startup patch mode
+  if (!isManual && patchWindowExists) {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.checkForUpdates();
+    return;
   }
-}
 
-/**
- * One-click update:
- * - Triggered from a menu or a button in the UI (via IPC).
- * - User clicks once to start.
- * - App downloads the installer, runs it in silent mode (/S),
- *   and then quits.
- * - Installer is responsible for overwriting the app and starting
- *   the new version.
- */
-async function oneClickUpdate() {
-  const currentVersion = app.getVersion();
-
+  // Manual mode (dialog-based)
   try {
-    const release = await fetchJson(RELEASE_API_URL);
+    autoUpdater.autoDownload = false;
 
-    if (release.draft) {
+    const checking = dialog.showMessageBox({
+      type: 'info',
+      title: 'Check for updates',
+      message: 'Checking for updates…',
+    });
+
+    const result = await autoUpdater.checkForUpdates();
+
+    if (!result || !result.updateInfo) {
       await dialog.showMessageBox({
         type: 'info',
-        title: 'Update',
-        message: 'No published release found (latest is a draft).',
+        title: 'Check for updates',
+        message: 'Failed to get update info.',
       });
       return;
     }
 
-    const latest = normalizeVersion(release.tag_name);
-    const current = normalizeVersion(currentVersion);
+    const updateInfo = result.updateInfo;
 
-    if (!gt(latest, current)) {
+    if (!updateInfo.version || updateInfo.version === app.getVersion()) {
       await dialog.showMessageBox({
         type: 'info',
-        title: 'Update',
-        message: `You are already running the latest version (${currentVersion}).`,
+        title: 'Check for updates',
+        message: `You are running the latest version.`,
       });
       return;
     }
 
-    const asset = pickWindowsInstallerAsset(release);
-    if (!asset) {
-      await dialog.showMessageBox({
-        type: 'error',
-        title: 'Update',
-        message:
-          'No Windows installer (.exe or .msi) asset was found in the latest release.',
-      });
-      return;
-    }
-
-    // Confirmation dialog – this is the "one click" from the user.
     const { response } = await dialog.showMessageBox({
       type: 'info',
-      title: 'Update',
-      message:
-        `A new version is available.\n\n` +
-        `Current: ${currentVersion}\nLatest: ${release.tag_name}\n\n` +
-        `The app will download the installer, quit, and update in the background.`,
-      buttons: ['Update now', 'Cancel'],
+      title: 'Update available',
+      message: `New version ${updateInfo.version} is available.\n\nDownload and install now?`,
+      buttons: ['Download & install', 'Cancel'],
       defaultId: 0,
       cancelId: 1,
     });
 
-    if (response !== 0) {
-      return; // User canceled
-    }
+    if (response !== 0) return;
 
-    // Download installer to a temporary folder.
-    const tempDir = os.tmpdir();
-    const installerPath = path.join(tempDir, asset.name);
-
-    await downloadFile(asset.browser_download_url, installerPath);
-
-    // Final message that the update is starting.
     await dialog.showMessageBox({
       type: 'info',
       title: 'Update',
-      message:
-        'The installer will now run and the application will quit.\n' +
-        'Please wait for the update to finish.',
+      message: 'Downloading update… Please wait.',
     });
 
-    // Launch installer in silent mode and quit the app.
-    // NOTE: /S is the standard silent flag for NSIS installers.
-    const args = [];
-    if (installerPath.toLowerCase().endsWith('.exe')) {
-      args.push('/S');
-    } else if (installerPath.toLowerCase().endsWith('.msi')) {
-      // MSI typical silent flags
-      args.push('/qn', '/norestart');
-    }
+    autoUpdater.autoDownload = true;
 
-    const child = spawn(installerPath, args, {
-      detached: true,
-      stdio: 'ignore',
+    autoUpdater.once('update-downloaded', async () => {
+      const { response } = await dialog.showMessageBox({
+        type: 'info',
+        title: 'Update ready',
+        message: 'Update downloaded. Restart now?',
+        buttons: ['Restart now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (response === 0) autoUpdater.quitAndInstall();
     });
-    child.unref();
 
-    app.quit();
+    autoUpdater.once('error', async (err) => {
+      await dialog.showMessageBox({
+        type: 'error',
+        title: 'Update error',
+        message: 'Error during update.',
+        detail: String(err),
+      });
+    });
+
+    await autoUpdater.downloadUpdate();
   } catch (err) {
-    console.error('oneClickUpdate failed:', err);
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'Update check failed',
+      message: 'Failed to check for updates.',
+      detail: String(err),
+    });
+  }
+}
+
+/**
+ * One-click update (via menu)
+ */
+async function oneClickUpdate() {
+  try {
+    autoUpdater.autoDownload = true;
+
+    const checking = dialog.showMessageBox({
+      type: 'info',
+      title: 'Update',
+      message: 'Checking for updates…',
+    });
+
+    autoUpdater.once('update-not-available', async () => {
+      await checking;
+      await dialog.showMessageBox({
+        type: 'info',
+        title: 'Update',
+        message: 'You are already on the latest version.',
+      });
+    });
+
+    autoUpdater.once('update-available', async () => {
+      await checking;
+      await dialog.showMessageBox({
+        type: 'info',
+        title: 'Update',
+        message: 'Downloading update…',
+      });
+    });
+
+    autoUpdater.once('update-downloaded', async () => {
+      const { response } = await dialog.showMessageBox({
+        type: 'info',
+        title: 'Update ready',
+        message: 'Update downloaded. Restart now?',
+        buttons: ['Restart now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (response === 0) autoUpdater.quitAndInstall();
+    });
+
+    autoUpdater.once('error', async (err) => {
+      await dialog.showMessageBox({
+        type: 'error',
+        title: 'Update error',
+        message: 'Error during update.',
+        detail: String(err),
+      });
+    });
+
+    autoUpdater.checkForUpdates();
+  } catch (err) {
     await dialog.showMessageBox({
       type: 'error',
       title: 'Update',
-      message: 'Failed to perform one-click update.',
+      message: 'Failed to start update process.',
       detail: String(err),
     });
   }
 }
 
 module.exports = {
+  initAutoUpdater,
   checkForUpdates,
   oneClickUpdate,
 };

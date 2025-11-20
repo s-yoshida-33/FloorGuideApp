@@ -1,11 +1,17 @@
+// src/main.tsx
+// Main entry point for the React application
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import './styles/fonts.css'
+import { PatchScreen } from './screens/PatchScreen'
 
-createRoot(document.getElementById('root')!).render(
+// Decide which screen to render based on URL hash
+const isPatchMode = window.location.hash === '#patch';
+
+createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <App />
+    {isPatchMode ? <PatchScreen /> : <App />}
   </StrictMode>,
-)
+);

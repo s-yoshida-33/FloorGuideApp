@@ -1,7 +1,7 @@
 {
   "name": "floorguidedisplay",
   "private": true,
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.7",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
@@ -50,9 +50,18 @@
       "include": "build/installer.nsh",
       "warningsAsErrors": false,
       "runAfterFinish": false
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "s-yoshida-33",
+        "repo": "FloorGuideApp",
+        "releaseType": "release"
+      }
+    ]
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "semver": "^7.7.3"
