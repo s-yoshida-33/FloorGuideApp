@@ -1,7 +1,7 @@
 // electron/updateChecker.cjs
 // Auto-update logic using electron-updater (CommonJS)
 
-const { dialog } = require('electron');
+const { dialog, app } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 let getPatchWindow = null;
@@ -53,7 +53,7 @@ function initAutoUpdater(opts) {
       const w = getPatchWindow && getPatchWindow();
       if (w) w.close();
       if (createMainWindow) createMainWindow();
-    }, 800);
+    }, 0);
   });
 
   autoUpdater.on('download-progress', (progress) => {

@@ -1,7 +1,7 @@
 // electron/main.cjs
 // Electron main process entry point (with startup patch window)
 
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const {
   initAutoUpdater,
@@ -25,8 +25,6 @@ const rendererBaseUrl = isDev
  */
 function createPatchWindow() {
   patchWindow = new BrowserWindow({
-    width: 480,
-    height: 260,
     resizable: false,
     frame: false,
     show: false,
@@ -115,6 +113,11 @@ function createAppMenu() {
  * - Initialize auto-updater.
  * - Automatically check for updates.
  */
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
 app.whenReady().then(() => {
   createPatchWindow();
   createAppMenu();

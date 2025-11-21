@@ -11,3 +11,9 @@ contextBridge.exposeInMainWorld('updater', {
     ipcRenderer.on('update-progress', (_event, data) => callback(data));
   },
 });
+
+contextBridge.exposeInMainWorld('appInfo', {
+  getVersion() {
+    return ipcRenderer.invoke('get-app-version');
+  },
+});
