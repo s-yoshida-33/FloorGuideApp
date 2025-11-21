@@ -3,6 +3,7 @@
 
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const {
   initAutoUpdater,
   checkForUpdates,
@@ -91,6 +92,7 @@ function createPatchWindow() {
     resizable: false,
     frame: false,
     show: false,
+    borderRadius: 24,
     backgroundColor: '#050608',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -212,13 +214,6 @@ function createAppMenu() {
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
-
-/**
- * IPC handlers
- */
-ipcMain.handle('get-app-version', () => {
-  return app.getVersion();
-});
 
 ipcMain.handle('settings:get-floor', () => {
   const settings = loadSettings();
