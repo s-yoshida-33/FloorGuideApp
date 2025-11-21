@@ -12,6 +12,7 @@ import openTimeImage from '../assets/open-time.svg';
 
 import { APP_CONFIG } from "../config";
 import { fetchShops } from "../repositories/shopRepository";
+import VerticalVideoSlot from "../components/VerticalVideoSlot";
 
 const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
@@ -134,20 +135,28 @@ const FloorGuideApp: React.FC = () => {
           />
         </div>
 
-        {/* Video area (placeholder) */}
+        {/* Video area (WSP vertical 16:9 slot) */}
         <div
           style={{
             width: `${videoWidthVh}vh`,
             background: "#000",
-            color: "#aaa",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            fontSize: "18px",
             flexShrink: 0,
           }}
         >
-          Video Area (reserved)
+          <div
+            style={{
+              width: "100%",
+              maxHeight: "100%",
+              aspectRatio: "9 / 16",
+              overflow: "hidden",
+              background: "#000",
+            }}
+          >
+            <VerticalVideoSlot />
+          </div>
         </div>
       </div>
 
@@ -185,7 +194,6 @@ const FloorGuideApp: React.FC = () => {
             justifyContent: "center",
             alignItems: "center",
             background: "#fff",
-            // border: "1px solid #ddd",
             margin: "0 auto",
           }}
         >

@@ -28,3 +28,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     });
   },
 });
+
+contextBridge.exposeInMainWorld('wspApi', {
+  getCurrentAsset() {
+    return ipcRenderer.invoke('wsp:get-current-asset');
+  },
+  getCurrentTimeline() {
+    return ipcRenderer.invoke('wsp:get-current-timeline');
+  },
+  getTimeline(hour) {
+    return ipcRenderer.invoke('wsp:get-timeline', { hour });
+  },
+});

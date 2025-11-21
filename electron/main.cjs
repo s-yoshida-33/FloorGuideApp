@@ -4,6 +4,8 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const { pathToFileURL } = require('url');
 const {
   initAutoUpdater,
   checkForUpdates,
@@ -76,6 +78,53 @@ function broadcastFloor(floor) {
 function updateFloorSetting(floor) {
   const next = saveSettings({ floor });
   broadcastFloor(next.floor);
+}
+
+/**
+ * Simple HTTP GET helper that retrieves JSON from a given URL.
+ */
+function httpGetJson(url) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        res.resume();
+        return;
+      }
+
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.end();
+  });
+}
+
+/**
+ * Convert a Windows file path to a file:// URL string.
+ */
+function toFileUrl(winPath) {
+  try {
+    return pathToFileURL(winPath).toString();
+  } catch {
+    const normalized = winPath.replace(/\\/g, '/');
+    return `file:///${normalized}`;
+  }
 }
 
 /**
@@ -215,22 +264,95 @@ function createAppMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+/**
+ * IPC handlers for settings and app info.
+ */
 ipcMain.handle('settings:get-floor', () => {
   const settings = loadSettings();
   return settings.floor;
 });
 
-/**
- * App ready event.
- * - Show patch window.
- * - Initialize auto-updater.
- * - Automatically check for updates.
- */
-
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
 });
 
+/**
+ * IPC handler for WSP current asset.
+ * Uses /current-timeline, extracts the first media asset,
+ * and returns a simplified object for the renderer.
+ */
+ipcMain.handle('wsp:get-current-asset', async () => {
+  try {
+    const json = await httpGetJson('http://127.0.0.1:8081/current-timeline');
+
+    if (!json || !json.current_timeline) {
+      return null;
+    }
+
+    const tl = json.current_timeline;
+    const assets = tl.media_assets || [];
+    if (!Array.isArray(assets) || assets.length === 0) {
+      return null;
+    }
+
+    const asset = assets[0];
+
+    return {
+      id: asset.id,
+      src: toFileUrl(asset.url),
+      duration: asset.duration,
+      width: asset.width,
+      height: asset.height,
+      name:
+        Array.isArray(tl.media_names) && tl.media_names.length > 0
+          ? tl.media_names[0]
+          : '',
+      startTime: tl.start_time,
+      endTime: tl.end_time,
+    };
+  } catch (error) {
+    console.error('[wsp:get-current-asset] failed:', error);
+    return null;
+  }
+});
+
+/**
+ * IPC handler: return raw /current-timeline JSON.
+ */
+ipcMain.handle('wsp:get-current-timeline', async () => {
+  try {
+    const json = await httpGetJson('http://127.0.0.1:8081/current-timeline');
+    return json || null;
+  } catch (error) {
+    console.error('[wsp:get-current-timeline] failed:', error);
+    return null;
+  }
+});
+
+/**
+ * IPC handler: return raw /timeline or /timeline?hour=... JSON.
+ */
+ipcMain.handle('wsp:get-timeline', async (_event, options) => {
+  try {
+    const hour =
+      options && typeof options.hour === 'number' && !Number.isNaN(options.hour)
+        ? options.hour
+        : undefined;
+
+    const baseUrl = 'http://127.0.0.1:8081/timeline';
+    const url = hour != null ? `${baseUrl}?hour=${hour}` : baseUrl;
+
+    const json = await httpGetJson(url);
+    return json || null;
+  } catch (error) {
+    console.error('[wsp:get-timeline] failed:', error);
+    return null;
+  }
+});
+
+/**
+ * App ready event.
+ */
 app.whenReady().then(() => {
   createPatchWindow();
   createAppMenu();
