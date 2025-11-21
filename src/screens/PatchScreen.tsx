@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import appIcon from '../../build/icon.ico';
 
 type StatusState = 'checking' | 'available' | 'none' | 'downloaded' | 'error';
 
@@ -105,6 +106,10 @@ export function PatchScreen() {
       {/* Center Card */}
       <div
         style={{
+          minWidth: 800,
+          maxWidth: 860,
+          minHeight: 600,
+          maxHeight: 660,
           padding: 32,
           borderRadius: 24,
           background:
@@ -128,7 +133,7 @@ export function PatchScreen() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {/* ICON */}
             <img
-              src="/build/icon.ico"
+              src={appIcon}
               alt="App Icon"
               style={{
                 width: 44,

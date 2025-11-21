@@ -14,6 +14,22 @@ const isDev = !app.isPackaged;
 let patchWindow = null;
 let mainWindow = null;
 
+// Prevent multiple instances from starting with a single-instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+  return;
+}
+
+// On the second launch, it only brings existing windows to the front
+app.on('second-instance', () => {
+  const win = mainWindow || patchWindow || BrowserWindow.getAllWindows()[0];
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+});
+
 // Determine base renderer URL (Vite dev server or built production files)
 const rendererBaseUrl = isDev
   ? 'http://localhost:5173/'
@@ -24,10 +40,16 @@ const rendererBaseUrl = isDev
  * This window appears first and shows update progress.
  */
 function createPatchWindow() {
+  if (patchWindow && !patchWindow.isDestroyed()) {
+    patchWindow.focus();
+    return;
+  }
+
   patchWindow = new BrowserWindow({
     resizable: false,
     frame: false,
     show: false,
+    backgroundColor: '#050608',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -51,6 +73,11 @@ function createPatchWindow() {
  * Create the main application window (fullscreen UI).
  */
 function createMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.focus();
+    return;
+  }
+
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
@@ -132,6 +159,8 @@ app.whenReady().then(() => {
   checkForUpdates(false);
 
   app.on('activate', () => {
+    if (process.platform !== 'darwin') return;
+
     // macOS: recreate main window if no windows are open
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
