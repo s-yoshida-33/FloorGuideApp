@@ -3,7 +3,7 @@
       transform: translateY(0);
     }
     50% {
-      transform: translateY(-8px);
+      transform: translateY(-12px);
     }
     100% {
       transform: translateY(0);
@@ -13,5 +13,9 @@
   .location-icon-bubble {
     animation: speech-bubble-floating 2.2s ease-in-out infinite;
     transform-origin: bottom center;
+  }
+
+  .location-icon-shadow {
+    filter: drop-shadow(4px 4px 4px rgba(0, 0, 0, 0.5));
   }
   

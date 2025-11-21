@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import './styles/fonts.css'
+import './styles/location-icons.css'
 import { PatchScreen } from './screens/PatchScreen'
 
 // Decide which screen to render based on URL hash

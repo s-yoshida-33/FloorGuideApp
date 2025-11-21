@@ -9,16 +9,24 @@ interface Props {
   settings: LocationIconSettings;
 }
 
-function buildStyle(config: IconPositionConfig): React.CSSProperties {
+function buildWrapperStyle(config: IconPositionConfig): React.CSSProperties {
   return {
     position: "absolute",
     left: `${config.xPercent}%`,
     top: `${config.yPercent}%`,
-    width: `${config.size}px`,
-    height: "auto",
-    transform: `translate(-50%, -50%) rotate(${config.rotation}deg)`,
+    transform: "translate(-50%, -50%)",
     transformOrigin: "center center",
     pointerEvents: "none",
+  };
+}
+
+function buildImageStyle(config: IconPositionConfig): React.CSSProperties {
+  return {
+    width: `${config.size}px`,
+    height: "auto",
+    display: "block",
+    transform: `rotate(${config.rotation}deg)`,
+    transformOrigin: "center center",
   };
 }
 
@@ -28,26 +36,36 @@ export const LocationIconsOverlay: React.FC<Props> = ({ settings }) => {
   return (
     <>
       {speechBubble.enabled && (
-        <img
-          src={SpeechBubbleSvg}
-          alt="Current location speech bubble"
+        <div
+          className="location-icon-shadow"
           style={{
-            ...buildStyle(speechBubble),
+            ...buildWrapperStyle(speechBubble),
             zIndex: 5,
             animation: "speech-bubble-floating 2.2s ease-in-out infinite",
           }}
-        />
+        >
+          <img
+            src={SpeechBubbleSvg}
+            alt="Current location speech bubble"
+            style={buildImageStyle(speechBubble)}
+          />
+        </div>
       )}
 
       {location.enabled && (
-        <img
-          src={LocationSvg}
-          alt="Current location pin"
+        <div
+          className="location-icon-shadow"
           style={{
-            ...buildStyle(location),
+            ...buildWrapperStyle(location),
             zIndex: 6,
           }}
-        />
+        >
+          <img
+            src={LocationSvg}
+            alt="Current location pin"
+            style={buildImageStyle(location)}
+          />
+        </div>
       )}
     </>
   );
