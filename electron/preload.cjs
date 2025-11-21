@@ -27,6 +27,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
       callback(floor);
     });
   },
+  getLocationIconSettings() {
+    return ipcRenderer.invoke('get-location-icon-settings');
+  },
+  saveLocationIconSettings(settings) {
+    return ipcRenderer.invoke('save-location-icon-settings', settings);
+  },
+  onLocationIconSettingsUpdated(callback) {
+    const listener = (_event, updated) => callback(updated);
+    ipcRenderer.on('location-icon-settings-updated', listener);
+
+    return () => {
+      ipcRenderer.removeListener('location-icon-settings-updated', listener);
+    };
+  },
+  onOpenLocationIconSettings(callback) {
+    const listener = () => callback();
+    ipcRenderer.on('open-location-icon-settings', listener);
+
+    // Return unsubscribe function
+    return () => {
+      ipcRenderer.removeListener('open-location-icon-settings', listener);
+    };
+  },
 });
 
 contextBridge.exposeInMainWorld('wspApi', {

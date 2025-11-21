@@ -1,4 +1,5 @@
 // src/config.ts
+import type { LocationIconSettings } from './types/locationIcon';
 
 // Global app configuration (do not use Japanese in comments to avoid encoding issues)
 export const APP_CONFIG = {
@@ -47,4 +48,22 @@ export const GENRE_ENGLISH: Record<string, string> = {
   "雑貨": "Goods",
   "飲食店・食品": "Food & Beverage",
   "サービス": "Services",
+};
+
+// Location icon settings (speech bubble and location icon)
+export const DEFAULT_LOCATION_ICON_SETTINGS: LocationIconSettings = {
+  speechBubble: {
+    enabled: true,
+    xPercent: 50,
+    yPercent: 40,
+    size: 96,
+    rotation: 0,
+  },
+  location: {
+    enabled: true,
+    xPercent: 50,
+    yPercent: 50,
+    size: 72,
+    rotation: 0,
+  },
 };

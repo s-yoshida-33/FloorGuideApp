@@ -8,11 +8,14 @@ import floorMap1F from "../assets/floor-1F-map.svg";
 import floorMap2F from "../assets/floor-2F-map.svg";
 import floorMap3F from "../assets/floor-3F-map.svg";
 import floorMap4F from "../assets/floor-4F-map.svg";
-import openTimeImage from '../assets/open-time.svg';
+import openTimeImage from "../assets/open-time.svg";
 
 import { APP_CONFIG } from "../config";
 import { fetchShops } from "../repositories/shopRepository";
 import VerticalVideoSlot from "../components/VerticalVideoSlot";
+
+import type { LocationIconSettings } from "../types/locationIcon";
+import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
 
 const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
@@ -25,7 +28,11 @@ const FLOOR_MAPS: Record<string, string> = {
   "4F": floorMap4F,
 };
 
-const FloorGuideApp: React.FC = () => {
+interface FloorGuideAppProps {
+  locationIconSettings: LocationIconSettings;
+}
+
+const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +78,7 @@ const FloorGuideApp: React.FC = () => {
   const videoWidthVh = TOP_HEIGHT_VH * (9 / 16);
 
   // Shop list area width
-  const listWidthVh = (100 - videoWidthVh);
+  const listWidthVh = 100 - videoWidthVh;
 
   // Shop data loading
   useEffect(() => {
@@ -122,7 +129,7 @@ const FloorGuideApp: React.FC = () => {
         <div
           style={{
             flex: 2,
-            // padding: "20px",
+            position: "relative", // base for absolute icons
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -131,11 +138,18 @@ const FloorGuideApp: React.FC = () => {
           <img
             src={floorMap}
             alt={`Floor map ${floor}`}
-            style={{ maxWidth: "100%", maxHeight: "auto", objectFit: "contain" }}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "100%",
+              objectFit: "contain",
+            }}
           />
+
+          {/* Location icons overlay */}
+          <LocationIconsOverlay settings={locationIconSettings} />
         </div>
 
-        {/* Video area (WSP vertical 16:9 slot) */}
+        {/* Video area */}
         <div
           style={{
             width: `${videoWidthVh}vh`,
@@ -170,11 +184,11 @@ const FloorGuideApp: React.FC = () => {
         }}
       >
         {/* Bottom: shop list */}
-        <div 
-          style={{ 
-            flex: 2, 
-            width: `${listWidthVh}vh`, 
-            height: `${LIST_HEIGHT_VH}vh`, 
+        <div
+          style={{
+            flex: 2,
+            width: `${listWidthVh}vh`,
+            height: `${LIST_HEIGHT_VH}vh`,
           }}
         >
           {error ? (
@@ -185,6 +199,7 @@ const FloorGuideApp: React.FC = () => {
             <ShopList shops={shops} floor={floor} />
           )}
         </div>
+
         {/* Bottom: Open-time image */}
         <div
           style={{

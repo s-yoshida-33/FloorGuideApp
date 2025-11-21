@@ -17,6 +17,26 @@ const isDev = !app.isPackaged;
 let patchWindow = null;
 let mainWindow = null;
 
+// Default location icon settings (for both speech bubble and location pin)
+const DEFAULT_LOCATION_ICON_SETTINGS = {
+  speechBubble: {
+    enabled: true,
+    anchorVertical: 'top',
+    anchorHorizontal: 'left',
+    offsetX: 40,
+    offsetY: 40,
+    size: 96,
+  },
+  location: {
+    enabled: true,
+    anchorVertical: 'top',
+    anchorHorizontal: 'left',
+    offsetX: 40,
+    offsetY: 40,
+    size: 72,
+  },
+};
+
 // Prevent multiple instances from starting with a single-instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -39,27 +59,58 @@ const rendererBaseUrl = isDev
   : `file://${path.join(__dirname, '../dist/index.html')}`;
 
 /**
- * Settings utilities (for persistent floor configuration)
+ * Settings utilities (for persistent configuration: floor + location icons)
  */
 function getSettingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
 
 function loadSettings() {
+  const base = {
+    floor: '1F',
+    locationIcons: DEFAULT_LOCATION_ICON_SETTINGS,
+  };
+
   try {
     const settingsPath = getSettingsPath();
+    if (!fs.existsSync(settingsPath)) {
+      return base;
+    }
+
     const raw = fs.readFileSync(settingsPath, 'utf-8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+
+    return {
+      floor: typeof parsed.floor === 'string' ? parsed.floor : base.floor,
+      locationIcons: parsed.locationIcons
+        ? {
+            // Do a shallow merge to keep future extensibility
+            speechBubble: {
+              ...base.locationIcons.speechBubble,
+              ...(parsed.locationIcons.speechBubble || {}),
+            },
+            location: {
+              ...base.locationIcons.location,
+              ...(parsed.locationIcons.location || {}),
+            },
+          }
+        : base.locationIcons,
+    };
   } catch {
-    return { floor: '1F' };
+    // Fallback to base defaults on any error
+    return base;
   }
 }
 
 function saveSettings(partial) {
-  const settingsPath = getSettingsPath();
   const current = loadSettings();
-  const next = { ...current, ...partial };
-  fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2));
+  const next = {
+    ...current,
+    ...partial,
+  };
+
+  const settingsPath = getSettingsPath();
+  fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
   return next;
 }
 
@@ -69,6 +120,15 @@ function saveSettings(partial) {
 function broadcastFloor(floor) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('settings:floor-changed', floor);
+  }
+}
+
+/**
+ * Broadcast location icon settings changes to renderer processes
+ */
+function broadcastLocationIconSettings(locationIcons) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('location-icon-settings-updated', locationIcons);
   }
 }
 
@@ -189,6 +249,7 @@ function createMainWindow() {
   const settings = loadSettings();
   mainWindow.webContents.on('did-finish-load', () => {
     broadcastFloor(settings.floor);
+    broadcastLocationIconSettings(settings.locationIcons);
   });
 
   mainWindow.on('closed', () => {
@@ -239,6 +300,15 @@ function createAppMenu() {
           checked: settings.floor === '4F',
           click: () => updateFloorSetting('4F'),
         },
+        { type: 'separator' },
+        {
+          label: 'Location icon settings...',
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('open-location-icon-settings');
+            }
+          },
+        },
       ],
     },
     {
@@ -274,6 +344,20 @@ ipcMain.handle('settings:get-floor', () => {
 
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
+});
+
+/**
+ * IPC handlers for location icon settings.
+ */
+ipcMain.handle('get-location-icon-settings', () => {
+  const settings = loadSettings();
+  return settings.locationIcons;
+});
+
+ipcMain.handle('save-location-icon-settings', (_event, locationIcons) => {
+  const settings = saveSettings({ locationIcons });
+  broadcastLocationIconSettings(settings.locationIcons);
+  return settings.locationIcons;
 });
 
 /**

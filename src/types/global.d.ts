@@ -7,6 +7,8 @@ import type {
   WspTimelineResponse,
 } from './wsp';
 
+import type { LocationIconSettings } from './locationIcon';
+
 declare global {
   interface Window {
     __BWP_BASE_URL__?: string;
@@ -14,6 +16,15 @@ declare global {
     electronAPI?: {
       getFloor: () => Promise<string>;
       onFloorChanged: (cb: (floor: string) => void) => void;
+
+      getLocationIconSettings?: () => Promise<LocationIconSettings>;
+      saveLocationIconSettings?: (
+        settings: LocationIconSettings
+      ) => Promise<LocationIconSettings>;
+      onLocationIconSettingsUpdated?: (
+        cb: (settings: LocationIconSettings) => void
+      ) => () => void;
+      onOpenLocationIconSettings?: (cb: () => void) => () => void;
     };
 
     updater?: {
