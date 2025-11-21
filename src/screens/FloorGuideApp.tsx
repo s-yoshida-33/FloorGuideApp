@@ -28,8 +28,40 @@ const FloorGuideApp: React.FC = () => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Current floor for this screen
-  const floor = APP_CONFIG.floor;
+  // Current floor for this screen (default from APP_CONFIG for non-Electron)
+  const [floor, setFloor] = useState<string>(APP_CONFIG.floor);
+
+  // Floor synchronization with Electron main process
+  useEffect(() => {
+    if (!window.electronAPI?.getFloor) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        const current = await window.electronAPI!.getFloor();
+        if (!cancelled && current) {
+          setFloor(current);
+        }
+      } catch (e) {
+        console.error("Failed to get floor from Electron", e);
+      }
+    };
+
+    init();
+
+    window.electronAPI.onFloorChanged((nextFloor) => {
+      if (!cancelled) {
+        setFloor(nextFloor);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Select floor map by floor id, fallback to 1F
   const floorMap = FLOOR_MAPS[floor] ?? floorMap1F;
@@ -40,6 +72,7 @@ const FloorGuideApp: React.FC = () => {
   // Shop list area width
   const listWidthVh = (100 - videoWidthVh);
 
+  // Shop data loading
   useEffect(() => {
     let cancelled = false;
 
@@ -47,9 +80,9 @@ const FloorGuideApp: React.FC = () => {
       try {
         const data = await fetchShops();
         if (!cancelled) {
-          const cleaned = data.map(s => ({
+          const cleaned = data.map((s) => ({
             ...s,
-            name: s.name.replace(/【.*?】/g, "").trim()
+            name: s.name.replace(/【.*?】/g, "").trim(),
           }));
           setShops(cleaned);
         }
@@ -128,9 +161,17 @@ const FloorGuideApp: React.FC = () => {
         }}
       >
         {/* Bottom: shop list */}
-        <div style={{ flex: 2, width: `${listWidthVh}vh`, height: `${LIST_HEIGHT_VH}vh` }}>
+        <div 
+          style={{ 
+            flex: 2, 
+            width: `${listWidthVh}vh`, 
+            height: `${LIST_HEIGHT_VH}vh`, 
+          }}
+        >
           {error ? (
-            <div style={{ padding: "16px 32px", color: "red" }}>Error: {error}</div>
+            <div style={{ padding: "16px 32px", color: "red" }}>
+              Error: {error}
+            </div>
           ) : (
             <ShopList shops={shops} floor={floor} />
           )}

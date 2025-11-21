@@ -17,3 +17,14 @@ contextBridge.exposeInMainWorld('appInfo', {
     return ipcRenderer.invoke('get-app-version');
   },
 });
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  getFloor() {
+    return ipcRenderer.invoke('settings:get-floor');
+  },
+  onFloorChanged(callback) {
+    ipcRenderer.on('settings:floor-changed', (_event, floor) => {
+      callback(floor);
+    });
+  },
+});

@@ -36,6 +36,48 @@ const rendererBaseUrl = isDev
   : `file://${path.join(__dirname, '../dist/index.html')}`;
 
 /**
+ * Settings utilities (for persistent floor configuration)
+ */
+function getSettingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function loadSettings() {
+  try {
+    const settingsPath = getSettingsPath();
+    const raw = fs.readFileSync(settingsPath, 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return { floor: '1F' };
+  }
+}
+
+function saveSettings(partial) {
+  const settingsPath = getSettingsPath();
+  const current = loadSettings();
+  const next = { ...current, ...partial };
+  fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2));
+  return next;
+}
+
+/**
+ * Broadcast floor changes to renderer processes
+ */
+function broadcastFloor(floor) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('settings:floor-changed', floor);
+  }
+}
+
+/**
+ * Update floor setting and notify renderer
+ */
+function updateFloorSetting(floor) {
+  const next = saveSettings({ floor });
+  broadcastFloor(next.floor);
+}
+
+/**
  * Create the small startup patch window.
  * This window appears first and shows update progress.
  */
@@ -92,15 +134,23 @@ function createMainWindow() {
 
   mainWindow.loadURL(rendererBaseUrl);
 
+  // Send current floor setting after renderer has finished loading
+  const settings = loadSettings();
+  mainWindow.webContents.on('did-finish-load', () => {
+    broadcastFloor(settings.floor);
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
 /**
- * Build application menu including manual update entries.
+ * Build application menu including floor setting and manual update entries.
  */
 function createAppMenu() {
+  const settings = loadSettings();
+
   const template = [
     {
       label: 'File',
@@ -108,6 +158,35 @@ function createAppMenu() {
         {
           role: 'quit',
           label: 'Exit',
+        },
+      ],
+    },
+    {
+      label: 'Settings',
+      submenu: [
+        {
+          label: 'Floor 1F',
+          type: 'radio',
+          checked: settings.floor === '1F',
+          click: () => updateFloorSetting('1F'),
+        },
+        {
+          label: 'Floor 2F',
+          type: 'radio',
+          checked: settings.floor === '2F',
+          click: () => updateFloorSetting('2F'),
+        },
+        {
+          label: 'Floor 3F',
+          type: 'radio',
+          checked: settings.floor === '3F',
+          click: () => updateFloorSetting('3F'),
+        },
+        {
+          label: 'Floor 4F',
+          type: 'radio',
+          checked: settings.floor === '4F',
+          click: () => updateFloorSetting('4F'),
         },
       ],
     },
@@ -133,6 +212,18 @@ function createAppMenu() {
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
+
+/**
+ * IPC handlers
+ */
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('settings:get-floor', () => {
+  const settings = loadSettings();
+  return settings.floor;
+});
 
 /**
  * App ready event.
