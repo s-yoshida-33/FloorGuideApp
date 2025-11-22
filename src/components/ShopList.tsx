@@ -1,7 +1,8 @@
 // src/components/ShopList.tsx
 import React from "react";
 import type { Shop } from "../types/shop";
-import { APP_CONFIG, GENRE_ORDER, GENRE_ENGLISH } from "../config";
+import { APP_CONFIG, GENRE_ORDER, GENRE_ENGLISH, FLOOR_ROWS_PER_COL, FLOOR_COLUMN_COUNT } from "../config";
+import "./ShopList.css";
 
 interface ShopListProps {
   shops: Shop[];
@@ -127,53 +128,56 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
   // ---------------------------------------------------------------------------
   // 3) Decide column count and rows per column
   // ---------------------------------------------------------------------------
-  const approxRows = APP_CONFIG.approxRowsPerCol;
   const maxColumns = APP_CONFIG.maxColumns;
 
-  let columnCount = 1;
-  if (totalLines === 0) {
-    columnCount = 1;
-  } else {
-    const estimatedCols = Math.ceil(totalLines / approxRows);
-    columnCount = Math.min(maxColumns, Math.max(1, estimatedCols));
-  }
+  // Column count is fixed per floor.
+  const fixedCol = FLOOR_COLUMN_COUNT[normalizedFloor];
+  const columnCount =
+    fixedCol && fixedCol > 0 ? Math.min(maxColumns, fixedCol) : 1;
+
+  // rowsPerColumn is floor-specific.
+  // If not defined, fall back to automatic based on totalLines.
+  const floorRows = FLOOR_ROWS_PER_COL[normalizedFloor];
 
   const rowsPerColumn =
-    columnCount > 0 ? Math.ceil(totalLines / columnCount) : totalLines;
+    floorRows && floorRows > 0
+      ? floorRows
+      : Math.ceil(totalLines / columnCount);
 
   // ---------------------------------------------------------------------------
-  // 4) Split lines into columns, allowing breaks inside genres
-  //
-  //    - We walk lines from top to bottom.
-  //    - When the current column reaches rowsPerColumn, we move to next column.
-  //    - If we move to the next column in the middle of a genre, we DO NOT
-  //      repeat the genre header. The new column starts with shop lines only.
+  // 4) Split lines into columns, preventing orphan headers
   // ---------------------------------------------------------------------------
+
   const columns: Line[][] = Array.from({ length: columnCount }, () => []);
   let currentColIndex = 0;
   let currentRows = 0;
 
   const startNewColumn = () => {
-    if (currentColIndex >= columnCount - 1) {
-      // No more columns available, append everything to the last column
-      // (this is a safety fallback; ideally approxRowsPerCol should be tuned).
-      return;
-    }
+    if (currentColIndex >= columnCount - 1) return;
     currentColIndex += 1;
     currentRows = 0;
   };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const lineCost = 1;
 
-    if (currentRows + lineCost > rowsPerColumn && currentRows > 0) {
-      // Move to next column; do NOT add header again
-      startNewColumn();
+    if (line.kind === "header") {
+      const next = lines[i + 1];
+      const needsTwoRows =
+        next && next.kind === "shop" && next.genre === line.genre;
+      const required = needsTwoRows ? 2 : 1;
+
+      if (currentRows > 0 && currentRows + required > rowsPerColumn) {
+        startNewColumn();
+      }
+    } else {
+      if (currentRows > 0 && currentRows + 1 > rowsPerColumn) {
+        startNewColumn();
+      }
     }
 
     columns[currentColIndex].push(line);
-    currentRows += lineCost;
+    currentRows += 1;
   }
 
   const nonEmptyColumns = columns.filter((col) => col.length > 0);
@@ -184,19 +188,20 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
   return (
     <div
       style={{
-        padding: "16px 32px",
+        padding: "18px 16px",
         boxSizing: "border-box",
         width: "100%",
         height: "100%",
         fontSize: `${APP_CONFIG.fontSizeVmin}vmin`,
         lineHeight: 1.4,
         overflow: "hidden",
+        fontWeight: 700,
       }}
     >
       <div
         style={{
           display: "flex",
-          gap: "40px",
+          gap: "20px",
           alignItems: "flex-start",
           height: "100%",
         }}
@@ -209,61 +214,109 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
               {sections.map((section) => (
                 <section
                   key={`${colIdx}-${section.genre}-${section.showHeader ? "h" : "c"}`}
-                  style={{ marginBottom: "10px" }}
+                  style={{
+                    marginBottom:
+                      section.genre === "ファッション" && section.showHeader ? "10px" : "10px",
+                  }}
                 >
-                  {section.showHeader && (
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        fontSize: "1.4em",
-                        fontWeight: "700",
-                        marginBottom: "8px",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      <span>{section.genre}</span>
-                      <span style={{ fontSize: "0.8em" }}>{GENRE_ENGLISH[section.genre] ?? ""}</span>
-                    </div>
-                  )}
+                  {section.showHeader && (() => {
+                    const isFashion = section.genre === "ファッション";
+                    const isFashionGoods = section.genre === "ファッション雑貨";
+                    const isGoods = section.genre === "雑貨";
+                    const isFood = section.genre === "飲食店・食品";
+                    const isService = section.genre === "サービス";
 
-                  {section.shops.map((s) => (
-                    <div
-                      key={`${s.number}-${s.name}`}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        whiteSpace: "nowrap",
-                        width: "100%",
-                      }}
-                    >
-                      <span>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            width: "4em",
-                            textAlign: "left",
-                          }}
-                        >
-                          {s.number}
+                    const headerClassNames = [
+                      (isFashion || isFashionGoods || isGoods || isFood || isService) && "shoplist-genre-header",
+                      isFashion && "shoplist-genre-header--fashion",
+                      isFashionGoods && "shoplist-genre-header--fashion-goods",
+                      isGoods && "shoplist-genre-header--goods",
+                      isFood && "shoplist-genre-header--food",
+                      isService && "shoplist-genre-header--service",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+
+                    return (
+                      <div
+                        className={headerClassNames}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-end",
+                          fontSize: "1.4em",
+                          fontWeight: "700",
+                          marginBottom: "8px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <span>{section.genre}</span>
+                        <span style={{ fontSize: "0.7em" }}>
+                          {GENRE_ENGLISH[section.genre] ?? ""}
                         </span>
+                      </div>
+                    );
+                  })()}
 
-                        {s.genreMemo && (
+                  {section.shops.map((s, idx) => {
+                    const isFashion = section.genre === "ファッション";
+                    const isFashionGoods = section.genre === "ファッション雑貨";
+                    const isGoods = section.genre === "雑貨";
+                    const isFood = section.genre === "飲食店・食品";
+                    const isService = section.genre === "サービス";
+
+                    const rowClassNames = [
+                      (isFashion || isFashionGoods || isGoods || isFood || isService) && "shoplist-row",
+                      (isFashion || isFashionGoods || isGoods || isFood || isService) && idx === 0 && "shoplist-row-first",
+                      isFashion && idx % 2 === 0 && "shoplist-row--fashion-striped",
+                      isFashionGoods && idx % 2 === 0 && "shoplist-row--fashion-goods-striped",
+                      isGoods && idx % 2 === 0 && "shoplist-row--goods-striped",
+                      isFood && idx % 2 === 0 && "shoplist-row--food-striped",
+                      isService && idx % 2 === 0 && "shoplist-row--service-striped"
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+
+                    return (
+                      <div
+                        key={`${s.number}-${s.name}`}
+                        className={rowClassNames}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          whiteSpace: "nowrap",
+                          width: "100%",
+                        }}
+                      >
+                        <span>
                           <span
                             style={{
-                              marginLeft: "0.5em",
-                              fontFamily: "Rounded Mplus 1c, sans-serif",
-                              fontWeight: 400,
+                              display: "inline-block",
+                              width: "4em",
+                              textAlign: "left",
                             }}
                           >
-                            {s.genreMemo ? `[${s.genreMemo}]` : ""}
+                            {s.number}
                           </span>
-                        )}
-                      </span>
 
-                      <span style={{ marginLeft: "12px" }}>{s.name}</span>
-                    </div>
-                  ))}
+                          {s.genreMemo && (
+                            <span
+                              style={{
+                                marginLeft: "0.5em",
+                                fontFamily: "Rounded Mplus 1c, sans-serif",
+                                fontWeight: 400,
+                                fontSize: "0.7em",
+                              }}
+                            >
+                              {s.genreMemo ? `[${s.genreMemo}]` : ""}
+                            </span>
+                          )}
+                        </span>
+
+                        <span style={{ marginLeft: "12px" }}>{s.name}</span>
+                      </div>
+                    );
+                  })}
                 </section>
               ))}
             </div>

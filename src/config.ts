@@ -7,7 +7,7 @@ export const APP_CONFIG = {
   defaultApiBaseUrl: "http://localhost:8080",
 
   // Default floor for this screen (this screen is dedicated to one floor)
-  floor: "3F",
+  floor: "2F",
 
   // Layout configuration (4K display assumed)
   listHeightVh: (800 / 2160) * 100, // ≒ 37vh
@@ -16,7 +16,7 @@ export const APP_CONFIG = {
   approxRowsPerCol: 20,
   showGenreMemo: true,
   numberColWidthVmin: 6,
-  fontSizeVmin: 1.0,
+  fontSizeVmin: 1.05,
 };
 
 // Effective API base URL
@@ -66,4 +66,18 @@ export const DEFAULT_LOCATION_ICON_SETTINGS: LocationIconSettings = {
     size: 72,
     rotation: 0,
   },
+};
+
+export const FLOOR_COLUMN_COUNT: Record<string, number> = {
+  "1F": 3,
+  "2F": 2,
+  "3F": 3,
+  "4F": 2,
+};
+
+export const FLOOR_ROWS_PER_COL: Record<string, number> = {
+  "1F": 20,
+  "2F": 19,
+  "3F": 20,
+  "4F": 18,
 };

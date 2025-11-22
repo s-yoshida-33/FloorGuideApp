@@ -1,0 +1,123 @@
+/* 共通レイアウト */
+.shoplist-genre-header {
+    position: relative;
+    padding-bottom: 4px;
+}
+
+.shoplist-genre-header span {
+    padding: 0 10px;
+}
+  
+/* 下線の共通形状（色は後で上書き） */
+.shoplist-genre-header::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    width: 100%;
+    border-radius: 3px;
+}
+
+/* ファッション（#00ADE4） */
+.shoplist-genre-header--fashion {
+    color: #00ade4;
+}
+
+.shoplist-genre-header--fashion::after {
+    background: #00ade4;
+}
+
+/* ファッション雑貨（#40B93C） */
+.shoplist-genre-header--fashion-goods {
+    color: #40b93c;
+}
+
+.shoplist-genre-header--fashion-goods::after {
+    background: #40b93c;
+}
+
+/* 雑貨（#475EB4） */
+.shoplist-genre-header--goods {
+    color: #475eb4;
+}
+  
+.shoplist-genre-header--goods::after {
+    background: #475eb4;
+}
+
+/* 飲食店・食品（#F47216） */
+.shoplist-genre-header--food {
+    color: #f47216;
+}
+  
+.shoplist-genre-header--food::after {
+    background: #f47216;
+}
+
+/* サービス（#EF2F5A） */
+.shoplist-genre-header--service {
+    color: #ef2f5a;
+}
+  
+.shoplist-genre-header--service::after {
+    background: #ef2f5a;
+}
+
+/* 行間0（共通） */
+.shoplist-row {
+    margin: 0;
+    padding: 0;
+}
+
+/* 最初の1行目だけヘッダーに近づける（共通） */
+.shoplist-row-first {
+    margin-top: -4px;
+}
+
+/* ファッション用グラデ（左 → 右） */
+.shoplist-row--fashion-striped {
+    background: linear-gradient(
+      to right,
+      rgba(193, 235, 246, 0.5) 0%,
+      rgba(193, 235, 246, 0.5) 100%
+    );
+}
+
+
+/* ファッション雑貨用グラデ（左 → 右） */
+.shoplist-row--fashion-goods-striped {
+    background: linear-gradient(
+      to right,
+      rgba(182, 226, 142, 0.5) 0%,
+      rgba(182, 226, 142, 0.5) 100%
+    );
+}
+
+/* 雑貨用グラデ（左→右） */
+.shoplist-row--goods-striped {
+    background: linear-gradient(
+      to right,
+      rgba(182, 183, 226, 0.5) 0%,
+      rgba(182, 183, 226, 0.5) 100%
+    );
+}
+
+/* 飲食店・食品用グラデ（左→右） */
+.shoplist-row--food-striped {
+    background: linear-gradient(
+      to right,
+      rgba(252, 206, 120, 0.5) 0%,
+      rgba(252, 206, 120, 0.5) 100%
+    );
+}
+
+/* サービス用グラデ（左→右） */
+.shoplist-row--service-striped {
+    background: linear-gradient(
+      to right,
+      rgba(248, 164, 171, 0.5) 0%,
+      rgba(248, 164, 171, 0.5) 100%
+    );
+}
+  
