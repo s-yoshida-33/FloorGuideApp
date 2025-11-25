@@ -2,7 +2,7 @@
 import React from "react";
 import type { Shop } from "../types/shop";
 import { APP_CONFIG, GENRE_ORDER, GENRE_ENGLISH, FLOOR_ROWS_PER_COL, FLOOR_COLUMN_COUNT } from "../config";
-import "./ShopList.css";
+import "../styles/ShopList.css";
 
 interface ShopListProps {
   shops: Shop[];
@@ -288,7 +288,13 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
                           width: "100%",
                         }}
                       >
-                        <span>
+                        <span
+                          style={{
+                            marginLeft: "0.5em",
+                            display: "inline-flex",
+                            alignItems: "center",
+                          }}
+                        >
                           <span
                             style={{
                               display: "inline-block",
@@ -313,7 +319,7 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
                           )}
                         </span>
 
-                        <span style={{ marginLeft: "12px" }}>{s.name}</span>
+                        <span style={{ marginLeft: "12px", marginRight: "0.5em" }}>{s.name}</span>
                       </div>
                     );
                   })}
