@@ -1,5 +1,5 @@
 // src/components/ShopList.tsx
-import React, { useEffect } from "react";
+import React from "react";
 import type { Shop } from "../types/shop";
 import {
   APP_CONFIG,
@@ -9,22 +9,22 @@ import {
   FLOOR_COLUMN_COUNT,
 } from "../config";
 import "../styles/ShopList.css";
-import { logInfo } from "../logging";
+import { logInfo, logError } from "../logging";
 
 interface ShopListProps {
   shops: Shop[];
   floor: string;
   columnCount?: number;
   rowsPerColumn?: number;
-  perColumnRows?: number[];
+  perColumnRows?: number[]; // Column-by-column row overrides
 }
 
-// Internal line representation for layout
+// Internal representation of a single line item (header or shop row)
 type Line =
   | { kind: "header"; genre: string }
   | { kind: "shop"; genre: string; shop: Shop };
 
-// Section inside a single column
+// A group of lines that belong to the same column and genre
 interface ColumnSection {
   genre: string;
   shops: Shop[];
@@ -38,16 +38,7 @@ function normalizeFloor(value: string): string {
   return m ? `${m[1]}F` : value;
 }
 
-// Compare shops by number in ascending order
-function compareShopNumberAsc(a: Shop, b: Shop): number {
-  return (a.number || "").localeCompare(b.number || "", "ja", {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-
-// Build column sections (genre + shops) from line sequence.
-// showHeader is true only if this column actually contains a header line.
+// Build grouped sections (genre + shops) from a list of sequential lines
 function buildSectionsForColumn(lines: Line[]): ColumnSection[] {
   const sections: ColumnSection[] = [];
   let current: ColumnSection | null = null;
@@ -60,8 +51,6 @@ function buildSectionsForColumn(lines: Line[]): ColumnSection[] {
       current = { genre: line.genre, shops: [], showHeader: true };
     } else {
       if (!current || current.genre !== line.genre) {
-        // This happens when the column starts in the middle of a genre
-        // and there was no header line in this column.
         if (current && current.shops.length > 0) {
           sections.push(current);
         }
@@ -78,6 +67,15 @@ function buildSectionsForColumn(lines: Line[]): ColumnSection[] {
   return sections;
 }
 
+// Compare shop numbers numerically (ascending)
+function compareShopNumberAsc(a: Shop, b: Shop): number {
+  return (a.number || "").localeCompare(b.number || "", "ja", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+// ----- Main Component --------------------------------------------------------
 const ShopList: React.FC<ShopListProps> = ({
   shops,
   floor,
@@ -85,202 +83,176 @@ const ShopList: React.FC<ShopListProps> = ({
   rowsPerColumn,
   perColumnRows,
 }) => {
-  // ---------------------------------------------------------------------------
-  // 1) Filter by floor
-  // ---------------------------------------------------------------------------
   const normalizedFloor = normalizeFloor(floor);
 
-  // Support both `floor` and `floors` property names.
-  // If either is missing or empty, the shop is excluded.
+  // ---------------------------------------------------------------------------
+  // Floor filtering (supports floors: FloorId[] + legacy floor/floors string)
+  // ---------------------------------------------------------------------------
   const floorShops = shops.filter((s) => {
-    const anyShop = s as any;
+    const tokens: string[] = [];
 
-    const raw = anyShop.floor ?? anyShop.floors ?? "";
-    if (!raw) return false;
+    // 1) Official field: floors: FloorId[]
+    if (Array.isArray(s.floors)) {
+      s.floors.forEach((value) => {
+        String(value)
+          .split(/[、,・/]/)
+          .forEach((raw) => {
+            const v = raw.trim();
+            if (v.length > 0) tokens.push(v);
+          });
+      });
+    }
 
-    const normalized = normalizeFloor(String(raw));
+    // 2) Legacy compatibility: floor or floors as a string
+    if (tokens.length === 0) {
+      const legacy: unknown = (s as any).floors ?? (s as any).floor;
+      if (typeof legacy === "string" && legacy.trim().length > 0) {
+        legacy
+          .split(/[、,・/]/)
+          .map((v) => v.trim())
+          .filter((v) => v.length > 0)
+          .forEach((v) => tokens.push(v));
+      }
+    }
 
-    return normalized === normalizedFloor;
+    if (tokens.length === 0) return false;
+
+    const normalizedTokens = tokens.map((v) => normalizeFloor(v));
+    return normalizedTokens.includes(normalizedFloor);
   });
 
   // ---------------------------------------------------------------------------
-  // 2) Build ordered line list (genre header + shops, in fixed genre order)
+  // Normal layout rendering (wrapped in try/catch for fallback safety)
   // ---------------------------------------------------------------------------
-  const lines: Line[] = [];
+  const renderNormalLayout = () => {
+    // Build list of ordered lines (genre headers + shop rows)
+    const lines: Line[] = [];
 
-  for (const genre of GENRE_ORDER) {
-    const list = floorShops
-      .filter((s) => s.genre === genre)
-      .sort(compareShopNumberAsc);
+    for (const genre of GENRE_ORDER) {
+      const list = floorShops
+        .filter((s) => s.genre === genre)
+        .sort(compareShopNumberAsc);
 
-    if (list.length === 0) continue;
+      if (list.length === 0) continue;
 
-    lines.push({ kind: "header", genre });
+      lines.push({ kind: "header", genre });
 
-    for (const shop of list) {
-      lines.push({ kind: "shop", genre, shop });
-    }
-  }
-
-  const knownSet = new Set(GENRE_ORDER);
-  const otherGenres = Array.from(
-    new Set(
-      floorShops
-        .map((s) => s.genre)
-        .filter((g) => g && !knownSet.has(g))
-    )
-  );
-
-  for (const genre of otherGenres) {
-    const list = floorShops
-      .filter((s) => s.genre === genre)
-      .sort(compareShopNumberAsc);
-
-    if (list.length === 0) continue;
-
-    lines.push({ kind: "header", genre });
-
-    for (const shop of list) {
-      lines.push({ kind: "shop", genre, shop });
-    }
-  }
-
-  const totalLines = lines.length;
-
-  // ---------------------------------------------------------------------------
-  // 3) Decide column count and rows per column (with per-column overrides)
-  // ---------------------------------------------------------------------------
-  const maxColumns = APP_CONFIG.maxColumns;
-
-  const defaultColumns = FLOOR_COLUMN_COUNT[normalizedFloor] ?? 1;
-  const defaultRowsPerCol = FLOOR_ROWS_PER_COL[normalizedFloor];
-
-  const effectiveColumns = (() => {
-    const base = columnCount ?? defaultColumns;
-    const safe = base > 0 ? base : 1;
-    return Math.min(maxColumns, safe);
-  })();
-
-  const baseRowsPerCol = (() => {
-    if (rowsPerColumn && rowsPerColumn > 0) {
-      return rowsPerColumn;
-    }
-    if (defaultRowsPerCol && defaultRowsPerCol > 0) {
-      return defaultRowsPerCol;
-    }
-    const auto = Math.ceil(totalLines / effectiveColumns);
-    return auto > 0 ? auto : 1;
-  })();
-
-  const perColumnOverrides = perColumnRows ?? [];
-
-  // Capacity for each column: per-column override or baseRowsPerCol
-  const capacities: number[] = Array.from(
-    { length: effectiveColumns },
-    (_, idx) => {
-      const override = perColumnOverrides[idx];
-      if (typeof override === "number" && override > 0) {
-        return override;
-      }
-      return baseRowsPerCol;
-    }
-  );
-
-  // ---------------------------------------------------------------------------
-  // 4) Split lines into columns, preventing orphan headers
-  // ---------------------------------------------------------------------------
-  const columns: Line[][] = Array.from(
-    { length: effectiveColumns },
-    () => []
-  );
-  let currentColIndex = 0;
-  let currentRows = 0;
-
-  const startNewColumn = () => {
-    if (currentColIndex >= effectiveColumns - 1) return;
-    currentColIndex += 1;
-    currentRows = 0;
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const capacity = capacities[currentColIndex];
-
-    if (line.kind === "header") {
-      const next = lines[i + 1];
-      const needsTwoRows =
-        next && next.kind === "shop" && next.genre === line.genre;
-      const required = needsTwoRows ? 2 : 1;
-
-      if (currentRows > 0 && currentRows + required > capacity) {
-        startNewColumn();
-      }
-    } else {
-      if (currentRows > 0 && currentRows + 1 > capacity) {
-        startNewColumn();
+      for (const shop of list) {
+        lines.push({ kind: "shop", genre, shop });
       }
     }
 
-    columns[currentColIndex].push(line);
-    currentRows += 1;
-  }
+    // Add genres not included in predefined GENRE_ORDER
+    const knownSet = new Set(GENRE_ORDER);
+    const otherGenres = Array.from(
+      new Set(
+        floorShops
+          .map((s) => s.genre)
+          .filter((g) => g && !knownSet.has(g))
+      )
+    );
 
-  const nonEmptyColumns = columns.filter((col) => col.length > 0);
+    for (const genre of otherGenres) {
+      const list = floorShops
+        .filter((s) => s.genre === genre)
+        .sort(compareShopNumberAsc);
 
-  // ---------------------------------------------------------------------------
-  // 4.5) Logging
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (shops.length === 0) {
-      logInfo("shopList", "ShopList rendered with empty shops array", {
+      if (list.length === 0) continue;
+
+      lines.push({ kind: "header", genre });
+
+      for (const shop of list) {
+        lines.push({ kind: "shop", genre, shop });
+      }
+    }
+
+    const totalLines = lines.length;
+
+    // Determine effective column count
+    const maxColumns = APP_CONFIG.maxColumns;
+    const defaultColumns = FLOOR_COLUMN_COUNT[normalizedFloor] ?? 1;
+    const defaultRowsPerCol = FLOOR_ROWS_PER_COL[normalizedFloor];
+
+    const effectiveColumns = (() => {
+      const base = columnCount ?? defaultColumns;
+      const safe = base > 0 ? base : 1;
+      return Math.min(maxColumns, safe);
+    })();
+
+    // Determine base rows per column
+    const baseRowsPerCol = (() => {
+      if (rowsPerColumn && rowsPerColumn > 0) return rowsPerColumn;
+      if (defaultRowsPerCol && defaultRowsPerCol > 0) return defaultRowsPerCol;
+      const auto = Math.ceil(totalLines / effectiveColumns);
+      return auto > 0 ? auto : 1;
+    })();
+
+    const perColumnOverrides: number[] = perColumnRows ?? [];
+
+    // Build row capacities for each column
+    const capacities: number[] = Array.from(
+      { length: effectiveColumns },
+      (_: unknown, idx: number) => {
+        const override = perColumnOverrides[idx];
+        if (typeof override === "number" && override > 0) return override;
+        return baseRowsPerCol;
+      }
+    );
+
+    // Split lines into columns with capacity constraints
+    const columns: Line[][] = Array.from(
+      { length: effectiveColumns },
+      () => []
+    );
+    let currentColIndex = 0;
+    let currentRows = 0;
+
+    const startNewColumn = () => {
+      if (currentColIndex >= effectiveColumns - 1) return;
+      currentColIndex += 1;
+      currentRows = 0;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const capacity = capacities[currentColIndex];
+
+      if (line.kind === "header") {
+        const next = lines[i + 1];
+        const needsTwoRows =
+          next && next.kind === "shop" && next.genre === line.genre;
+        const required = needsTwoRows ? 2 : 1;
+
+        if (currentRows > 0 && currentRows + required > capacity) {
+          startNewColumn();
+        }
+      } else {
+        if (currentRows > 0 && currentRows + 1 > capacity) {
+          startNewColumn();
+        }
+      }
+
+      columns[currentColIndex].push(line);
+      currentRows += 1;
+    }
+
+    const nonEmptyColumns = columns.filter((col) => col.length > 0);
+
+    // Logging
+    if (floorShops.length > 0) {
+      logInfo("shopList", "ShopList rendered", {
         floor: normalizedFloor,
+        floorShopsCount: floorShops.length,
+        totalLines,
+        columnCount: effectiveColumns,
+        baseRowsPerCol,
+        capacities,
+        nonEmptyColumnCount: nonEmptyColumns.length,
       });
-      return;
     }
 
-    if (floorShops.length === 0) {
-      logInfo("shopList", "ShopList rendered with no shops for floor", {
-        floor: normalizedFloor,
-      });
-      return;
-    }
-
-    logInfo("shopList", "ShopList rendered", {
-      floor: normalizedFloor,
-      floorShopsCount: floorShops.length,
-      totalLines,
-      columnCount: effectiveColumns,
-      baseRowsPerCol,
-      capacities,
-      nonEmptyColumnCount: nonEmptyColumns.length,
-    });
-  }, [
-    normalizedFloor,
-    shops.length,
-    floorShops.length,
-    totalLines,
-    effectiveColumns,
-    baseRowsPerCol,
-    nonEmptyColumns.length,
-    capacities.join(","),
-  ]);
-
-  // ---------------------------------------------------------------------------
-  // 5) Render columns
-  // ---------------------------------------------------------------------------
-  return (
-    <div
-      style={{
-        padding: "18px 16px",
-        boxSizing: "border-box",
-        width: "100%",
-        height: "100%",
-        fontSize: `${APP_CONFIG.fontSizeVmin}vmin`,
-        lineHeight: 1.4,
-        overflow: "hidden",
-        fontWeight: 700,
-      }}
-    >
+    // Render columns
+    return (
       <div
         style={{
           display: "flex",
@@ -296,16 +268,14 @@ const ShopList: React.FC<ShopListProps> = ({
             <div key={colIdx} style={{ flex: 1, minWidth: 0 }}>
               {sections.map((section) => (
                 <section
-                  key={`${colIdx}-${section.genre}-${
-                    section.showHeader ? "h" : "c"
-                  }`}
+                  key={`${colIdx}-${section.genre}-${section.showHeader ? "h" : "c"}`}
                   style={{ marginBottom: "10px" }}
                 >
+                  {/* Genre Header */}
                   {section.showHeader &&
                     (() => {
                       const isFashion = section.genre === "ファッション";
-                      const isFashionGoods =
-                        section.genre === "ファッション雑貨";
+                      const isFashionGoods = section.genre === "ファッション雑貨";
                       const isGoods = section.genre === "雑貨";
                       const isFood = section.genre === "飲食店・食品";
                       const isService = section.genre === "サービス";
@@ -317,8 +287,7 @@ const ShopList: React.FC<ShopListProps> = ({
                           isFood ||
                           isService) && "shoplist-genre-header",
                         isFashion && "shoplist-genre-header--fashion",
-                        isFashionGoods &&
-                          "shoplist-genre-header--fashion-goods",
+                        isFashionGoods && "shoplist-genre-header--fashion-goods",
                         isGoods && "shoplist-genre-header--goods",
                         isFood && "shoplist-genre-header--food",
                         isService && "shoplist-genre-header--service",
@@ -333,7 +302,7 @@ const ShopList: React.FC<ShopListProps> = ({
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "flex-end",
-                            fontSize: "1.4em",
+                            fontSize: "1.2em",
                             fontWeight: 700,
                             marginBottom: "8px",
                             whiteSpace: "nowrap",
@@ -347,10 +316,10 @@ const ShopList: React.FC<ShopListProps> = ({
                       );
                     })()}
 
+                  {/* Shop rows */}
                   {section.shops.map((s, idx) => {
                     const isFashion = section.genre === "ファッション";
-                    const isFashionGoods =
-                      section.genre === "ファッション雑貨";
+                    const isFashionGoods = section.genre === "ファッション雑貨";
                     const isGoods = section.genre === "雑貨";
                     const isFood = section.genre === "飲食店・食品";
                     const isService = section.genre === "サービス";
@@ -368,19 +337,11 @@ const ShopList: React.FC<ShopListProps> = ({
                         isService) &&
                         idx === 0 &&
                         "shoplist-row-first",
-                      isFashion &&
-                        idx % 2 === 0 &&
-                        "shoplist-row--fashion-striped",
-                      isFashionGoods &&
-                        idx % 2 === 0 &&
-                        "shoplist-row--fashion-goods-striped",
-                      isGoods &&
-                        idx % 2 === 0 &&
-                        "shoplist-row--goods-striped",
+                      isFashion && idx % 2 === 0 && "shoplist-row--fashion-striped",
+                      isFashionGoods && idx % 2 === 0 && "shoplist-row--fashion-goods-striped",
+                      isGoods && idx % 2 === 0 && "shoplist-row--goods-striped",
                       isFood && idx % 2 === 0 && "shoplist-row--food-striped",
-                      isService &&
-                        idx % 2 === 0 &&
-                        "shoplist-row--service-striped",
+                      isService && idx % 2 === 0 && "shoplist-row--service-striped",
                     ]
                       .filter(Boolean)
                       .join(" ");
@@ -417,13 +378,12 @@ const ShopList: React.FC<ShopListProps> = ({
                             <span
                               style={{
                                 marginLeft: "0.5em",
-                                fontFamily:
-                                  "Rounded Mplus 1c, sans-serif",
+                                fontFamily: "Rounded Mplus 1c, sans-serif",
                                 fontWeight: 400,
                                 fontSize: "0.7em",
                               }}
                             >
-                              {s.genreMemo ? `[${s.genreMemo}]` : ""}
+                              {`[${s.genreMemo}]`}
                             </span>
                           )}
                         </span>
@@ -445,6 +405,88 @@ const ShopList: React.FC<ShopListProps> = ({
           );
         })}
       </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Fallback rendering (shown if any unexpected error occurs above)
+  // ---------------------------------------------------------------------------
+  let content: React.ReactNode;
+
+  try {
+    content = renderNormalLayout();
+  } catch (error) {
+    logError("shopList", "ShopList render failed, using fallback layout", {
+      floor: normalizedFloor,
+      error: String(error),
+    });
+
+    content = (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          height: "100%",
+          overflow: "hidden",
+        }}
+      >
+        {floorShops.map((s) => (
+          <div
+            key={`${s.number}-${s.name}`}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "4em",
+                  textAlign: "left",
+                }}
+              >
+                {s.number}
+              </span>
+              {s.genreMemo && (
+                <span
+                  style={{
+                    marginLeft: "0.5em",
+                    fontFamily: "Rounded Mplus 1c, sans-serif",
+                    fontWeight: 400,
+                    fontSize: "0.7em",
+                  }}
+                >
+                  {`[${s.genreMemo}]`}
+                </span>
+              )}
+            </span>
+            <span>{s.name}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Outer layout wrapper
+  // ---------------------------------------------------------------------------
+  return (
+    <div
+      style={{
+        padding: "10px 16px",
+        boxSizing: "border-box",
+        width: "100%",
+        height: "100%",
+        fontSize: `${APP_CONFIG.fontSizeVmin}vmin`,
+        lineHeight: 1.4,
+        overflow: "hidden",
+        fontWeight: 700,
+      }}
+    >
+      {content}
     </div>
   );
 };
