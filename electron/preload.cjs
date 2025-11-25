@@ -50,6 +50,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('open-location-icon-settings', listener);
     };
   },
+  getFloorLayout() {
+    return ipcRenderer.invoke('settings:get-floor-layout');
+  },
+  saveFloorLayout(layout) {
+    return ipcRenderer.invoke('settings:save-floor-layout', layout);
+  },
+  onFloorLayoutChanged(callback) {
+    const listener = (_event, layout) => callback(layout);
+    ipcRenderer.on('settings:floor-layout-changed', listener);
+
+    return () => {
+      ipcRenderer.removeListener('settings:floor-layout-changed', listener);
+    };
+  },
+  onOpenFloorLayoutSettings(callback) {
+    const listener = () => callback();
+    ipcRenderer.on('open-floor-layout-settings', listener);
+
+    return () => {
+      ipcRenderer.removeListener('open-floor-layout-settings', listener);
+    };
+  },
 });
 
 contextBridge.exposeInMainWorld('wspApi', {

@@ -287,7 +287,7 @@ const LocationIconSettingsScreen: React.FC<Props> = ({
           top: windowPos.top,
           width: 560,
           maxWidth: "95vw",
-          backgroundColor: "rgba(255, 255, 255, 0.9)",
+          backgroundColor: "rgba(255, 255, 255)",
           borderRadius: 16,
           padding: 20,
           boxShadow: "0 16px 32px rgba(0,0,0,0.25)",

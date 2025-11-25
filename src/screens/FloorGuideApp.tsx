@@ -18,7 +18,8 @@ import VerticalVideoSlot from "../components/VerticalVideoSlot";
 import type { LocationIconSettings } from "../types/locationIcon";
 import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
 
-import { logInfo, logError } from '../logging';
+import { logInfo, logError } from "../logging";
+import FloorLayoutSettingsScreen from "./FloorLayoutSettingsScreen";
 
 const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
@@ -31,16 +32,37 @@ const FLOOR_MAPS: Record<string, string> = {
   "4F": floorMap4F,
 };
 
+type FloorLayoutPerFloor = {
+  columns: number;
+  rowsPerCol: number;
+  perColumnRows?: number[];
+};
+
+type FloorLayout = Record<string, FloorLayoutPerFloor>;
+
+const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
+  "1F": { columns: 3, rowsPerCol: 20 },
+  "2F": { columns: 2, rowsPerCol: 19 },
+  "3F": { columns: 3, rowsPerCol: 20 },
+  "4F": { columns: 2, rowsPerCol: 18 },
+};
+
 interface FloorGuideAppProps {
   locationIconSettings: LocationIconSettings;
 }
 
-const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) => {
+const FloorGuideApp: React.FC<FloorGuideAppProps> = ({
+  locationIconSettings,
+}) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Current floor for this screen (default from APP_CONFIG for non-Electron)
   const [floor, setFloor] = useState<string>(APP_CONFIG.floor);
+
+  // Runtime floor layout (columns / rows per column)
+  const [floorLayout, setFloorLayout] =
+    useState<FloorLayout>(DEFAULT_FLOOR_LAYOUT);
 
   // Floor synchronization with Electron main process
   useEffect(() => {
@@ -71,6 +93,38 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // Floor layout synchronization with Electron
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api) return;
+
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        const layout = await api.getFloorLayout();
+        if (!cancelled && layout) {
+          setFloorLayout(layout);
+        }
+      } catch (e) {
+        console.error("Failed to get floor layout from Electron", e);
+      }
+    };
+
+    init();
+
+    const unsubscribe = api.onFloorLayoutChanged((layout) => {
+      if (!cancelled) {
+        setFloorLayout(layout);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe && unsubscribe();
     };
   }, []);
 
@@ -132,6 +186,37 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
     };
   }, []);
 
+  const handleSaveFloorLayout = async (next: FloorLayout) => {
+    const api = window.electronAPI;
+    if (!api) return;
+
+    try {
+      const saved = await api.saveFloorLayout(next);
+      setFloorLayout(saved);
+    } catch (e) {
+      console.error("Failed to save floor layout", e);
+    }
+  };
+
+  const handleCancelFloorLayout = () => {
+    const api = window.electronAPI;
+    if (!api) return;
+
+    api
+      .getFloorLayout()
+      .then((layout) => {
+        if (layout) setFloorLayout(layout);
+      })
+      .catch((e) => {
+        console.error("Failed to reload floor layout on cancel", e);
+      });
+  };
+
+  const currentLayout =
+    floorLayout[floor] ??
+    DEFAULT_FLOOR_LAYOUT[floor] ??
+    DEFAULT_FLOOR_LAYOUT["1F"];
+
   return (
     <div
       style={{
@@ -154,7 +239,7 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
         <div
           style={{
             flex: 2,
-            position: "relative", // base for absolute icons
+            position: "relative",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -169,18 +254,17 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
               objectFit: "contain",
             }}
             onLoad={() => {
-              logInfo('map', 'Floor map image loaded', {
+              logInfo("map", "Floor map image loaded", {
                 floor,
                 src: floorMap,
               });
             }}
             onError={(event) => {
-              logError('map', 'Failed to load floor map image', {
+              logError("map", "Failed to load floor map image", {
                 floor,
                 src: floorMap,
               });
-              // optional: simple visual fallback
-              (event.target as HTMLImageElement).style.visibility = 'hidden';
+              (event.target as HTMLImageElement).style.visibility = "hidden";
             }}
           />
 
@@ -235,7 +319,13 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
               Error: {error}
             </div>
           ) : (
-            <ShopList shops={shops} floor={floor} />
+            <ShopList
+              shops={shops}
+              floor={floor}
+              columnCount={currentLayout.columns}
+              rowsPerColumn={currentLayout.rowsPerCol}
+              perColumnRows={currentLayout.perColumnRows}
+            />
           )}
         </div>
 
@@ -261,19 +351,27 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
               padding: "30px",
             }}
             onLoad={() => {
-              logInfo('openTime', 'Open-time image loaded', {
+              logInfo("openTime", "Open-time image loaded", {
                 src: openTimeImage,
               });
             }}
             onError={(event) => {
-              logError('openTime', 'Failed to load open-time image', {
+              logError("openTime", "Failed to load open-time image", {
                 src: openTimeImage,
               });
-              (event.target as HTMLImageElement).style.visibility = 'hidden';
+              (event.target as HTMLImageElement).style.visibility = "hidden";
             }}
           />
         </div>
       </div>
+
+      {/* Floor layout settings modal (always mounted, opened via app menu) */}
+      <FloorLayoutSettingsScreen
+        layout={floorLayout}
+        onChangeLayout={setFloorLayout}
+        onSave={handleSaveFloorLayout}
+        onCancel={handleCancelFloorLayout}
+      />
     </div>
   );
 };

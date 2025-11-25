@@ -38,6 +38,14 @@ const DEFAULT_LOCATION_ICON_SETTINGS = {
   },
 };
 
+// Default ShopList layout (columns and rows per column for each floor)
+const DEFAULT_FLOOR_LAYOUT = {
+  '1F': { columns: 3, rowsPerCol: 20 },
+  '2F': { columns: 2, rowsPerCol: 19 },
+  '3F': { columns: 3, rowsPerCol: 20 },
+  '4F': { columns: 2, rowsPerCol: 18 },
+};
+
 // Prevent multiple instances from starting with a single-instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -70,6 +78,7 @@ function loadSettings() {
   const base = {
     floor: '1F',
     locationIcons: DEFAULT_LOCATION_ICON_SETTINGS,
+    floorLayout: DEFAULT_FLOOR_LAYOUT,
   };
 
   try {
@@ -97,6 +106,12 @@ function loadSettings() {
             },
           }
         : base.locationIcons,
+      floorLayout: parsed.floorLayout
+        ? {
+            ...base.floorLayout,
+            ...parsed.floorLayout,
+          }
+        : base.floorLayout,
     };
 
     logger.debug('Settings loaded', {
@@ -142,6 +157,43 @@ function broadcastFloor(floor) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('settings:floor-changed', floor);
   }
+}
+
+/**
+ * Broadcast floor layout changes to renderer processes
+ */
+function broadcastFloorLayout(floorLayout) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('settings:floor-layout-changed', floorLayout);
+  }
+}
+
+/**
+ * Update floor layout (per floor) and notify renderer
+ * partialLayout: { columns?: number; rowsPerCol?: number }
+ */
+function updateFloorLayout(floor, partialLayout) {
+  const current = loadSettings();
+  const prevLayout = current.floorLayout || DEFAULT_FLOOR_LAYOUT;
+  const prevForFloor = prevLayout[floor] || DEFAULT_FLOOR_LAYOUT[floor] || {};
+
+  const nextFloorLayout = {
+    ...prevLayout,
+    [floor]: {
+      ...prevForFloor,
+      ...partialLayout,
+    },
+  };
+
+  const next = saveSettings({ floorLayout: nextFloorLayout });
+
+  logger.info('Floor layout updated', {
+    floor,
+    columns: next.floorLayout[floor].columns,
+    rowsPerCol: next.floorLayout[floor].rowsPerCol,
+  });
+
+  broadcastFloorLayout(next.floorLayout);
 }
 
 /**
@@ -300,6 +352,7 @@ function createMainWindow() {
     });
     broadcastFloor(settings.floor);
     broadcastLocationIconSettings(settings.locationIcons);
+    broadcastFloorLayout(settings.floorLayout);
   });
 
   mainWindow.on('closed', () => {
@@ -317,6 +370,8 @@ function createAppMenu() {
   logger.info('Creating application menu', {
     initialFloor: settings.floor,
   });
+
+  const layout = settings.floorLayout || DEFAULT_FLOOR_LAYOUT;
 
   const template = [
     {
@@ -354,6 +409,16 @@ function createAppMenu() {
           type: 'radio',
           checked: settings.floor === '4F',
           click: () => updateFloorSetting('4F'),
+        },
+        { type: 'separator' },
+        {
+          label: 'ShopList layout...',
+          click: () => {
+            logger.info('ShopList layout settings menu clicked');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('open-floor-layout-settings');
+            }
+          },
         },
         { type: 'separator' },
         {
@@ -399,6 +464,19 @@ ipcMain.handle('settings:get-floor', () => {
   const settings = loadSettings();
   logger.debug('IPC settings:get-floor', { floor: settings.floor });
   return settings.floor;
+});
+
+ipcMain.handle('settings:get-floor-layout', () => {
+  const settings = loadSettings();
+  logger.debug('IPC settings:get-floor-layout');
+  return settings.floorLayout || DEFAULT_FLOOR_LAYOUT;
+});
+
+ipcMain.handle('settings:save-floor-layout', (_event, floorLayout) => {
+  logger.info('IPC settings:save-floor-layout');
+  const settings = saveSettings({ floorLayout });
+  broadcastFloorLayout(settings.floorLayout);
+  return settings.floorLayout;
 });
 
 ipcMain.handle('get-app-version', () => {

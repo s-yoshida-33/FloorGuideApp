@@ -8,7 +8,7 @@ export interface Shop {
   genre: string;
   genreMemo: string;
   number: string;
-  floor: FloorId;
+  floors: FloorId[];
 }
 
 // Raw data type from BridgeWebPopper /api/shops
@@ -17,6 +17,6 @@ export interface BridgeShop {
   number: string;
   genre_memo: string;
   shop_name: string;
-  floor?: string;
+  floors?: string | string[];
   shop_id?: string;
 }
