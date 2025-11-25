@@ -1,11 +1,17 @@
 // src/components/VerticalVideoSlot.tsx
 import React from 'react';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
+import { logInfo, logWarn, logError } from '../logging';
 
 const VerticalVideoSlot: React.FC = () => {
   const { asset, isLoading } = useCurrentAsset();
 
+  // No asset case
   if (!asset) {
+    if (!isLoading) {
+      logWarn('video', 'No video asset available for VerticalVideoSlot');
+    }
+
     return (
       <div
         style={{
@@ -35,6 +41,28 @@ const VerticalVideoSlot: React.FC = () => {
         height: '100%',
         display: 'block',
         objectFit: 'cover',
+      }}
+      onLoadedData={() => {
+        logInfo('video', 'Video loaded in VerticalVideoSlot', {
+          assetId: asset.id,
+          src: asset.src,
+        });
+      }}
+      onPlay={() => {
+        logInfo('video', 'Video playback started', {
+          assetId: asset.id,
+        });
+      }}
+      onEnded={() => {
+        logInfo('video', 'Video playback ended', {
+          assetId: asset.id,
+        });
+      }}
+      onError={() => {
+        logError('video', 'Video element error (VerticalVideoSlot)', {
+          assetId: asset.id,
+          src: asset.src,
+        });
       }}
     />
   );

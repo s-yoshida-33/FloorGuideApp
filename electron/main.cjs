@@ -11,6 +11,7 @@ const {
   checkForUpdates,
   oneClickUpdate,
 } = require('./updateChecker.cjs');
+const logger = require('./logger.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -25,7 +26,7 @@ const DEFAULT_LOCATION_ICON_SETTINGS = {
     anchorHorizontal: 'left',
     offsetX: 40,
     offsetY: 40,
-    size: 96,
+    size: 75,
   },
   location: {
     enabled: true,
@@ -33,7 +34,7 @@ const DEFAULT_LOCATION_ICON_SETTINGS = {
     anchorHorizontal: 'left',
     offsetX: 40,
     offsetY: 40,
-    size: 72,
+    size: 36,
   },
 };
 
@@ -74,13 +75,14 @@ function loadSettings() {
   try {
     const settingsPath = getSettingsPath();
     if (!fs.existsSync(settingsPath)) {
+      logger.debug('Settings file does not exist, using defaults');
       return base;
     }
 
     const raw = fs.readFileSync(settingsPath, 'utf-8');
     const parsed = JSON.parse(raw);
 
-    return {
+    const merged = {
       floor: typeof parsed.floor === 'string' ? parsed.floor : base.floor,
       locationIcons: parsed.locationIcons
         ? {
@@ -96,7 +98,16 @@ function loadSettings() {
           }
         : base.locationIcons,
     };
-  } catch {
+
+    logger.debug('Settings loaded', {
+      floor: merged.floor,
+    });
+
+    return merged;
+  } catch (error) {
+    logger.error('Failed to load settings, using defaults', {
+      error: error?.message,
+    });
     // Fallback to base defaults on any error
     return base;
   }
@@ -109,8 +120,18 @@ function saveSettings(partial) {
     ...partial,
   };
 
-  const settingsPath = getSettingsPath();
-  fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
+  try {
+    const settingsPath = getSettingsPath();
+    fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
+    logger.info('Settings saved', {
+      floor: next.floor,
+    });
+  } catch (error) {
+    logger.error('Failed to save settings', {
+      error: error?.message,
+    });
+  }
+
   return next;
 }
 
@@ -137,6 +158,7 @@ function broadcastLocationIconSettings(locationIcons) {
  */
 function updateFloorSetting(floor) {
   const next = saveSettings({ floor });
+  logger.info('Floor updated', { floor: next.floor });
   broadcastFloor(next.floor);
 }
 
@@ -147,7 +169,12 @@ function httpGetJson(url) {
   return new Promise((resolve, reject) => {
     const req = http.get(url, (res) => {
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        reject(new Error(`HTTP ${res.statusCode}`));
+        const error = new Error(`HTTP ${res.statusCode}`);
+        logger.warn('HTTP request failed', {
+          url,
+          statusCode: res.statusCode,
+        });
+        reject(error);
         res.resume();
         return;
       }
@@ -162,12 +189,20 @@ function httpGetJson(url) {
           const json = JSON.parse(data);
           resolve(json);
         } catch (err) {
+          logger.error('Failed to parse JSON response', {
+            url,
+            error: err?.message,
+          });
           reject(err);
         }
       });
     });
 
     req.on('error', (err) => {
+      logger.error('HTTP request error', {
+        url,
+        error: err?.message,
+      });
       reject(err);
     });
 
@@ -181,7 +216,11 @@ function httpGetJson(url) {
 function toFileUrl(winPath) {
   try {
     return pathToFileURL(winPath).toString();
-  } catch {
+  } catch (error) {
+    logger.warn('Failed to convert path to file URL, using fallback', {
+      error: error?.message,
+      winPath,
+    });
     const normalized = winPath.replace(/\\/g, '/');
     return `file:///${normalized}`;
   }
@@ -193,9 +232,12 @@ function toFileUrl(winPath) {
  */
 function createPatchWindow() {
   if (patchWindow && !patchWindow.isDestroyed()) {
+    logger.debug('Patch window already exists, focusing');
     patchWindow.focus();
     return;
   }
+
+  logger.info('Creating patch window');
 
   patchWindow = new BrowserWindow({
     resizable: false,
@@ -214,10 +256,14 @@ function createPatchWindow() {
   patchWindow.loadURL(`${rendererBaseUrl}#patch`);
 
   patchWindow.once('ready-to-show', () => {
-    if (patchWindow) patchWindow.show();
+    if (patchWindow) {
+      logger.info('Patch window ready to show');
+      patchWindow.show();
+    }
   });
 
   patchWindow.on('closed', () => {
+    logger.info('Patch window closed');
     patchWindow = null;
   });
 }
@@ -227,6 +273,7 @@ function createPatchWindow() {
  */
 function createMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
+    logger.debug('Main window already exists, focusing');
     mainWindow.focus();
     return;
   }
@@ -248,11 +295,15 @@ function createMainWindow() {
   // Send current floor setting after renderer has finished loading
   const settings = loadSettings();
   mainWindow.webContents.on('did-finish-load', () => {
+    logger.info('Main window finished loading, broadcasting settings', {
+      floor: settings.floor,
+    });
     broadcastFloor(settings.floor);
     broadcastLocationIconSettings(settings.locationIcons);
   });
 
   mainWindow.on('closed', () => {
+    logger.info('Main window closed');
     mainWindow = null;
   });
 }
@@ -262,6 +313,10 @@ function createMainWindow() {
  */
 function createAppMenu() {
   const settings = loadSettings();
+
+  logger.info('Creating application menu', {
+    initialFloor: settings.floor,
+  });
 
   const template = [
     {
@@ -304,6 +359,7 @@ function createAppMenu() {
         {
           label: 'Location icon settings...',
           click: () => {
+            logger.info('Location icon settings menu clicked');
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send('open-location-icon-settings');
             }
@@ -317,12 +373,14 @@ function createAppMenu() {
         {
           label: 'Check for updates (manual)',
           click: () => {
+            logger.info('Manual update check requested');
             checkForUpdates(true); // manual check
           },
         },
         {
           label: 'Update now (one click)',
           click: () => {
+            logger.info('One-click update requested');
             oneClickUpdate(); // one-click automatic update
           },
         },
@@ -339,11 +397,14 @@ function createAppMenu() {
  */
 ipcMain.handle('settings:get-floor', () => {
   const settings = loadSettings();
+  logger.debug('IPC settings:get-floor', { floor: settings.floor });
   return settings.floor;
 });
 
 ipcMain.handle('get-app-version', () => {
-  return app.getVersion();
+  const version = app.getVersion();
+  logger.debug('IPC get-app-version', { version });
+  return version;
 });
 
 /**
@@ -351,10 +412,15 @@ ipcMain.handle('get-app-version', () => {
  */
 ipcMain.handle('get-location-icon-settings', () => {
   const settings = loadSettings();
+  logger.debug('IPC get-location-icon-settings');
   return settings.locationIcons;
 });
 
 ipcMain.handle('save-location-icon-settings', (_event, locationIcons) => {
+  logger.info('IPC save-location-icon-settings', {
+    hasSpeechBubble: !!locationIcons?.speechBubble,
+    hasLocation: !!locationIcons?.location,
+  });
   const settings = saveSettings({ locationIcons });
   broadcastLocationIconSettings(settings.locationIcons);
   return settings.locationIcons;
@@ -370,16 +436,23 @@ ipcMain.handle('wsp:get-current-asset', async () => {
     const json = await httpGetJson('http://127.0.0.1:8081/current-timeline');
 
     if (!json || !json.current_timeline) {
+      logger.warn('wsp:get-current-asset: current_timeline is missing');
       return null;
     }
 
     const tl = json.current_timeline;
     const assets = tl.media_assets || [];
     if (!Array.isArray(assets) || assets.length === 0) {
+      logger.warn('wsp:get-current-asset: media_assets is empty');
       return null;
     }
 
     const asset = assets[0];
+
+    logger.info('wsp:get-current-asset: returning first asset', {
+      assetId: asset.id,
+      url: asset.url,
+    });
 
     return {
       id: asset.id,
@@ -395,7 +468,9 @@ ipcMain.handle('wsp:get-current-asset', async () => {
       endTime: tl.end_time,
     };
   } catch (error) {
-    console.error('[wsp:get-current-asset] failed:', error);
+    logger.error('wsp:get-current-asset failed', {
+      error: error?.message,
+    });
     return null;
   }
 });
@@ -406,9 +481,12 @@ ipcMain.handle('wsp:get-current-asset', async () => {
 ipcMain.handle('wsp:get-current-timeline', async () => {
   try {
     const json = await httpGetJson('http://127.0.0.1:8081/current-timeline');
+    logger.debug('wsp:get-current-timeline: success');
     return json || null;
   } catch (error) {
-    console.error('[wsp:get-current-timeline] failed:', error);
+    logger.error('wsp:get-current-timeline failed', {
+      error: error?.message,
+    });
     return null;
   }
 });
@@ -427,17 +505,56 @@ ipcMain.handle('wsp:get-timeline', async (_event, options) => {
     const url = hour != null ? `${baseUrl}?hour=${hour}` : baseUrl;
 
     const json = await httpGetJson(url);
+    logger.debug('wsp:get-timeline: success', { hour });
     return json || null;
   } catch (error) {
-    console.error('[wsp:get-timeline] failed:', error);
+    logger.error('wsp:get-timeline failed', {
+      error: error?.message,
+    });
     return null;
   }
+});
+
+/**
+ * IPC handler to receive logs from renderer process.
+ * The preload exposes window.logger which sends log-message IPC.
+ */
+ipcMain.on('log-message', (_event, payload) => {
+  try {
+    logger.logFromRenderer(payload || {});
+  } catch (error) {
+    logger.error('Failed to handle log-message IPC', {
+      error: error?.message,
+    });
+  }
+});
+
+/**
+ * Global error handlers for main process.
+ */
+process.on('uncaughtException', (error) => {
+  logger.fatal('Uncaught exception in main process', {
+    error: error?.message,
+    stack: error?.stack,
+  });
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.fatal('Unhandled promise rejection in main process', {
+    reason: String(reason),
+  });
 });
 
 /**
  * App ready event.
  */
 app.whenReady().then(() => {
+  logger.configureLogger();
+  logger.info('Application starting', {
+    env: process.env.NODE_ENV || 'production',
+    isDev,
+  });
+
   createPatchWindow();
   createAppMenu();
 
@@ -448,6 +565,7 @@ app.whenReady().then(() => {
   });
 
   // Startup update check (silent, handled inside updateChecker)
+  logger.info('Starting initial update check');
   checkForUpdates(false);
 
   app.on('activate', () => {
@@ -455,6 +573,7 @@ app.whenReady().then(() => {
 
     // macOS: recreate main window if no windows are open
     if (BrowserWindow.getAllWindows().length === 0) {
+      logger.info('App activated on macOS with no windows, creating main window');
       createMainWindow();
     }
   });
@@ -465,5 +584,6 @@ app.whenReady().then(() => {
  * Except macOS where apps usually stay active.
  */
 app.on('window-all-closed', () => {
+  logger.info('All windows closed', { platform: process.platform });
   if (process.platform !== 'darwin') app.quit();
 });

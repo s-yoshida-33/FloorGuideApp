@@ -17,6 +17,8 @@ import VerticalVideoSlot from "../components/VerticalVideoSlot";
 import type { LocationIconSettings } from "../types/locationIcon";
 import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
 
+import { logInfo, logError } from '../logging';
+
 const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
 
@@ -143,6 +145,20 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
               maxHeight: "100%",
               objectFit: "contain",
             }}
+            onLoad={() => {
+              logInfo('map', 'Floor map image loaded', {
+                floor,
+                src: floorMap,
+              });
+            }}
+            onError={(event) => {
+              logError('map', 'Failed to load floor map image', {
+                floor,
+                src: floorMap,
+              });
+              // optional: simple visual fallback
+              (event.target as HTMLImageElement).style.visibility = 'hidden';
+            }}
           />
 
           {/* Location icons overlay */}
@@ -220,6 +236,17 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
               maxHeight: "100%",
               objectFit: "contain",
               padding: "30px",
+            }}
+            onLoad={() => {
+              logInfo('openTime', 'Open-time image loaded', {
+                src: openTimeImage,
+              });
+            }}
+            onError={(event) => {
+              logError('openTime', 'Failed to load open-time image', {
+                src: openTimeImage,
+              });
+              (event.target as HTMLImageElement).style.visibility = 'hidden';
             }}
           />
         </div>

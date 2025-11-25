@@ -1,8 +1,15 @@
 // src/components/ShopList.tsx
-import React from "react";
+import React, { useEffect } from "react";
 import type { Shop } from "../types/shop";
-import { APP_CONFIG, GENRE_ORDER, GENRE_ENGLISH, FLOOR_ROWS_PER_COL, FLOOR_COLUMN_COUNT } from "../config";
+import {
+  APP_CONFIG,
+  GENRE_ORDER,
+  GENRE_ENGLISH,
+  FLOOR_ROWS_PER_COL,
+  FLOOR_COLUMN_COUNT,
+} from "../config";
 import "../styles/ShopList.css";
+import { logInfo, logWarn } from "../logging";
 
 interface ShopListProps {
   shops: Shop[];
@@ -181,6 +188,45 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
   }
 
   const nonEmptyColumns = columns.filter((col) => col.length > 0);
+
+  // ---------------------------------------------------------------------------
+  // 4.5) Logging: ensure list rendering status is recorded
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    // No shops at all for this render
+    if (shops.length === 0) {
+      logWarn("shopList", "ShopList rendered with empty shops array", {
+        floor: normalizedFloor,
+      });
+      return;
+    }
+
+    // No shops for this floor
+    if (floorShops.length === 0) {
+      logWarn("shopList", "ShopList rendered with no shops for floor", {
+        floor: normalizedFloor,
+      });
+      return;
+    }
+
+    // Normal case: we have at least one shop for this floor
+    logInfo("shopList", "ShopList rendered", {
+      floor: normalizedFloor,
+      floorShopsCount: floorShops.length,
+      totalLines,
+      columnCount,
+      rowsPerColumn,
+      nonEmptyColumnCount: nonEmptyColumns.length,
+    });
+  }, [
+    normalizedFloor,
+    shops.length,
+    floorShops.length,
+    totalLines,
+    columnCount,
+    rowsPerColumn,
+    nonEmptyColumns.length,
+  ]);
 
   // ---------------------------------------------------------------------------
   // 5) Render columns

@@ -63,3 +63,26 @@ contextBridge.exposeInMainWorld('wspApi', {
     return ipcRenderer.invoke('wsp:get-timeline', { hour });
   },
 });
+
+contextBridge.exposeInMainWorld('logger', {
+  log(level, message, context) {
+    // Basic safeguard so the app does not crash even if called incorrectly
+    ipcRenderer.send('log-message', {
+      level,
+      message,
+      context: context || {},
+    });
+  },
+  info(message, context) {
+    this.log('info', message, context);
+  },
+  warn(message, context) {
+    this.log('warn', message, context);
+  },
+  error(message, context) {
+    this.log('error', message, context);
+  },
+  debug(message, context) {
+    this.log('debug', message, context);
+  },
+});

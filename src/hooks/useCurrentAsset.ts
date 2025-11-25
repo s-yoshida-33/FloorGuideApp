@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { CurrentAsset } from '../types/wsp';
 import { fetchCurrentAsset } from '../repositories/wspRepository';
 import { WSP_CONFIG } from '../config/wspConfig';
+import { logInfo, logWarn, logError } from '../logging';
 
 interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
@@ -28,10 +29,29 @@ export function useCurrentAsset(
         const next = await fetchCurrentAsset();
         if (!isMounted) return;
 
+        if (next) {
+          // API success & asset received
+          logInfo('video', 'Fetched current video asset', {
+            assetId: next.id,
+            src: next.src,
+            duration: next.duration,
+            name: next.name,
+          });
+        } else {
+          // API success but no asset returned
+          logWarn('video', 'No current video asset returned by WSP');
+        }
+
         setAsset(next);
         setIsLoading(false);
-      } catch (error) {
+      } catch (error: any) {
         if (!isMounted) return;
+
+        // API communication error
+        logError('video', 'Failed to fetch current video asset', {
+          error: error?.message,
+        });
+
         setIsLoading(false);
       } finally {
         if (!isMounted) return;
