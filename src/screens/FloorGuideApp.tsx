@@ -11,6 +11,7 @@ import floorMap4F from "../assets/floor-4F-map.svg";
 import openTimeImage from "../assets/open-time.svg";
 
 import { APP_CONFIG } from "../config";
+import { POLLING_INTERVALS } from "../config/appConfig";
 import { fetchShops } from "../repositories/shopRepository";
 import VerticalVideoSlot from "../components/VerticalVideoSlot";
 
@@ -85,27 +86,49 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({ locationIconSettings }) =
   // Shop data loading
   useEffect(() => {
     let cancelled = false;
+    let timerId: number | null = null;
 
-    (async () => {
+    const loadShops = async () => {
       try {
         const data = await fetchShops();
-        if (!cancelled) {
-          const cleaned = data.map((s) => ({
-            ...s,
-            name: s.name.replace(/【.*?】/g, "").trim(),
-          }));
-          setShops(cleaned);
-        }
+        if (cancelled) return;
+
+        const cleaned = data.map((s) => ({
+          ...s,
+          // Remove furigana / kana in brackets from name
+          name: s.name.replace(/【.*?】/g, "").trim(),
+        }));
+
+        setShops(cleaned);
+        setError(null);
+
+        logInfo("shopList", "Shop data synced", {
+          count: cleaned.length,
+        });
       } catch (e: any) {
         console.error(e);
-        if (!cancelled) {
-          setError(e?.message ?? "failed to load");
-        }
+        if (cancelled) return;
+
+        const message = e?.message ?? "failed to load";
+        setError(message);
+
+        logError("shopList", "Failed to load shop list", {
+          error: message,
+        });
+      } finally {
+        if (cancelled) return;
+        timerId = window.setTimeout(loadShops, POLLING_INTERVALS.SHOP_LIST_MS);
       }
-    })();
+    };
+
+    // Initial sync on startup
+    loadShops();
 
     return () => {
       cancelled = true;
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+      }
     };
   }, []);
 

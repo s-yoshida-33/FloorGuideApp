@@ -1,8 +1,8 @@
 // src/hooks/useCurrentAsset.ts
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { CurrentAsset } from '../types/wsp';
 import { fetchCurrentAsset } from '../repositories/wspRepository';
-import { WSP_CONFIG } from '../config/wspConfig';
+import { POLLING_INTERVALS } from '../config/appConfig';
 import { logInfo, logWarn, logError } from '../logging';
 
 interface UseCurrentAssetResult {
@@ -10,15 +10,20 @@ interface UseCurrentAssetResult {
   isLoading: boolean;
 }
 
+type AssetStatus = 'ok' | 'noAsset' | 'error' | null;
+
 /**
  * Polls wsp.exe API via Electron IPC and returns the current asset.
  * Default interval is configured in WSP_CONFIG.
  */
 export function useCurrentAsset(
-  pollIntervalMs: number = WSP_CONFIG.pollIntervalMs,
+  pollIntervalMs: number = POLLING_INTERVALS.VIDEO_MS,
 ): UseCurrentAssetResult {
   const [asset, setAsset] = useState<CurrentAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Keep track of last status to avoid spamming logs / Slack alerts
+  const lastStatusRef = useRef<AssetStatus>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -30,16 +35,22 @@ export function useCurrentAsset(
         if (!isMounted) return;
 
         if (next) {
-          // API success & asset received
-          logInfo('video', 'Fetched current video asset', {
-            assetId: next.id,
-            src: next.src,
-            duration: next.duration,
-            name: next.name,
-          });
+          // Status: ok (asset available)
+          if (lastStatusRef.current !== 'ok') {
+            logInfo('video', 'Fetched current video asset', {
+              assetId: next.id,
+              src: next.src,
+              duration: next.duration,
+              name: next.name,
+            });
+          }
+          lastStatusRef.current = 'ok';
         } else {
-          // API success but no asset returned
-          logWarn('video', 'No current video asset returned by WSP');
+          // Status: noAsset (API OK but no current asset)
+          if (lastStatusRef.current !== 'noAsset') {
+            logWarn('video', 'No current video asset returned by WSP');
+          }
+          lastStatusRef.current = 'noAsset';
         }
 
         setAsset(next);
@@ -47,10 +58,13 @@ export function useCurrentAsset(
       } catch (error: any) {
         if (!isMounted) return;
 
-        // API communication error
-        logError('video', 'Failed to fetch current video asset', {
-          error: error?.message,
-        });
+        // Status: error (API communication error)
+        if (lastStatusRef.current !== 'error') {
+          logError('video', 'Failed to fetch current video asset', {
+            error: error?.message,
+          });
+        }
+        lastStatusRef.current = 'error';
 
         setIsLoading(false);
       } finally {

@@ -9,7 +9,7 @@ import {
   FLOOR_COLUMN_COUNT,
 } from "../config";
 import "../styles/ShopList.css";
-import { logInfo, logWarn } from "../logging";
+import { logInfo } from "../logging";
 
 interface ShopListProps {
   shops: Shop[];
@@ -195,7 +195,7 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
   useEffect(() => {
     // No shops at all for this render
     if (shops.length === 0) {
-      logWarn("shopList", "ShopList rendered with empty shops array", {
+      logInfo("shopList", "ShopList rendered with empty shops array", {
         floor: normalizedFloor,
       });
       return;
@@ -203,7 +203,7 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
 
     // No shops for this floor
     if (floorShops.length === 0) {
-      logWarn("shopList", "ShopList rendered with no shops for floor", {
+      logInfo("shopList", "ShopList rendered with no shops for floor", {
         floor: normalizedFloor,
       });
       return;
@@ -260,10 +260,7 @@ const ShopList: React.FC<ShopListProps> = ({ shops, floor }) => {
               {sections.map((section) => (
                 <section
                   key={`${colIdx}-${section.genre}-${section.showHeader ? "h" : "c"}`}
-                  style={{
-                    marginBottom:
-                      section.genre === "ファッション" && section.showHeader ? "10px" : "10px",
-                  }}
+                  style={{ marginBottom: "10px" }}
                 >
                   {section.showHeader && (() => {
                     const isFashion = section.genre === "ファッション";

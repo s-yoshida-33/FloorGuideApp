@@ -31,12 +31,12 @@ export async function fetchShopsFromBridge(): Promise<Shop[]> {
       rawList = json;
     } else if (Array.isArray((json as any).data)) {
       rawList = (json as any).data;
-      logWarn("shopList", "Bridge API returned data under json.data (legacy format)");
+      logInfo("shopList", "Bridge API returned data under json.data (legacy format)");
     } else if (Array.isArray((json as any).items)) {
       rawList = (json as any).items;
-      logWarn("shopList", "Bridge API returned data under json.items (legacy format)");
+      logInfo("shopList", "Bridge API returned data under json.items (legacy format)");
     } else {
-      logWarn("shopList", "Bridge API response did not contain an array", {
+      logInfo("shopList", "Bridge API response did not contain an array", {
         receivedKeys: Object.keys(json),
       });
     }
