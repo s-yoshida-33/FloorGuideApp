@@ -5,38 +5,114 @@ const path = require('path');
 const os = require('os');
 const { app } = require('electron');
 const log = require('electron-log');
+const https = require('https');
 
 const hostname = os.hostname();
+const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL || '';
 
-// Configure file logging (location, size, etc.)
 function configureLogger() {
-  // Use Electron's userData path so we can always write logs
   const userData = app.getPath('userData');
   const logDir = path.join(userData, 'logs');
 
-  // Single log file (electron-log will create the folder if needed)
   log.transports.file.resolvePath = () =>
     path.join(logDir, 'floor-guide-display.log');
 
-  // Max file size ~5MB before it starts a new file
   log.transports.file.maxSize = 5 * 1024 * 1024;
 
-  // Console level (for dev) and file level (for prod)
-  log.transports.console.level = process.env.NODE_ENV === 'development'
-    ? 'debug'
-    : 'info';
+  log.transports.console.level =
+    process.env.NODE_ENV === 'development' ? 'debug' : 'info';
   log.transports.file.level = 'info';
 
-  // Optional: disable logging in production console if you want
-  // log.transports.console.level = false;
+  if (!slackWebhookUrl) {
+    log.info(
+      'SLACK_WEBHOOK_URL is not set; Slack alerts will be disabled.',
+    );
+  }
 }
 
-// Helper to format messages with common metadata
+// ---------------------------------------------------------------------------
+// Slack notification via Incoming Webhook
+// ---------------------------------------------------------------------------
+
+function notifySlack(level, message, context = {}) {
+  if (!slackWebhookUrl) return;
+
+  const scope = context.scope;
+  const importantScopes = new Set(['map', 'shopList', 'video', 'openTime']);
+  const importantLevels = new Set(['warn', 'error', 'fatal']);
+
+  // Only send alerts for important scopes and levels
+  if (!importantLevels.has(level) || !importantScopes.has(scope)) {
+    return;
+  }
+
+  const appVersion = app.getVersion ? app.getVersion() : 'dev';
+
+  const lines = [
+    `*Level*: ${level.toUpperCase()}`,
+    `*Scope*: ${scope}`,
+    `*Message*: ${message}`,
+    `*App*: FloorGuideDisplay`,
+    `*Version*: ${appVersion}`,
+    `*Host*: ${hostname}`,
+  ];
+
+  if (context.floor) {
+    lines.push(`*Floor*: ${context.floor}`);
+  }
+  if (context.error) {
+    lines.push(`*Error*: ${context.error}`);
+  }
+  if (context.src) {
+    lines.push(`*Src*: ${context.src}`);
+  }
+  if (context.assetId) {
+    lines.push(`*AssetId*: ${context.assetId}`);
+  }
+
+  const payload = JSON.stringify({
+    text: lines.join('\n'),
+  });
+
+  try {
+    const url = new URL(slackWebhookUrl);
+
+    const req = https.request(
+      {
+        method: 'POST',
+        hostname: url.hostname,
+        path: url.pathname + url.search,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      },
+      (res) => {
+        // We ignore the response body; just drain it
+        res.resume();
+      },
+    );
+
+    req.on('error', (err) => {
+      // Do not crash the app; just log the failure
+      log.warn(`Failed to send Slack alert: ${err.message}`);
+    });
+
+    req.write(payload);
+    req.end();
+  } catch (err) {
+    log.warn(`Failed to prepare Slack alert: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Core logging
+// ---------------------------------------------------------------------------
+
 function formatMessage(level, message, context = {}) {
   const appVersion = app.getVersion ? app.getVersion() : 'dev';
 
   const base = {
-    // Keep keys flat so logs are easy to grep
     level,
     app: 'FloorGuideDisplay',
     version: appVersion,
@@ -44,7 +120,6 @@ function formatMessage(level, message, context = {}) {
     ...context,
   };
 
-  // Serialize as a single line JSON string
   return JSON.stringify({
     ...base,
     message,
@@ -73,6 +148,9 @@ function write(level, message, context) {
       log.info(line);
       break;
   }
+
+  // Fire-and-forget Slack alert
+  notifySlack(level, message, context);
 }
 
 module.exports = {
@@ -82,8 +160,7 @@ module.exports = {
   warn: (msg, ctx) => write('warn', msg, ctx),
   error: (msg, ctx) => write('error', msg, ctx),
   fatal: (msg, ctx) => write('fatal', msg, ctx),
-
-  // Generic entry point for IPC
+  // Generic entry point for renderer logs
   logFromRenderer: ({ level = 'info', message = '', context = {} } = {}) => {
     write(level, message, { ...context, source: 'renderer' });
   },
