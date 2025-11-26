@@ -39,8 +39,8 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
 
     if (window.electronAPI?.onOpenFloorLayoutSettings) {
       unsubscribe = window.electronAPI.onOpenFloorLayoutSettings(() => {
-        const width = 520;
-        const height = 400;
+        const width = 800;
+        const height = 500;
         const left = Math.max(20, (window.innerWidth - width) / 2);
         const top = Math.max(20, (window.innerHeight - height) / 2);
         setWindowPos({ left, top });
@@ -194,226 +194,279 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
     <div
       style={{
         position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0,0,0,0.2)",
+        left: windowPos.left,
+        top: windowPos.top,
+        width: 800,
+        maxWidth: "95vw",
+        backgroundColor: "#1a1a1a",
+        borderRadius: 20,
+        padding: 24,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)",
+        fontFamily: "'Rounded Mplus 1c', sans-serif",
+        border: "1px solid rgba(255,255,255,0.1)",
         zIndex: 9999,
       }}
     >
-      <div
-        style={{
-          position: "fixed",
-          left: windowPos.left,
-          top: windowPos.top,
-          width: 520,
-          maxWidth: "95vw",
-          backgroundColor: "rgba(255, 255, 255)",
-          borderRadius: 16,
-          padding: 20,
-          boxShadow: "0 16px 32px rgba(0,0,0,0.25)",
-          fontFamily: "'Rounded Mplus 1c', sans-serif",
-        }}
-      >
         <div
           onMouseDown={handleDragMouseDown}
           style={{
             cursor: "move",
-            margin: "-8px -8px 12px -8px",
+            margin: "-8px -8px 16px -8px",
             padding: "8px 8px 0 8px",
             userSelect: "none",
           }}
         >
-          <h2 style={{ marginTop: 0, marginBottom: 4 }}>ShopList layout</h2>
+          <h2 style={{ marginTop: 0, marginBottom: 6, color: "#ffffff", fontSize: 20, fontWeight: 600 }}>ショップリストレイアウト</h2>
           <p
             style={{
               marginTop: 0,
               marginBottom: 8,
-              fontSize: 12,
-              opacity: 0.7,
+              fontSize: 13,
+              color: "rgba(255,255,255,0.6)",
+              lineHeight: 1.5,
             }}
           >
-            Configure columns and rows per column for each floor. You can also
-            override the row count for each column individually. Changes are
-            previewed on the main screen in real time. Click Save to apply
-            permanently.
+            各フロアの列数と列ごとの行数を設定します。各列の行数を個別に上書きすることもできます。変更はメイン画面でリアルタイムにプレビューされます。保存をクリックすると永続的に適用されます。
           </p>
         </div>
 
-        <table
+        <div
           style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: 13,
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 16,
           }}
         >
-          <thead>
-            <tr>
-              <th
-                style={{
-                  textAlign: "left",
-                  padding: "4px 8px",
-                  borderBottom: "1px solid #ddd",
-                }}
-              >
-                Floor
-              </th>
-              <th
-                style={{
-                  textAlign: "right",
-                  padding: "4px 8px",
-                  borderBottom: "1px solid #ddd",
-                }}
-              >
-                Columns
-              </th>
-              <th
-                style={{
-                  textAlign: "right",
-                  padding: "4px 8px",
-                  borderBottom: "1px solid #ddd",
-                }}
-              >
-                Rows / column (default)
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {floors.map((floor) => {
-              const perFloor = layout[floor];
-              const cols = perFloor?.columns ?? 0;
-              const perColumnRows = perFloor?.perColumnRows || [];
+          {floors.map((floor) => {
+            const perFloor = layout[floor];
+            const cols = perFloor?.columns ?? 0;
+            const perColumnRows = perFloor?.perColumnRows || [];
 
-              return (
-                <React.Fragment key={floor}>
-                  <tr>
-                    <td style={{ padding: "4px 8px" }}>{floor}</td>
-                    <td style={{ padding: "4px 8px", textAlign: "right" }}>
-                      <input
-                        type="number"
-                        min={1}
-                        max={6}
-                        value={perFloor?.columns ?? ""}
-                        onChange={(e) =>
-                          handleChange(floor, "columns", e.target.value)
-                        }
-                        style={{ width: 70, textAlign: "right" }}
-                      />
-                    </td>
-                    <td style={{ padding: "4px 8px", textAlign: "right" }}>
-                      <input
-                        type="number"
-                        min={1}
-                        max={50}
-                        value={perFloor?.rowsPerCol ?? ""}
-                        onChange={(e) =>
-                          handleChange(floor, "rowsPerCol", e.target.value)
-                        }
-                        style={{ width: 70, textAlign: "right" }}
-                      />
-                    </td>
-                  </tr>
+            return (
+              <div
+                key={floor}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.03)",
+                  borderRadius: 12,
+                  padding: 16,
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "rgba(255,255,255,0.9)",
+                    marginBottom: 12,
+                  }}
+                >
+                  {floor}
+                </div>
 
-                  {cols > 0 && (
-                    <tr>
-                      <td />
-                      <td colSpan={2} style={{ padding: "4px 8px" }}>
+                <div style={{ marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "rgba(255,255,255,0.7)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    列数
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={6}
+                    value={perFloor?.columns ?? ""}
+                    onChange={(e) =>
+                      handleChange(floor, "columns", e.target.value)
+                    }
+                    style={{
+                      width: "100%",
+                      textAlign: "right",
+                      backgroundColor: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 6,
+                      padding: "6px 8px",
+                      color: "#ffffff",
+                      fontSize: 13,
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "rgba(255,255,255,0.7)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    行数 / 列（デフォルト）
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={perFloor?.rowsPerCol ?? ""}
+                    onChange={(e) =>
+                      handleChange(floor, "rowsPerCol", e.target.value)
+                    }
+                    style={{
+                      width: "100%",
+                      textAlign: "right",
+                      backgroundColor: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 6,
+                      padding: "6px 8px",
+                      color: "#ffffff",
+                      fontSize: 13,
+                    }}
+                  />
+                </div>
+
+                {cols > 0 && (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.7)",
+                        marginBottom: 8,
+                      }}
+                    >
+                      列ごとの行数
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                      }}
+                    >
+                      {Array.from({ length: cols }).map((_, idx) => (
                         <div
+                          key={idx}
                           style={{
                             display: "flex",
-                            flexWrap: "wrap",
-                            gap: 8,
                             alignItems: "center",
+                            gap: 8,
                           }}
                         >
-                          {Array.from({ length: cols }).map((_, idx) => (
-                            <label
-                              key={idx}
-                              style={{
-                                fontSize: 11,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 4,
-                              }}
-                            >
-                              <span>Col {idx + 1}</span>
-                              <input
-                                type="number"
-                                min={1}
-                                max={50}
-                                value={perColumnRows[idx] ?? ""}
-                                onChange={(e) =>
-                                  handlePerColumnRowsChange(
-                                    floor,
-                                    idx,
-                                    e.target.value
-                                  )
-                                }
-                                style={{ width: 60, textAlign: "right" }}
-                              />
-                            </label>
-                          ))}
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: "rgba(255,255,255,0.7)",
+                              minWidth: 40,
+                            }}
+                          >
+                            列 {idx + 1}
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={perColumnRows[idx] ?? ""}
+                            onChange={(e) =>
+                              handlePerColumnRowsChange(
+                                floor,
+                                idx,
+                                e.target.value
+                              )
+                            }
+                            style={{
+                              flex: 1,
+                              textAlign: "right",
+                              backgroundColor: "rgba(255,255,255,0.05)",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: 6,
+                              padding: "4px 6px",
+                              color: "#ffffff",
+                              fontSize: 12,
+                            }}
+                          />
                         </div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            opacity: 0.7,
-                            marginTop: 4,
-                          }}
-                        >
-                          Leave empty to use the default rows / column value
-                          above.
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                      ))}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: "rgba(255,255,255,0.5)",
+                        marginTop: 8,
+                      }}
+                    >
+                      空欄はデフォルト値を使用
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         <div
           style={{
             display: "flex",
             justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 16,
+            gap: 10,
+            marginTop: 20,
+            paddingTop: 20,
+            borderTop: "1px solid rgba(255,255,255,0.1)",
           }}
         >
           <button
             type="button"
             onClick={handleCancelClick}
             style={{
-              padding: "8px 16px",
-              borderRadius: 999,
-              border: "1px solid #ccc",
-              backgroundColor: "#f5f5f5",
+              padding: "10px 20px",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.2)",
+              backgroundColor: "rgba(255,255,255,0.05)",
+              color: "rgba(255,255,255,0.9)",
               cursor: "pointer",
-              fontWeight: 600,
-              fontSize: 13,
+              fontWeight: 500,
+              fontSize: 14,
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)";
             }}
           >
-            Cancel
+            キャンセル
           </button>
           <button
             type="button"
             onClick={handleSaveClick}
             disabled={saving}
             style={{
-              padding: "8px 20px",
-              borderRadius: 999,
+              padding: "10px 24px",
+              borderRadius: 10,
               border: "none",
               background: "linear-gradient(135deg, #007aff, #00c6ff)",
               color: "#fff",
-              cursor: "pointer",
-              fontWeight: 700,
-              fontSize: 13,
+              cursor: saving ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              fontSize: 14,
               opacity: saving ? 0.6 : 1,
+              transition: "all 0.2s ease",
+              boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)",
+            }}
+            onMouseEnter={(e) => {
+              if (!saving) {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 6px 16px rgba(0, 122, 255, 0.4)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 122, 255, 0.3)";
             }}
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "保存中..." : "保存"}
           </button>
         </div>
-      </div>
     </div>
   );
 };

@@ -1,24 +1,6 @@
 import { useEffect, useState } from 'react';
 import appIcon from '../../build/icon.ico';
-
-type StatusState = 'checking' | 'available' | 'none' | 'downloaded' | 'error';
-
-declare global {
-  interface Window {
-    updater?: {
-      onStatus: (cb: (data: { state: StatusState; message: string }) => void) => void;
-      onProgress: (cb: (data: {
-        percent: number;
-        transferred: number;
-        total: number;
-        speed: number;
-      }) => void) => void;
-    };
-    appInfo?: {
-      getVersion: () => Promise<string>;
-    };
-  }
-}
+import type { StatusState } from '../types/global';
 
 export function PatchScreen() {
   const [statusState, setStatusState] = useState<StatusState>('checking');

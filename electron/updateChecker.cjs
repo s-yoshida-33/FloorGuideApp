@@ -263,8 +263,31 @@ async function oneClickUpdate() {
   }
 }
 
+/**
+ * Get latest version info without downloading
+ */
+async function getLatestVersionInfo() {
+  try {
+    autoUpdater.autoDownload = false;
+    const result = await autoUpdater.checkForUpdates();
+    
+    if (!result || !result.updateInfo) {
+      return null;
+    }
+    
+    return {
+      version: result.updateInfo.version,
+      releaseDate: result.updateInfo.releaseDate,
+      releaseNotes: result.updateInfo.releaseNotes,
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
 module.exports = {
   initAutoUpdater,
   checkForUpdates,
   oneClickUpdate,
+  getLatestVersionInfo,
 };

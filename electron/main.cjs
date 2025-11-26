@@ -10,6 +10,7 @@ const {
   initAutoUpdater,
   checkForUpdates,
   oneClickUpdate,
+  getLatestVersionInfo,
 } = require('./updateChecker.cjs');
 const logger = require('./logger.cjs');
 
@@ -375,44 +376,29 @@ function createAppMenu() {
 
   const template = [
     {
-      label: 'File',
+      label: 'ファイル',
       submenu: [
         {
           role: 'quit',
-          label: 'Exit',
+          label: '終了',
         },
       ],
     },
     {
-      label: 'Settings',
+      label: '設定',
       submenu: [
         {
-          label: 'Floor 1F',
-          type: 'radio',
-          checked: settings.floor === '1F',
-          click: () => updateFloorSetting('1F'),
-        },
-        {
-          label: 'Floor 2F',
-          type: 'radio',
-          checked: settings.floor === '2F',
-          click: () => updateFloorSetting('2F'),
-        },
-        {
-          label: 'Floor 3F',
-          type: 'radio',
-          checked: settings.floor === '3F',
-          click: () => updateFloorSetting('3F'),
-        },
-        {
-          label: 'Floor 4F',
-          type: 'radio',
-          checked: settings.floor === '4F',
-          click: () => updateFloorSetting('4F'),
+          label: 'フロア設定...',
+          click: () => {
+            logger.info('Floor settings menu clicked');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('open-floor-settings');
+            }
+          },
         },
         { type: 'separator' },
         {
-          label: 'ShopList layout...',
+          label: 'ショップリストレイアウト...',
           click: () => {
             logger.info('ShopList layout settings menu clicked');
             if (mainWindow && !mainWindow.isDestroyed()) {
@@ -422,7 +408,7 @@ function createAppMenu() {
         },
         { type: 'separator' },
         {
-          label: 'Location icon settings...',
+          label: '位置アイコン設定...',
           click: () => {
             logger.info('Location icon settings menu clicked');
             if (mainWindow && !mainWindow.isDestroyed()) {
@@ -433,17 +419,27 @@ function createAppMenu() {
       ],
     },
     {
-      label: 'Help',
+      label: 'ヘルプ',
       submenu: [
         {
-          label: 'Check for updates (manual)',
+          label: 'バージョン情報',
+          click: () => {
+            logger.info('Version info requested');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('open-version-info');
+            }
+          },
+        },
+        { type: 'separator' },
+        {
+          label: '更新を確認（手動）',
           click: () => {
             logger.info('Manual update check requested');
             checkForUpdates(true); // manual check
           },
         },
         {
-          label: 'Update now (one click)',
+          label: '今すぐ更新（ワンクリック）',
           click: () => {
             logger.info('One-click update requested');
             oneClickUpdate(); // one-click automatic update
@@ -483,6 +479,12 @@ ipcMain.handle('get-app-version', () => {
   const version = app.getVersion();
   logger.debug('IPC get-app-version', { version });
   return version;
+});
+
+ipcMain.handle('get-latest-version-info', async () => {
+  logger.debug('IPC get-latest-version-info');
+  const info = await getLatestVersionInfo();
+  return info;
 });
 
 /**
@@ -527,9 +529,25 @@ ipcMain.handle('wsp:get-current-asset', async () => {
 
     const asset = assets[0];
 
+    // Determine media type from asset properties or URL extension
+    const mediaType = asset.mediaType || asset.type || '';
+    const url = asset.url || '';
+    const urlLower = url.toLowerCase();
+    
+    // Infer media type from URL extension if not provided
+    let inferredMediaType = mediaType;
+    if (!inferredMediaType) {
+      if (urlLower.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/)) {
+        inferredMediaType = 'video';
+      } else if (urlLower.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/)) {
+        inferredMediaType = 'image';
+      }
+    }
+
     logger.info('wsp:get-current-asset: returning first asset', {
       assetId: asset.id,
       url: asset.url,
+      mediaType: inferredMediaType,
     });
 
     return {
@@ -544,6 +562,8 @@ ipcMain.handle('wsp:get-current-asset', async () => {
           : '',
       startTime: tl.start_time,
       endTime: tl.end_time,
+      mediaType: inferredMediaType,
+      type: asset.type,
     };
   } catch (error) {
     logger.error('wsp:get-current-asset failed', {
@@ -604,20 +624,6 @@ ipcMain.on('log-message', (_event, payload) => {
     logger.error('Failed to handle log-message IPC', {
       error: error?.message,
     });
-  }
-});
-
-ipcMain.on('menu:open-floor-layout-settings', () => {
-  logger.info('Floor layout settings requested from renderer menu');
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('open-floor-layout-settings');
-  }
-});
-
-ipcMain.on('menu:open-location-icon-settings', () => {
-  logger.info('Location icon settings requested from renderer menu');
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('open-location-icon-settings');
   }
 });
 

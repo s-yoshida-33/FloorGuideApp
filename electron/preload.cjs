@@ -16,11 +16,17 @@ contextBridge.exposeInMainWorld('appInfo', {
   getVersion() {
     return ipcRenderer.invoke('get-app-version');
   },
+  getLatestVersionInfo() {
+    return ipcRenderer.invoke('get-latest-version-info');
+  },
 });
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getFloor() {
     return ipcRenderer.invoke('settings:get-floor');
+  },
+  setFloor(floor) {
+    ipcRenderer.send('menu:set-floor', floor);
   },
   onFloorChanged(callback) {
     ipcRenderer.on('settings:floor-changed', (_event, floor) => {
@@ -71,6 +77,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('open-floor-layout-settings', listener);
     };
+  },
+  onOpenFloorSettings(callback) {
+    const listener = () => callback();
+    ipcRenderer.on('open-floor-settings', listener);
+
+    return () => {
+      ipcRenderer.removeListener('open-floor-settings', listener);
+    };
+  },
+  onOpenVersionInfo(callback) {
+    const listener = () => callback();
+    ipcRenderer.on('open-version-info', listener);
+
+    return () => {
+      ipcRenderer.removeListener('open-version-info', listener);
+    };
+  },
+  manualUpdateCheck() {
+    ipcRenderer.send('menu:check-updates');
+  },
+  oneClickUpdate() {
+    ipcRenderer.send('menu:one-click-update');
+  },
+  quitApp() {
+    ipcRenderer.send('menu:quit');
   },
 });
 

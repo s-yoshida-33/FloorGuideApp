@@ -65,5 +65,7 @@ export interface WspMediaAsset {
     name: string;
     startTime: string;
     endTime: string;
+    mediaType?: string; // 'video', 'image', etc.
+    type?: string; // Additional type information
   }
   

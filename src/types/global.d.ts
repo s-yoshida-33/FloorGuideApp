@@ -19,6 +19,7 @@ type FloorLayout = Record<string, FloorLayoutPerFloor>;
 
 interface ElectronAPI {
   getFloor: () => Promise<string>;
+  setFloor: (floor: string) => void;
   onFloorChanged: (cb: (floor: string) => void) => void;
 
   getLocationIconSettings: () => Promise<LocationIconSettings>;
@@ -42,15 +43,32 @@ interface ElectronAPI {
   saveFloorLayout: (layout: FloorLayout) => Promise<FloorLayout>;
   onFloorLayoutChanged: (cb: (layout: FloorLayout) => void) => () => void;
   onOpenFloorLayoutSettings: (cb: () => void) => () => void;
+  onOpenFloorSettings: (cb: () => void) => () => void;
+  onOpenVersionInfo: (cb: () => void) => () => void;
+  manualUpdateCheck: () => void;
+  oneClickUpdate: () => void;
+  quitApp: () => void;
 }
 
-interface UpdaterAPI {
-  onStatus: (cb: (data: any) => void) => void;
-  onProgress: (cb: (data: any) => void) => void;
+export type StatusState = 'checking' | 'available' | 'none' | 'downloaded' | 'error';
+
+export interface UpdaterAPI {
+  onStatus: (cb: (data: { state: StatusState; message: string }) => void) => void;
+  onProgress: (cb: (data: {
+    percent: number;
+    transferred: number;
+    total: number;
+    speed: number;
+  }) => void) => void;
 }
 
-interface AppInfoAPI {
+export interface AppInfoAPI {
   getVersion: () => Promise<string>;
+  getLatestVersionInfo: () => Promise<{
+    version: string;
+    releaseDate?: string;
+    releaseNotes?: string;
+  } | null>;
 }
 
 interface WspApi {

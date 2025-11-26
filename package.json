@@ -1,7 +1,7 @@
 {
   "name": "floorguidedisplay",
   "private": true,
-  "version": "0.1.0-beta.11",
+  "version": "0.1.0-beta.13",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
@@ -49,7 +49,7 @@
       "deleteAppDataOnUninstall": false,
       "include": "build/installer.nsh",
       "warningsAsErrors": false,
-      "runAfterFinish": true
+      "runAfterFinish": false
     },
     "publish": [
       {

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import FloorGuideApp from "./screens/FloorGuideApp";
 import LocationIconSettingsScreen from "./screens/LocationIconSettingsScreen";
+import VersionInfoScreen from "./screens/VersionInfoScreen";
 import {
   DEFAULT_LOCATION_ICON_SETTINGS,
 } from "./config";
@@ -72,6 +73,7 @@ const App: React.FC = () => {
         onSave={handleSave}
         onCancel={handleCancel}
       />
+      <VersionInfoScreen onClose={() => {}} />
     </>
   );
 };

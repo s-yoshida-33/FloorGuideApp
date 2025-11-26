@@ -29,6 +29,41 @@ const VerticalVideoSlot: React.FC = () => {
     );
   }
 
+  // Determine if asset is an image
+  // Check mediaType first, then fall back to file extension
+  const isImage = asset.mediaType === 'image' || 
+    (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
+
+  if (isImage) {
+    // Render as image
+    return (
+      <img
+        key={asset.id}
+        src={asset.src}
+        alt={asset.name || 'Media'}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          objectFit: 'cover',
+        }}
+        onLoad={() => {
+          logInfo('image', 'Image loaded in VerticalVideoSlot', {
+            assetId: asset.id,
+            src: asset.src,
+          });
+        }}
+        onError={() => {
+          logError('image', 'Image element error (VerticalVideoSlot)', {
+            assetId: asset.id,
+            src: asset.src,
+          });
+        }}
+      />
+    );
+  }
+
+  // Render as video (default)
   return (
     <video
       key={asset.id}
