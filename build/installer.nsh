@@ -86,6 +86,9 @@ FunctionEnd
 ; -----------------------------------------
 !macro customInstall
 
+  ; Icon file should already be in $INSTDIR from electron-builder files configuration
+  ; No need to copy explicitly - it's included in the installation package
+
   ; Check if desktop shortcut exists before deletion
   ${If} ${FileExists} "$DESKTOP\Gido.lnk"
     StrCpy $DesktopShortcutExists "1"
@@ -98,12 +101,13 @@ FunctionEnd
   ${EndIf}
   
   ; Create desktop shortcut if it existed (update) or user selected (new install)
+  ; Use explicit icon file path instead of extracting from exe
   ${If} $DesktopShortcutExists == "1"
     ; Recreate for update - always update existing shortcuts
-    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
+    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\icon.ico" 0
   ${ElseIf} $WantDesktop == ${BST_CHECKED}
     ; New installation: create if user selected
-    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
+    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\icon.ico" 0
   ${EndIf}
 
   ; Check if Start Menu shortcut exists before deletion
@@ -118,14 +122,15 @@ FunctionEnd
   ${EndIf}
   
   ; Create Start Menu shortcut if it existed (update) or user selected (new install)
+  ; Use explicit icon file path instead of extracting from exe
   ${If} $StartMenuShortcutExists == "1"
     ; Recreate for update - always update existing shortcuts
     CreateDirectory "$SMPROGRAMS\Gido"
-    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
+    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\icon.ico" 0
   ${ElseIf} $WantStartMenu == ${BST_CHECKED}
     ; New installation: create if user selected
     CreateDirectory "$SMPROGRAMS\Gido"
-    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
+    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\icon.ico" 0
   ${EndIf}
 
   ; Set Windows auto-start (registry)

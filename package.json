@@ -1,7 +1,7 @@
 {
   "name": "gido",
   "private": true,
-  "version": "0.1.0-beta.21",
+  "version": "0.1.0-beta.22",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
@@ -39,7 +39,13 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "GidoSetup-${arch}-${version}.exe"
+      "artifactName": "GidoSetup-${arch}-${version}.exe",
+      "extraFiles": [
+        {
+          "from": "build/icon.ico",
+          "to": "icon.ico"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
