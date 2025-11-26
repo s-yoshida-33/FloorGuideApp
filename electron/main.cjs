@@ -220,12 +220,16 @@ function updateFloorSetting(floor) {
  */
 function httpGetJson(url) {
   return new Promise((resolve, reject) => {
+    const timeout = 5000; // 5 seconds timeout
+    const startTime = Date.now();
+
     const req = http.get(url, (res) => {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         const error = new Error(`HTTP ${res.statusCode}`);
         logger.warn('HTTP request failed', {
           url,
           statusCode: res.statusCode,
+          durationMs: Date.now() - startTime,
         });
         reject(error);
         res.resume();
@@ -240,11 +244,18 @@ function httpGetJson(url) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
+          const duration = Date.now() - startTime;
+          logger.debug('HTTP request succeeded', {
+            url,
+            durationMs: duration,
+            dataSize: data.length,
+          });
           resolve(json);
         } catch (err) {
           logger.error('Failed to parse JSON response', {
             url,
             error: err?.message,
+            durationMs: Date.now() - startTime,
           });
           reject(err);
         }
@@ -255,8 +266,21 @@ function httpGetJson(url) {
       logger.error('HTTP request error', {
         url,
         error: err?.message,
+        durationMs: Date.now() - startTime,
       });
       reject(err);
+    });
+
+    // Set timeout
+    req.setTimeout(timeout, () => {
+      req.destroy();
+      const error = new Error(`Request timeout after ${timeout}ms`);
+      logger.error('HTTP request timeout', {
+        url,
+        timeout,
+        durationMs: Date.now() - startTime,
+      });
+      reject(error);
     });
 
     req.end();

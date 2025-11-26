@@ -30,11 +30,16 @@ export function useCurrentAsset(
     let timerId: number | undefined;
 
     const tick = async () => {
+      const startTime = Date.now();
       try {
         const next = await fetchCurrentAsset();
+        const fetchDuration = Date.now() - startTime;
         if (!isMounted) return;
 
         if (next) {
+          // Check if asset has changed
+          const assetChanged = asset?.id !== next.id;
+          
           // Status: ok (asset available)
           if (lastStatusRef.current !== 'ok') {
             logInfo('video', 'Fetched current video asset', {
@@ -42,13 +47,25 @@ export function useCurrentAsset(
               src: next.src,
               duration: next.duration,
               name: next.name,
+              fetchDurationMs: fetchDuration,
+            });
+          } else if (assetChanged) {
+            // Asset changed - log the change
+            logInfo('video', 'Asset changed', {
+              oldAssetId: asset?.id,
+              newAssetId: next.id,
+              oldSrc: asset?.src,
+              newSrc: next.src,
+              fetchDurationMs: fetchDuration,
             });
           }
           lastStatusRef.current = 'ok';
         } else {
           // Status: noAsset (API OK but no current asset)
           if (lastStatusRef.current !== 'noAsset') {
-            logWarn('video', 'No current video asset returned by WSP');
+            logWarn('video', 'No current video asset returned by WSP', {
+              fetchDurationMs: Date.now() - startTime,
+            });
           }
           lastStatusRef.current = 'noAsset';
         }
@@ -56,12 +73,14 @@ export function useCurrentAsset(
         setAsset(next);
         setIsLoading(false);
       } catch (error: any) {
+        const fetchDuration = Date.now() - startTime;
         if (!isMounted) return;
 
         // Status: error (API communication error)
         if (lastStatusRef.current !== 'error') {
           logError('video', 'Failed to fetch current video asset', {
             error: error?.message,
+            fetchDurationMs: fetchDuration,
           });
         }
         lastStatusRef.current = 'error';
@@ -81,7 +100,7 @@ export function useCurrentAsset(
         window.clearTimeout(timerId);
       }
     };
-  }, [pollIntervalMs]);
+  }, [pollIntervalMs, asset?.id]);
 
   return { asset, isLoading };
 }

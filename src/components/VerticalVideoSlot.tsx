@@ -5,6 +5,23 @@ import { logInfo, logWarn, logError } from '../logging';
 
 const VerticalVideoSlot: React.FC = () => {
   const { asset, isLoading } = useCurrentAsset();
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const imgRef = React.useRef<HTMLImageElement>(null);
+  const prevAssetIdRef = React.useRef<string | null>(null);
+
+  // Reset media element when asset changes
+  React.useEffect(() => {
+    if (asset && asset.id !== prevAssetIdRef.current) {
+      // Asset changed - reset media elements
+      if (videoRef.current) {
+        videoRef.current.load(); // Force reload
+      }
+      if (imgRef.current) {
+        imgRef.current.src = asset.src; // Force reload
+      }
+      prevAssetIdRef.current = asset.id;
+    }
+  }, [asset?.id, asset?.src]);
 
   // No asset case
   if (!asset) {
@@ -34,11 +51,15 @@ const VerticalVideoSlot: React.FC = () => {
   const isImage = asset.mediaType === 'image' || 
     (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
 
+  // Use both id and src in key to ensure remount when either changes
+  const mediaKey = `${asset.id}-${asset.src}`;
+
   if (isImage) {
     // Render as image
     return (
       <img
-        key={asset.id}
+        ref={imgRef}
+        key={mediaKey}
         src={asset.src}
         alt={asset.name || 'Media'}
         style={{
@@ -66,10 +87,11 @@ const VerticalVideoSlot: React.FC = () => {
   // Render as video (default)
   return (
     <video
-      key={asset.id}
+      ref={videoRef}
+      key={mediaKey}
       src={asset.src}
       autoPlay
-      loop={false}
+      loop={true}
       playsInline
       style={{
         width: '100%',
@@ -89,7 +111,7 @@ const VerticalVideoSlot: React.FC = () => {
         });
       }}
       onEnded={() => {
-        logInfo('video', 'Video playback ended', {
+        logInfo('video', 'Video playback ended (will loop)', {
           assetId: asset.id,
         });
       }}
@@ -98,6 +120,14 @@ const VerticalVideoSlot: React.FC = () => {
           assetId: asset.id,
           src: asset.src,
         });
+        // Try to reload on error
+        if (videoRef.current) {
+          setTimeout(() => {
+            if (videoRef.current && asset.src) {
+              videoRef.current.load();
+            }
+          }, 1000);
+        }
       }}
     />
   );
