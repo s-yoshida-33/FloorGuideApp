@@ -12,6 +12,35 @@ export function PatchScreen() {
   const [appVersion, setAppVersion] = useState<string>('');
 
   useEffect(() => {
+    // Mock data for browser preview
+    const isBrowser = !window.electronAPI;
+    
+    if (isBrowser) {
+      // Simulate update progress for browser preview
+      setAppVersion('0.1.0-beta.15');
+      setStatusState('available');
+      setStatusMessage('アップデートをダウンロードしています…\nしばらくお待ちください。');
+      
+      // Simulate progress
+      let mockPercent = 0;
+      const interval = setInterval(() => {
+        mockPercent += 2;
+        if (mockPercent > 100) {
+          mockPercent = 100;
+          setStatusState('downloaded');
+          setStatusMessage('アップデートが完了しました。\nアプリを再起動してください。');
+          clearInterval(interval);
+        } else {
+          setPercent(mockPercent);
+          setTransferred(mockPercent * 1024 * 1024 * 2); // Mock: 2MB per percent
+          setTotal(100 * 1024 * 1024 * 2); // Mock: 200MB total
+          setSpeed(5 * 1024 * 1024); // Mock: 5MB/s
+        }
+      }, 100);
+      
+      return () => clearInterval(interval);
+    }
+
     if (!window.updater) return;
 
     window.updater.onStatus((data) => {
@@ -35,6 +64,14 @@ export function PatchScreen() {
   }, []);
 
   useEffect(() => {
+    // Mock data for browser preview
+    const isBrowser = !window.electronAPI;
+    
+    if (isBrowser) {
+      // Already set in the previous useEffect
+      return;
+    }
+
     if (!window.appInfo) return;
     window.appInfo
       .getVersion()
@@ -94,12 +131,10 @@ export function PatchScreen() {
           minHeight: 600,
           maxHeight: 660,
           padding: 32,
-          borderRadius: 24,
-          background:
-          'linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)),radial-gradient(circle at top left, #1b263b 0, #050608 45%, #020308 100%)',
-          border: '1px solid rgba(255,255,255,0.18)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.8)',
-          backdropFilter: 'blur(18px)',
+          borderRadius: 8,
+          backgroundColor: '#0a0a0a',
+          border: '2px solid #1a1a1a',
+          boxShadow: '0 0 0 1px #2a2a2a, 0 8px 32px rgba(0,0,0,0.9)',
           display: 'flex',
           flexDirection: 'column',
           gap: 24,
@@ -115,38 +150,51 @@ export function PatchScreen() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {/* ICON */}
-            <img
-              src={appIcon}
-              alt="App Icon"
+            <div
               style={{
                 width: 44,
                 height: 44,
-                borderRadius: 12,
-                boxShadow: '0 0 16px rgba(0,180,255,0.6)',
+                borderRadius: 4,
+                border: '2px solid #2a2a2a',
+                backgroundColor: '#1a1a1a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
               }}
-            />
+            >
+              <img
+                src={appIcon}
+                alt="App Icon"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            </div>
 
             <div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>FloorGuideDisplay</div>
-              <div style={{ fontSize: 12, opacity: 0.7 }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#ffffff' }}>FloorGuideDisplay</div>
+              <div style={{ fontSize: 12, color: '#888888' }}>
                 Preparing latest map &amp; shop data…
               </div>
             </div>
           </div>
 
-          <div style={{ fontSize: 12, opacity: 0.7 }}>
+          <div style={{ fontSize: 12, color: '#666666' }}>
             {appVersion ? `v${appVersion}` : ''}
           </div>
         </div>
 
         {/* Status Panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>{titleLabel}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#ffffff' }}>{titleLabel}</div>
 
           <p
             style={{
               fontSize: 13,
-              opacity: 0.85,
+              color: '#cccccc',
               lineHeight: 1.6,
               whiteSpace: 'pre-line',
             }}
@@ -159,16 +207,15 @@ export function PatchScreen() {
         <div
           style={{
             padding: 16,
-            borderRadius: 16,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background:
-              'radial-gradient(circle at top, rgba(0,180,255,0.18), rgba(0,0,0,0.7))',
+            borderRadius: 4,
+            border: '2px solid #1a1a1a',
+            backgroundColor: '#0f0f0f',
             display: 'flex',
             flexDirection: 'column',
             gap: 12,
           }}
         >
-          <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>
+          <div style={{ fontSize: 12, color: '#888888', marginBottom: 6 }}>
             Download status
           </div>
 
@@ -176,25 +223,40 @@ export function PatchScreen() {
           <div
             style={{
               width: '100%',
-              height: 14,
-              borderRadius: 999,
-              border: '1px solid rgba(255,255,255,0.25)',
+              height: 20,
+              borderRadius: 2,
+              border: '2px solid #1a1a1a',
               overflow: 'hidden',
-              background: 'rgba(0,0,0,0.45)',
+              backgroundColor: '#050505',
+              position: 'relative',
             }}
           >
             <div
               style={{
                 height: '100%',
                 width: `${percent ?? 0}%`,
-                background: 'linear-gradient(90deg, #00b4ff, #00ffbf, #00b4ff)',
-                boxShadow: '0 0 12px rgba(0,180,255,0.9)',
-                transition: 'width 0.25s ease-out',
+                backgroundColor: '#00ff88',
+                borderRight: percent && percent < 100 ? '2px solid #00cc66' : 'none',
+                transition: 'width 0.2s linear',
+                boxShadow: percent && percent > 0 ? 'inset 0 0 8px rgba(0,255,136,0.3)' : 'none',
               }}
             />
+            {percent && percent > 0 && percent < 100 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: '2px',
+                  backgroundColor: '#00ff88',
+                  boxShadow: '0 0 4px #00ff88',
+                }}
+              />
+            )}
           </div>
 
-          <div style={{ fontSize: 12, textAlign: 'right', opacity: 0.9 }}>
+          <div style={{ fontSize: 12, textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>
             {percent != null ? `${percent.toFixed(1)}%` : '待機中…'}
           </div>
 
@@ -203,22 +265,24 @@ export function PatchScreen() {
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
-              rowGap: 6,
+              rowGap: 8,
               columnGap: 16,
               fontSize: 11,
+              paddingTop: 8,
+              borderTop: '1px solid #1a1a1a',
             }}
           >
-            <div style={{ opacity: 0.7 }}>Transferred</div>
-            <div style={{ textAlign: 'right' }}>{formatMB(transferred)}</div>
+            <div style={{ color: '#888888' }}>Transferred</div>
+            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(transferred)}</div>
 
-            <div style={{ opacity: 0.7 }}>Total</div>
-            <div style={{ textAlign: 'right' }}>{formatMB(total)}</div>
+            <div style={{ color: '#888888' }}>Total</div>
+            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(total)}</div>
 
-            <div style={{ opacity: 0.7 }}>Speed</div>
-            <div style={{ textAlign: 'right' }}>{formatSpeed(speed)}</div>
+            <div style={{ color: '#888888' }}>Speed</div>
+            <div style={{ textAlign: 'right', color: '#00ff88', fontWeight: 600 }}>{formatSpeed(speed)}</div>
 
-            <div style={{ opacity: 0.7 }}>State</div>
-            <div style={{ textAlign: 'right' }}>{statusState}</div>
+            <div style={{ color: '#888888' }}>State</div>
+            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600, textTransform: 'uppercase' }}>{statusState}</div>
           </div>
         </div>
 
@@ -228,8 +292,10 @@ export function PatchScreen() {
             display: 'flex',
             justifyContent: 'space-between',
             fontSize: 11,
-            opacity: 0.6,
+            color: '#666666',
             marginTop: 'auto',
+            paddingTop: 16,
+            borderTop: '1px solid #1a1a1a',
           }}
         >
           <div>Do not turn off your device while updating.</div>
