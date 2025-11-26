@@ -100,7 +100,8 @@ export function PatchScreen() {
         fontFamily: "system-ui, sans-serif",
         justifyContent: 'center',
         alignItems: 'center',
-        color: '#f5f5f7',
+        backgroundColor: 'transparent',
+        color: '#fff',
       }}
     >
       {/* Center Card */}

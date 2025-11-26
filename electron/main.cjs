@@ -1,7 +1,7 @@
 // electron/main.cjs
 // Electron main process entry point (with startup patch window)
 
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -294,9 +294,9 @@ function createPatchWindow() {
   patchWindow = new BrowserWindow({
     resizable: false,
     frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
     show: false,
-    borderRadius: 24,
-    backgroundColor: '#050608',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -605,6 +605,40 @@ ipcMain.on('log-message', (_event, payload) => {
       error: error?.message,
     });
   }
+});
+
+ipcMain.on('menu:open-floor-layout-settings', () => {
+  logger.info('Floor layout settings requested from renderer menu');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('open-floor-layout-settings');
+  }
+});
+
+ipcMain.on('menu:open-location-icon-settings', () => {
+  logger.info('Location icon settings requested from renderer menu');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('open-location-icon-settings');
+  }
+});
+
+// Floor change from renderer
+ipcMain.on('menu:set-floor', (_event, floorId) => {
+  updateFloorSetting(floorId);
+});
+
+// Manual update check
+ipcMain.on('menu:check-updates', () => {
+  checkForUpdates(true);
+});
+
+// One-click update
+ipcMain.on('menu:one-click-update', () => {
+  oneClickUpdate();
+});
+
+// Quit app
+ipcMain.on('menu:quit', () => {
+  app.quit();
 });
 
 /**

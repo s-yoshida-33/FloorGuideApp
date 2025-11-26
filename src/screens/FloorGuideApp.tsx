@@ -232,7 +232,6 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({
         style={{
           display: "flex",
           height: `${TOP_HEIGHT_VH}vh`,
-          borderBottom: "1px solid #ddd",
         }}
       >
         {/* Floor map */}
@@ -303,7 +302,6 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({
           height: `${LIST_HEIGHT_VH}vh`,
           display: "flex",
           flexDirection: "row",
-          borderTop: "1px solid #ddd",
         }}
       >
         {/* Bottom: shop list */}
