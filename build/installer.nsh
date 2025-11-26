@@ -84,15 +84,31 @@ FunctionEnd
 ; -----------------------------------------
 !macro customInstall
 
-  ; Create desktop shortcut
-  ${If} $WantDesktop == ${BST_CHECKED}
-    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe"
+  ; Check if this is an update (shortcut already exists)
+  ; During updates, custom pages may be skipped, so we preserve existing shortcuts
+  ${If} ${FileExists} "$DESKTOP\Gido.lnk"
+    ; Update existing desktop shortcut
+    Delete "$DESKTOP\Gido.lnk"
+    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
+  ${Else}
+    ; New installation: create if user selected
+    ${If} $WantDesktop == ${BST_CHECKED}
+      CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
+    ${EndIf}
   ${EndIf}
 
-  ; Create Start Menu shortcut
-  ${If} $WantStartMenu == ${BST_CHECKED}
+  ; Check if Start Menu shortcut exists
+  ${If} ${FileExists} "$SMPROGRAMS\Gido\Gido.lnk"
+    ; Update existing Start Menu shortcut
+    Delete "$SMPROGRAMS\Gido\Gido.lnk"
     CreateDirectory "$SMPROGRAMS\Gido"
-    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe"
+    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
+  ${Else}
+    ; New installation: create if user selected
+    ${If} $WantStartMenu == ${BST_CHECKED}
+      CreateDirectory "$SMPROGRAMS\Gido"
+      CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
+    ${EndIf}
   ${EndIf}
 
   ; Set Windows auto-start (registry)
