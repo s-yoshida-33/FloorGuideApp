@@ -9,10 +9,18 @@ import type {
 
 import type { LocationIconSettings } from "./locationIcon";
 
+type ColumnPadding = {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+};
+
 type FloorLayoutPerFloor = {
   columns: number;
   rowsPerCol: number;
   perColumnRows?: number[];
+  perColumnPadding?: ColumnPadding[];
 };
 
 type FloorLayout = Record<string, FloorLayoutPerFloor>;

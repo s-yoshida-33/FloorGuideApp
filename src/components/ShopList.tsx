@@ -11,12 +11,20 @@ import {
 import "../styles/ShopList.css";
 import { logInfo, logError } from "../logging";
 
+type ColumnPadding = {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+};
+
 interface ShopListProps {
   shops: Shop[];
   floor: string;
   columnCount?: number;
   rowsPerColumn?: number;
   perColumnRows?: number[]; // Column-by-column row overrides
+  perColumnPadding?: ColumnPadding[]; // Column-by-column padding
 }
 
 // Internal representation of a single line item (header or shop row)
@@ -82,6 +90,7 @@ const ShopList: React.FC<ShopListProps> = ({
   columnCount,
   rowsPerColumn,
   perColumnRows,
+  perColumnPadding,
 }) => {
   const normalizedFloor = normalizeFloor(floor);
 
@@ -263,9 +272,25 @@ const ShopList: React.FC<ShopListProps> = ({
       >
         {nonEmptyColumns.map((colLines, colIdx) => {
           const sections = buildSectionsForColumn(colLines);
+          const padding = perColumnPadding?.[colIdx];
+          const paddingStyle = padding
+            ? {
+                paddingTop: padding.top !== undefined ? `${padding.top}em` : undefined,
+                paddingRight: padding.right !== undefined ? `${padding.right}em` : undefined,
+                paddingBottom: padding.bottom !== undefined ? `${padding.bottom}em` : undefined,
+                paddingLeft: padding.left !== undefined ? `${padding.left}em` : undefined,
+              }
+            : {};
 
           return (
-            <div key={colIdx} style={{ flex: 1, minWidth: 0 }}>
+            <div
+              key={colIdx}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                ...paddingStyle,
+              }}
+            >
               {sections.map((section) => (
                 <section
                   key={`${colIdx}-${section.genre}-${section.showHeader ? "h" : "c"}`}

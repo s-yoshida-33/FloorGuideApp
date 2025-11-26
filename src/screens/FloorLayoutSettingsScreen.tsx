@@ -3,10 +3,18 @@ import React, { useEffect, useState } from "react";
 
 type FloorId = "1F" | "2F" | "3F" | "4F";
 
+type ColumnPadding = {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+};
+
 type FloorLayoutPerFloor = {
   columns: number;
   rowsPerCol: number;
   perColumnRows?: number[];
+  perColumnPadding?: ColumnPadding[];
 };
 
 type FloorLayout = Record<string, FloorLayoutPerFloor>;
@@ -28,6 +36,7 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
 }) => {
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedFloor, setSelectedFloor] = useState<FloorId>("1F");
 
   const [windowPos, setWindowPos] = useState<{ left: number; top: number }>({
     left: 0,
@@ -39,8 +48,8 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
 
     if (window.electronAPI?.onOpenFloorLayoutSettings) {
       unsubscribe = window.electronAPI.onOpenFloorLayoutSettings(() => {
-        const width = 800;
-        const height = 500;
+        const width = 500;
+        const height = 600;
         const left = Math.max(20, (window.innerWidth - width) / 2);
         const top = Math.max(20, (window.innerHeight - height) / 2);
         setWindowPos({ left, top });
@@ -84,17 +93,21 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
       columns: 0,
       rowsPerCol: 0,
       perColumnRows: [],
+      perColumnPadding: [],
     };
 
     let nextPerColumnRows = current.perColumnRows || [];
+    let nextPerColumnPadding = current.perColumnPadding || [];
 
     if (key === "columns") {
       const columns = Math.max(0, num);
       // Trim or keep per-column rows to match new columns count
       if (columns <= 0) {
         nextPerColumnRows = [];
+        nextPerColumnPadding = [];
       } else {
         nextPerColumnRows = nextPerColumnRows.slice(0, columns);
+        nextPerColumnPadding = nextPerColumnPadding.slice(0, columns);
       }
 
       const next: FloorLayout = {
@@ -103,6 +116,7 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
           ...current,
           columns,
           perColumnRows: nextPerColumnRows,
+          perColumnPadding: nextPerColumnPadding,
         },
       };
 
@@ -139,6 +153,7 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
       columns: 0,
       rowsPerCol: 0,
       perColumnRows: [],
+      perColumnPadding: [],
     };
 
     const columns = current.columns || 0;
@@ -152,6 +167,48 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
       [floor]: {
         ...current,
         perColumnRows: arr,
+      },
+    };
+
+    onChangeLayout(next);
+  };
+
+  const handlePerColumnPaddingChange = (
+    floor: FloorId,
+    colIndex: number,
+    side: "top" | "right" | "bottom" | "left",
+    value: string
+  ) => {
+    const num = value === "" ? undefined : Number(value);
+    if (value !== "" && Number.isNaN(num)) return;
+
+    const current: FloorLayoutPerFloor = layout[floor] || {
+      columns: 0,
+      rowsPerCol: 0,
+      perColumnRows: [],
+      perColumnPadding: [],
+    };
+
+    const columns = current.columns || 0;
+    if (colIndex < 0 || colIndex >= columns) return;
+
+    const arr = [...(current.perColumnPadding || [])];
+    if (!arr[colIndex]) {
+      arr[colIndex] = {};
+    }
+    const padding = { ...arr[colIndex] };
+    if (num !== undefined && num >= 0) {
+      padding[side] = num;
+    } else {
+      delete padding[side];
+    }
+    arr[colIndex] = padding;
+
+    const next: FloorLayout = {
+      ...layout,
+      [floor]: {
+        ...current,
+        perColumnPadding: arr,
       },
     };
 
@@ -196,8 +253,9 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
         position: "fixed",
         left: windowPos.left,
         top: windowPos.top,
-        width: 800,
+        width: 500,
         maxWidth: "95vw",
+        maxHeight: "90vh",
         backgroundColor: "#1a1a1a",
         borderRadius: 20,
         padding: 24,
@@ -205,6 +263,8 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
         fontFamily: "'Rounded Mplus 1c', sans-serif",
         border: "1px solid rgba(255,255,255,0.1)",
         zIndex: 9999,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
         <div
@@ -226,25 +286,60 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
               lineHeight: 1.5,
             }}
           >
-            各フロアの列数と列ごとの行数を設定します。各列の行数を個別に上書きすることもできます。変更はメイン画面でリアルタイムにプレビューされます。保存をクリックすると永続的に適用されます。
+            フロアを選択して、列数と列ごとの行数を設定します。各列の行数や間隔を個別に上書きすることもできます。変更はメイン画面でリアルタイムにプレビューされます。保存をクリックすると永続的に適用されます。
           </p>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: "rgba(255,255,255,0.7)",
+              marginBottom: 6,
+            }}
+          >
+            フロア選択
+          </div>
+          <select
+            value={selectedFloor}
+            onChange={(e) => setSelectedFloor(e.target.value as FloorId)}
+            style={{
+              width: "100%",
+              backgroundColor: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 6,
+              padding: "6px 8px",
+              color: "#ffffff",
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            {floors.map((floor) => (
+              <option key={floor} value={floor} style={{ backgroundColor: "#1a1a1a" }}>
+                {floor}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 16,
+            flex: 1,
+            overflowY: "auto",
+            overflowX: "hidden",
+            marginRight: -8,
+            paddingRight: 8,
           }}
         >
-          {floors.map((floor) => {
+          {(() => {
+            const floor = selectedFloor;
             const perFloor = layout[floor];
             const cols = perFloor?.columns ?? 0;
             const perColumnRows = perFloor?.perColumnRows || [];
+            const perColumnPadding = perFloor?.perColumnPadding || [];
 
             return (
               <div
-                key={floor}
                 style={{
                   backgroundColor: "rgba(255,255,255,0.03)",
                   borderRadius: 12,
@@ -252,16 +347,6 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
                   border: "1px solid rgba(255,255,255,0.1)",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "rgba(255,255,255,0.9)",
-                    marginBottom: 12,
-                  }}
-                >
-                  {floor}
-                </div>
 
                 <div style={{ marginBottom: 12 }}>
                   <div
@@ -398,9 +483,216 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
                     </div>
                   </div>
                 )}
+
+                {cols > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.7)",
+                        marginBottom: 8,
+                      }}
+                    >
+                      列ごとの間隔（em）
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {Array.from({ length: cols }).map((_, idx) => {
+                        const padding = perColumnPadding[idx] || {};
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              backgroundColor: "rgba(255,255,255,0.02)",
+                              borderRadius: 8,
+                              padding: 8,
+                              border: "1px solid rgba(255,255,255,0.05)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: "rgba(255,255,255,0.6)",
+                                marginBottom: 6,
+                              }}
+                            >
+                              列 {idx + 1}
+                            </div>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(2, 1fr)",
+                                gap: 6,
+                              }}
+                            >
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: 9,
+                                    color: "rgba(255,255,255,0.5)",
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  上
+                                </div>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.1}
+                                  value={padding.top ?? ""}
+                                  onChange={(e) =>
+                                    handlePerColumnPaddingChange(
+                                      floor,
+                                      idx,
+                                      "top",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="0"
+                                  style={{
+                                    width: "100%",
+                                    textAlign: "right",
+                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    borderRadius: 4,
+                                    padding: "4px 6px",
+                                    color: "#ffffff",
+                                    fontSize: 11,
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: 9,
+                                    color: "rgba(255,255,255,0.5)",
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  右
+                                </div>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.1}
+                                  value={padding.right ?? ""}
+                                  onChange={(e) =>
+                                    handlePerColumnPaddingChange(
+                                      floor,
+                                      idx,
+                                      "right",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="0"
+                                  style={{
+                                    width: "100%",
+                                    textAlign: "right",
+                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    borderRadius: 4,
+                                    padding: "4px 6px",
+                                    color: "#ffffff",
+                                    fontSize: 11,
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: 9,
+                                    color: "rgba(255,255,255,0.5)",
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  下
+                                </div>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.1}
+                                  value={padding.bottom ?? ""}
+                                  onChange={(e) =>
+                                    handlePerColumnPaddingChange(
+                                      floor,
+                                      idx,
+                                      "bottom",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="0"
+                                  style={{
+                                    width: "100%",
+                                    textAlign: "right",
+                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    borderRadius: 4,
+                                    padding: "4px 6px",
+                                    color: "#ffffff",
+                                    fontSize: 11,
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: 9,
+                                    color: "rgba(255,255,255,0.5)",
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  左
+                                </div>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.1}
+                                  value={padding.left ?? ""}
+                                  onChange={(e) =>
+                                    handlePerColumnPaddingChange(
+                                      floor,
+                                      idx,
+                                      "left",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="0"
+                                  style={{
+                                    width: "100%",
+                                    textAlign: "right",
+                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    borderRadius: 4,
+                                    padding: "4px 6px",
+                                    color: "#ffffff",
+                                    fontSize: 11,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: "rgba(255,255,255,0.5)",
+                        marginTop: 8,
+                      }}
+                    >
+                      空欄は0em（間隔なし）
+                    </div>
+                  </div>
+                )}
               </div>
             );
-          })}
+          })()}
         </div>
 
         <div
@@ -411,6 +703,7 @@ const FloorLayoutSettingsScreen: React.FC<Props> = ({
             marginTop: 20,
             paddingTop: 20,
             borderTop: "1px solid rgba(255,255,255,0.1)",
+            flexShrink: 0,
           }}
         >
           <button

@@ -33,10 +33,18 @@ const FLOOR_MAPS: Record<string, string> = {
   "4F": floorMap4F,
 };
 
+type ColumnPadding = {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+};
+
 type FloorLayoutPerFloor = {
   columns: number;
   rowsPerCol: number;
   perColumnRows?: number[];
+  perColumnPadding?: ColumnPadding[];
 };
 
 type FloorLayout = Record<string, FloorLayoutPerFloor>;
@@ -351,6 +359,7 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({
               columnCount={currentLayout.columns}
               rowsPerColumn={currentLayout.rowsPerCol}
               perColumnRows={currentLayout.perColumnRows}
+              perColumnPadding={currentLayout.perColumnPadding}
             />
           )}
         </div>
@@ -374,7 +383,7 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({
               maxWidth: "100%",
               maxHeight: "100%",
               objectFit: "contain",
-              padding: "30px",
+              padding: "1.4em",
             }}
             onLoad={() => {
               logInfo("openTime", "Open-time image loaded", {
