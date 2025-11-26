@@ -17,7 +17,7 @@ Var WantRunAfterFinish
 ; (Optional) Pre-install initialization
 ; NOTE:
 ; The previous version forced installation to:
-;   C:\Program Files\FloorGuideDisplay
+;   C:\Program Files\Gido
 ; This caused UAC prompts and silent-updater failures.
 ; The forced path has been removed to allow Electron's default
 ; per-user installation under %LOCALAPPDATA%, which avoids UAC.
@@ -86,21 +86,21 @@ FunctionEnd
 
   ; Create desktop shortcut
   ${If} $WantDesktop == ${BST_CHECKED}
-    CreateShortCut "$DESKTOP\Display.lnk" "$INSTDIR\FloorGuideDisplay.exe"
+    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe"
   ${EndIf}
 
   ; Create Start Menu shortcut
   ${If} $WantStartMenu == ${BST_CHECKED}
-    CreateDirectory "$SMPROGRAMS\FloorGuideDisplay"
-    CreateShortCut "$SMPROGRAMS\FloorGuideDisplay\Display.lnk" "$INSTDIR\FloorGuideDisplay.exe"
+    CreateDirectory "$SMPROGRAMS\Gido"
+    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe"
   ${EndIf}
 
   ; Set Windows auto-start (registry)
   ${If} $WantAutoStart == ${BST_CHECKED}
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "FloorGuideDisplay" "$INSTDIR\FloorGuideDisplay.exe"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido" "$INSTDIR\Gido.exe"
   ${Else}
     ; Remove auto-start if unchecked
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "FloorGuideDisplay"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido"
   ${EndIf}
 
 !macroend
@@ -124,7 +124,7 @@ Function FinishPageCreate
   ${EndIf}
 
   ; Completion message
-  ${NSD_CreateLabel} 0 0 100% 40u "FloorGuideDisplay のインストールが完了しました。$\r$\n$\r$\n以下のオプションを選択してください:"
+  ${NSD_CreateLabel} 0 0 100% 40u "Gido のインストールが完了しました。$\r$\n$\r$\n以下のオプションを選択してください:"
   Pop $0
 
   ; Run after finish checkbox
@@ -141,7 +141,7 @@ Function FinishPageLeave
   
   ; Launch the installed application if checked
   ${If} $WantRunAfterFinish == ${BST_CHECKED}
-    ExecShell "open" "$INSTDIR\FloorGuideDisplay.exe"
+    ExecShell "open" "$INSTDIR\Gido.exe"
   ${EndIf}
 FunctionEnd
 
@@ -150,5 +150,5 @@ FunctionEnd
 ; -----------------------------------------
 !macro customUnInstall
   ; Remove Windows auto-start registry entry on uninstall
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "FloorGuideDisplay"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido"
 !macroend

@@ -1,6 +1,6 @@
 // src/App.tsx
 import React, { useEffect, useState } from "react";
-import FloorGuideApp from "./screens/FloorGuideApp";
+import GidoApp from "./screens/GidoApp";
 import LocationIconSettingsScreen from "./screens/LocationIconSettingsScreen";
 import VersionInfoScreen from "./screens/VersionInfoScreen";
 import {
@@ -66,7 +66,7 @@ const App: React.FC = () => {
 
   return (
     <>
-      <FloorGuideApp locationIconSettings={locationSettings} />
+      <GidoApp locationIconSettings={locationSettings} />
       <LocationIconSettingsScreen
         settings={locationSettings}
         onChangeSettings={setLocationSettings}

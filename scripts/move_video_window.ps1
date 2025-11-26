@@ -1,6 +1,6 @@
 # scripts\move_video_window.ps1
 # This script moves a video player window to the top-right 16:9 area
-# so that it matches the video frame in FloorGuideApp.
+# so that it matches the video frame in GidoApp.
 
 Add-Type @"
 using System;

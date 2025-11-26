@@ -175,7 +175,7 @@ export function PatchScreen() {
             </div>
 
             <div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#ffffff' }}>FloorGuideDisplay</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#ffffff' }}>Gido</div>
               <div style={{ fontSize: 12, color: '#888888' }}>
                 Preparing latest map &amp; shop data…
               </div>

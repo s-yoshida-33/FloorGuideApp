@@ -1,7 +1,7 @@
 {
-  "name": "floorguidedisplay",
+  "name": "gido",
   "private": true,
-  "version": "0.1.0-beta.16",
+  "version": "0.1.0-beta.17",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
@@ -16,8 +16,8 @@
   },
   "main": "electron/main.cjs",
   "build": {
-    "appId": "com.tti.floorguide",
-    "productName": "FloorGuideDisplay",
+    "appId": "com.tti.gido",
+    "productName": "Gido",
     "copyright": "© 2025 Toei Techno International Inc.",
     "directories": {
       "output": "release",
@@ -38,14 +38,14 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "FloorGuideDisplay-${version}-Setup.exe"
+      "artifactName": "Gido-${version}-Setup.exe"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": false,
       "createStartMenuShortcut": false,
-      "shortcutName": "Display",
+      "shortcutName": "Gido",
       "deleteAppDataOnUninstall": false,
       "include": "build/installer.nsh",
       "warningsAsErrors": false,
@@ -55,7 +55,7 @@
       {
         "provider": "github",
         "owner": "s-yoshida-33",
-        "repo": "FloorGuideApp",
+        "repo": "Gido",
         "releaseType": "release"
       }
     ]

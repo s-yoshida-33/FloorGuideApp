@@ -1,4 +1,4 @@
-// src/screens/FloorGuideApp.tsx
+// src/screens/GidoApp.tsx
 import React, { useEffect, useState } from "react";
 
 import ShopList from "../components/ShopList";
@@ -56,11 +56,11 @@ const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
   "4F": { columns: 2, rowsPerCol: 18 },
 };
 
-interface FloorGuideAppProps {
+interface GidoAppProps {
   locationIconSettings: LocationIconSettings;
 }
 
-const FloorGuideApp: React.FC<FloorGuideAppProps> = ({
+const GidoApp: React.FC<GidoAppProps> = ({
   locationIconSettings,
 }) => {
   const [shops, setShops] = useState<Shop[]>([]);
@@ -419,4 +419,4 @@ const FloorGuideApp: React.FC<FloorGuideAppProps> = ({
   );
 };
 
-export default FloorGuideApp;
+export default GidoApp;

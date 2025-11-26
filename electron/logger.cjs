@@ -18,7 +18,7 @@ function configureLogger() {
   const logDir = path.join(userData, 'logs');
 
   log.transports.file.resolvePath = () =>
-    path.join(logDir, 'floor-guide-display.log');
+    path.join(logDir, 'gido.log');
 
   log.transports.file.maxSize = 5 * 1024 * 1024; // 5 MB per file
   log.transports.console.level =
@@ -113,7 +113,7 @@ function notifySlack(level, message, context = {}) {
     `*Level*: ${level.toUpperCase()}`,
     `*Scope*: ${scope}`,
     `*Message*: ${message}`,
-    `*App*: FloorGuideDisplay`,
+    `*App*: Gido`,
     `*Version*: ${appVersion}`,
     `*Host*: ${hostname}`,
   ];
@@ -164,7 +164,7 @@ function formatMessage(level, message, context = {}) {
 
   const base = {
     level,
-    app: 'FloorGuideDisplay',
+    app: 'Gido',
     version: appVersion,
     host: hostname,
     ...context,
