@@ -12,8 +12,7 @@
     "preview": "vite preview",
     "electron:dev": "cross-env NODE_ENV=development concurrently \"npm:dev\" \"npm:electron:start\"",
     "electron:start": "wait-on http://localhost:5173 && electron .",
-    "electron:build": "npm run build && electron-builder",
-    "generate-icon": "node scripts/generate-icon.mjs"
+    "electron:build": "npm run build && electron-builder"
   },
   "main": "electron/main.cjs",
   "build": {

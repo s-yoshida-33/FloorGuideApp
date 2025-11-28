@@ -1,7 +1,7 @@
 // src/components/VerticalVideoSlot.tsx
 import React from 'react';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
-import { logInfo, logWarn, logError } from '../logging';
+import { logInfo, logWarn, logError } from '../logs/logging';
 
 const VerticalVideoSlot: React.FC = () => {
   const { asset, isLoading } = useCurrentAsset();
