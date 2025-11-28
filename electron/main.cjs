@@ -412,31 +412,11 @@ function createAppMenu() {
       label: '設定',
       submenu: [
         {
-          label: 'フロア設定...',
+          label: '設定画面を開く...',
           click: () => {
-            logger.info('Floor settings menu clicked');
+            logger.info('Unified settings screen menu clicked');
             if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('open-floor-settings');
-            }
-          },
-        },
-        { type: 'separator' },
-        {
-          label: 'ショップリストレイアウト...',
-          click: () => {
-            logger.info('ShopList layout settings menu clicked');
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('open-floor-layout-settings');
-            }
-          },
-        },
-        { type: 'separator' },
-        {
-          label: '位置アイコン設定...',
-          click: () => {
-            logger.info('Location icon settings menu clicked');
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('open-location-icon-settings');
+              mainWindow.webContents.send('open-settings');
             }
           },
         },

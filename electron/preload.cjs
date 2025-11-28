@@ -94,6 +94,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('open-version-info', listener);
     };
   },
+  onOpenSettings(callback) {
+    const listener = () => callback();
+    ipcRenderer.on('open-settings', listener);
+
+    return () => {
+      ipcRenderer.removeListener('open-settings', listener);
+    };
+  },
   manualUpdateCheck() {
     ipcRenderer.send('menu:check-updates');
   },
