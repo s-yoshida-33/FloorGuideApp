@@ -58,6 +58,13 @@ export const DEFAULT_LOCATION_ICON_SETTINGS: LocationIconSettings = {
     yPercent: 40,
     size: 96,
     rotation: 0,
+    shadow: {
+      enabled: true,
+      offsetX: 4,
+      offsetY: 4,
+      blur: 4,
+      opacity: 0.5,
+    },
   },
   location: {
     enabled: true,
@@ -65,6 +72,13 @@ export const DEFAULT_LOCATION_ICON_SETTINGS: LocationIconSettings = {
     yPercent: 50,
     size: 72,
     rotation: 0,
+    shadow: {
+      enabled: true,
+      offsetX: 4,
+      offsetY: 4,
+      blur: 4,
+      opacity: 0.5,
+    },
   },
 };
 
