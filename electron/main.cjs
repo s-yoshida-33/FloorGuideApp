@@ -23,19 +23,31 @@ let mainWindow = null;
 const DEFAULT_LOCATION_ICON_SETTINGS = {
   speechBubble: {
     enabled: true,
-    anchorVertical: 'top',
-    anchorHorizontal: 'left',
-    offsetX: 40,
-    offsetY: 40,
-    size: 75,
+    xPercent: 50,
+    yPercent: 40,
+    size: 96,
+    rotation: 0,
+    shadow: {
+      enabled: true,
+      offsetX: 4,
+      offsetY: 4,
+      blur: 4,
+      opacity: 0.5,
+    },
   },
   location: {
     enabled: true,
-    anchorVertical: 'top',
-    anchorHorizontal: 'left',
-    offsetX: 40,
-    offsetY: 40,
-    size: 36,
+    xPercent: 50,
+    yPercent: 50,
+    size: 72,
+    rotation: 0,
+    shadow: {
+      enabled: true,
+      offsetX: 4,
+      offsetY: 4,
+      blur: 4,
+      opacity: 0.5,
+    },
   },
 };
 
@@ -92,21 +104,35 @@ function loadSettings() {
     const raw = fs.readFileSync(settingsPath, 'utf-8');
     const parsed = JSON.parse(raw);
 
+    // Deep merge function to ensure all nested properties are preserved
+    const deepMerge = (target, source) => {
+      if (!source) return target;
+      
+      const result = { ...target };
+      
+      Object.keys(source).forEach(key => {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+          result[key] = deepMerge(target[key] || {}, source[key]);
+        } else if (source[key] !== undefined) {
+          result[key] = source[key];
+        }
+      });
+      
+      return result;
+    };
+
     const merged = {
       floor: typeof parsed.floor === 'string' ? parsed.floor : base.floor,
-      locationIcons: parsed.locationIcons
-        ? {
-            // Do a shallow merge to keep future extensibility
-            speechBubble: {
-              ...base.locationIcons.speechBubble,
-              ...(parsed.locationIcons.speechBubble || {}),
-            },
-            location: {
-              ...base.locationIcons.location,
-              ...(parsed.locationIcons.location || {}),
-            },
-          }
-        : base.locationIcons,
+      locationIcons: {
+        speechBubble: deepMerge(
+          base.locationIcons.speechBubble,
+          parsed.locationIcons?.speechBubble || {}
+        ),
+        location: deepMerge(
+          base.locationIcons.location,
+          parsed.locationIcons?.location || {}
+        ),
+      },
       floorLayout: parsed.floorLayout
         ? {
             ...base.floorLayout,
@@ -115,8 +141,11 @@ function loadSettings() {
         : base.floorLayout,
     };
 
+
     logger.debug('Settings loaded', {
       floor: merged.floor,
+      hasAnimation: !!merged.locationIcons.speechBubble.animation,
+      animationEnabled: merged.locationIcons.speechBubble.animation?.enabled,
     });
 
     return merged;

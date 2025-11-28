@@ -30,6 +30,15 @@ function buildImageStyle(config: IconPositionConfig): React.CSSProperties {
   };
 }
 
+function buildShadowStyle(shadow: IconPositionConfig['shadow']): React.CSSProperties {
+  if (!shadow.enabled) {
+    return {};
+  }
+  return {
+    filter: `drop-shadow(${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px rgba(0, 0, 0, ${shadow.opacity}))`,
+  };
+}
+
 export const LocationIconsOverlay: React.FC<Props> = ({ settings }) => {
   const { speechBubble, location } = settings;
 
@@ -37,11 +46,11 @@ export const LocationIconsOverlay: React.FC<Props> = ({ settings }) => {
     <>
       {speechBubble.enabled && (
         <div
-          className="location-icon-shadow"
+          className="location-icon-bubble"
           style={{
             ...buildWrapperStyle(speechBubble),
+            ...buildShadowStyle(speechBubble.shadow),
             zIndex: 5,
-            animation: "speech-bubble-floating 2.2s ease-in-out infinite",
           }}
         >
           <img
@@ -54,9 +63,9 @@ export const LocationIconsOverlay: React.FC<Props> = ({ settings }) => {
 
       {location.enabled && (
         <div
-          className="location-icon-shadow"
           style={{
             ...buildWrapperStyle(location),
+            ...buildShadowStyle(location.shadow),
             zIndex: 6,
           }}
         >

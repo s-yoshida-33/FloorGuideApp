@@ -202,6 +202,160 @@ const IconConfigSection: React.FC<{
           </div>
         </div>
       </div>
+
+      {/* Shadow settings */}
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+        <label style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={config.shadow.enabled}
+            onChange={(e) =>
+              update({
+                shadow: { ...config.shadow, enabled: e.target.checked },
+              })
+            }
+            style={{ marginRight: 10, width: 18, height: 18, accentColor: "#007aff" }}
+          />
+          <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 500 }}>シャドウ</span>
+        </label>
+
+        {config.shadow.enabled && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>オフセットX (px)</div>
+              <input
+                type="number"
+                min={-20}
+                max={20}
+                step={0.1}
+                value={config.shadow.offsetX}
+                onChange={(e) =>
+                  update({
+                    shadow: {
+                      ...config.shadow,
+                      offsetX: Number(e.target.value) || 0,
+                    },
+                  })
+                }
+                style={{
+                  width: "100%",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                  color: "#ffffff",
+                  fontSize: 13,
+                }}
+              />
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>オフセットY (px)</div>
+              <input
+                type="number"
+                min={-20}
+                max={20}
+                step={0.1}
+                value={config.shadow.offsetY}
+                onChange={(e) =>
+                  update({
+                    shadow: {
+                      ...config.shadow,
+                      offsetY: Number(e.target.value) || 0,
+                    },
+                  })
+                }
+                style={{
+                  width: "100%",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                  color: "#ffffff",
+                  fontSize: 13,
+                }}
+              />
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>ぼかし (px)</div>
+              <input
+                type="number"
+                min={0}
+                max={20}
+                step={0.1}
+                value={config.shadow.blur}
+                onChange={(e) =>
+                  update({
+                    shadow: {
+                      ...config.shadow,
+                      blur: Math.max(0, Math.min(20, Number(e.target.value) || 0)),
+                    },
+                  })
+                }
+                style={{
+                  width: "100%",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                  color: "#ffffff",
+                  fontSize: 13,
+                }}
+              />
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>不透明度 (0-1)</div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={config.shadow.opacity}
+                  onChange={(e) =>
+                    update({
+                      shadow: {
+                        ...config.shadow,
+                        opacity: Math.max(0, Math.min(1, Number(e.target.value) || 0)),
+                      },
+                    })
+                  }
+                  style={{
+                    flex: 1,
+                    accentColor: "#007aff",
+                  }}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={config.shadow.opacity}
+                  onChange={(e) =>
+                    update({
+                      shadow: {
+                        ...config.shadow,
+                        opacity: Math.max(0, Math.min(1, Number(e.target.value) || 0)),
+                      },
+                    })
+                  }
+                  style={{
+                    width: 70,
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 6,
+                    padding: "6px 8px",
+                    color: "#ffffff",
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </fieldset>
   );
 };
