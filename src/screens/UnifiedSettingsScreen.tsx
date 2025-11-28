@@ -2,25 +2,11 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import GidoApp from "./GidoApp";
 import type { LocationIconSettings } from "../types/locationIcon";
+import type { FloorId, FloorLayout } from "../types/floorLayout";
+import { FloorSettingsTab } from "../components/FloorSettingsTab";
+import { LayoutSettingsTab } from "../components/LayoutSettingsTab";
+import { LocationSettingsTab } from "../components/LocationSettingsTab";
 import iconSvg from "../assets/icon.svg";
-
-type FloorId = "1F" | "2F" | "3F" | "4F";
-
-type ColumnPadding = {
-  top?: number;
-  right?: number;
-  bottom?: number;
-  left?: number;
-};
-
-type FloorLayoutPerFloor = {
-  columns: number;
-  rowsPerCol: number;
-  perColumnRows?: number[];
-  perColumnPadding?: ColumnPadding[];
-};
-
-type FloorLayout = Record<string, FloorLayoutPerFloor>;
 
 type TabType = "floor" | "layout" | "location";
 
@@ -67,7 +53,6 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   useEffect(() => {
     if (!visible || !previewContainerRef.current) return;
 
-    // Use setTimeout to ensure DOM is fully rendered
     const timer = setTimeout(() => {
       if (!previewContainerRef.current) return;
 
@@ -75,17 +60,18 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
       const containerWidth = container.offsetWidth;
       const containerHeight = container.offsetHeight;
 
-      // GidoApp size (1920x1080) - use original size, not scaled
-      // The transform scale will handle the scaling
+      // GidoApp size
       const appWidth = 1920;
       const appHeight = 1080;
 
-      // Calculate center offset (before scaling)
-      // Since transformOrigin is "center center", we need to adjust for the scale
-      const centerX = (containerWidth - appWidth * zoom) / 2;
-      const centerY = (containerHeight - appHeight * zoom) / 2;
+      // Calculate scaled dimensions
+      const scaledWidth = appWidth * zoom;
+      const scaledHeight = appHeight * zoom;
 
-      // Set center position when screen opens or zoom changes (if not manually panned)
+      // Calculate center position
+      const centerX = (containerWidth - scaledWidth) / 2;
+      const centerY = (containerHeight - scaledHeight) / 2;
+
       if (!hasBeenPanned) {
         setPanX(centerX);
         setPanY(centerY);
@@ -217,20 +203,82 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     }
   };
 
-  // Zoom controls
+  // Zoom controls - マウスホイールはカーソル位置を起点に
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    
+    if (!previewContainerRef.current) return;
+    
+    const container = previewContainerRef.current.getBoundingClientRect();
+    
+    // マウスカーソルのコンテナ内での相対位置を取得
+    const mouseX = e.clientX - container.left;
+    const mouseY = e.clientY - container.top;
+    
+    // 現在のズーム率
+    const currentZoom = zoom;
+    
+    // 新しいズーム率を計算
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+    const newZoom = Math.max(0.6, Math.min(1.5, currentZoom + delta));
+    
+    // ズーム率の変化
+    const zoomRatio = newZoom / currentZoom;
+    
+    // マウス位置を中心にズームするための新しいパン位置を計算
+    const newPanX = mouseX - (mouseX - panX) * zoomRatio;
+    const newPanY = mouseY - (mouseY - panY) * zoomRatio;
+    
+    setZoom(newZoom);
+    setPanX(newPanX);
+    setPanY(newPanY);
+    setHasBeenPanned(true);
+  }, [zoom, panX, panY]);
+
+  // ズームボタンは画面中央を起点に
   const handleZoomIn = () => {
-    setZoom((prev) => Math.min(1.5, prev + 0.1));
+    if (!previewContainerRef.current) {
+      setZoom((prev) => Math.min(1.5, prev + 0.1));
+      return;
+    }
+    
+    const container = previewContainerRef.current;
+    const centerX = container.offsetWidth / 2;
+    const centerY = container.offsetHeight / 2;
+    
+    const currentZoom = zoom;
+    const newZoom = Math.min(1.5, currentZoom + 0.1);
+    const zoomRatio = newZoom / currentZoom;
+    
+    const newPanX = centerX - (centerX - panX) * zoomRatio;
+    const newPanY = centerY - (centerY - panY) * zoomRatio;
+    
+    setZoom(newZoom);
+    setPanX(newPanX);
+    setPanY(newPanY);
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(0.6, prev - 0.1));
+    if (!previewContainerRef.current) {
+      setZoom((prev) => Math.max(0.6, prev - 0.1));
+      return;
+    }
+    
+    const container = previewContainerRef.current;
+    const centerX = container.offsetWidth / 2;
+    const centerY = container.offsetHeight / 2;
+    
+    const currentZoom = zoom;
+    const newZoom = Math.max(0.6, currentZoom - 0.1);
+    const zoomRatio = newZoom / currentZoom;
+    
+    const newPanX = centerX - (centerX - panX) * zoomRatio;
+    const newPanY = centerY - (centerY - panY) * zoomRatio;
+    
+    setZoom(newZoom);
+    setPanX(newPanX);
+    setPanY(newPanY);
   };
-
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.05 : 0.05;
-    setZoom((prev) => Math.max(0.6, Math.min(1.5, prev + delta)));
-  }, []);
 
   // Drag controls
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -443,29 +491,20 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
           >
             <div
               style={{
-                transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
-                transformOrigin: "center center",
-                width: "100%",
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                transform: `scale(${zoom})`,
+                transformOrigin: "top left",
+                position: "absolute",
+                left: `${panX}px`,
+                top: `${panY}px`,
+                width: "1920px",
+                height: "1080px",
               }}
             >
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  maxWidth: "1920px",
-                  maxHeight: "1080px",
-                }}
-              >
-                <GidoApp
-                  locationIconSettings={locationIconSettings}
-                  previewFloor={floor}
-                  previewFloorLayout={floorLayout}
-                />
-              </div>
+              <GidoApp
+                locationIconSettings={locationIconSettings}
+                previewFloor={floor}
+                previewFloorLayout={floorLayout}
+              />
             </div>
           </div>
 
@@ -554,832 +593,12 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               onChangeFloor={setFloor}
               locationIconSettings={locationIconSettings}
               onChangeLocationIconSettings={setLocationIconSettings}
-              errors={errors}
             />
           )}
         </div>
-      </div>
-    </div>
-  );
-};
-
-// Floor Settings Tab
-interface FloorSettingsTabProps {
-  floor: FloorId;
-  onChangeFloor: (floor: FloorId) => void;
-}
-
-const FloorSettingsTab: React.FC<FloorSettingsTabProps> = ({
-  floor,
-  onChangeFloor,
-}) => {
-  const floors: FloorId[] = ["1F", "2F", "3F", "4F"];
-
-  return (
-    <div>
-      <h3
-        style={{
-          color: "#ffffff",
-          fontSize: 18,
-          fontWeight: 600,
-          marginBottom: 24,
-        }}
-      >
-        フロア設定
-      </h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {floors.map((f) => (
-          <label
-            key={f}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "12px",
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              borderRadius: 8,
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="radio"
-              name="floor"
-              value={f}
-              checked={floor === f}
-              onChange={() => onChangeFloor(f)}
-              style={{
-                marginRight: 12,
-                width: 18,
-                height: 18,
-                accentColor: "#007aff",
-              }}
-            />
-            <span style={{ color: "#ffffff", fontSize: 15 }}>{f}</span>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Layout Settings Tab
-interface LayoutSettingsTabProps {
-  floor: FloorId;
-  onChangeFloor: (floor: FloorId) => void;
-  floorLayout: FloorLayout;
-  onChangeFloorLayout: (layout: FloorLayout) => void;
-  errors: Record<string, string>;
-}
-
-const LayoutSettingsTab: React.FC<LayoutSettingsTabProps> = ({
-  floor,
-  onChangeFloor,
-  floorLayout,
-  onChangeFloorLayout,
-  errors,
-}) => {
-  const floors: FloorId[] = ["1F", "2F", "3F", "4F"];
-  const [selectedFloor, setSelectedFloor] = useState<FloorId>(floor);
-
-  // Update preview floor when selected floor changes
-  useEffect(() => {
-    onChangeFloor(selectedFloor);
-  }, [selectedFloor, onChangeFloor]);
-
-  const currentLayout = floorLayout[selectedFloor] || {
-    columns: 3,
-    rowsPerCol: 20,
-    perColumnRows: [],
-    perColumnPadding: [],
-  };
-
-  const handleChange = (
-    key: "columns" | "rowsPerCol",
-    value: string
-  ) => {
-    const num = value === "" ? 0 : Number(value);
-    if (value !== "" && Number.isNaN(num)) return;
-
-    const next: FloorLayout = {
-      ...floorLayout,
-      [selectedFloor]: {
-        ...currentLayout,
-        [key]: num,
-      },
-    };
-
-    onChangeFloorLayout(next);
-  };
-
-  const handlePerColumnRowsChange = (colIndex: number, value: string) => {
-    const num = value === "" ? undefined : Number(value);
-    if (value !== "" && (Number.isNaN(num) || num === undefined)) return;
-
-    const arr = [...(currentLayout.perColumnRows || [])];
-    if (num !== undefined) {
-      arr[colIndex] = num;
-    } else {
-      // Remove the entry if empty (will use default)
-      delete arr[colIndex];
-    }
-
-    const next: FloorLayout = {
-      ...floorLayout,
-      [selectedFloor]: {
-        ...currentLayout,
-        perColumnRows: arr,
-      },
-    };
-
-    onChangeFloorLayout(next);
-  };
-
-  const handlePerColumnPaddingChange = (
-    colIndex: number,
-    side: "top" | "right" | "bottom" | "left",
-    value: string
-  ) => {
-    const num = value === "" ? undefined : Number(value);
-    if (value !== "" && Number.isNaN(num)) return;
-
-    const arr = [...(currentLayout.perColumnPadding || [])];
-    if (!arr[colIndex]) {
-      arr[colIndex] = {};
-    }
-    const padding = { ...arr[colIndex] };
-    if (num !== undefined && num >= 0) {
-      padding[side] = num;
-    } else {
-      delete padding[side];
-    }
-    arr[colIndex] = padding;
-
-    const next: FloorLayout = {
-      ...floorLayout,
-      [selectedFloor]: {
-        ...currentLayout,
-        perColumnPadding: arr,
-      },
-    };
-
-    onChangeFloorLayout(next);
-  };
-
-  return (
-    <div>
-      <h3
-        style={{
-          color: "#ffffff",
-          fontSize: 18,
-          fontWeight: 600,
-          marginBottom: 24,
-        }}
-      >
-        ショップリストレイアウト
-      </h3>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Floor Selection */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              color: "rgba(255, 255, 255, 0.8)",
-              fontSize: 13,
-              marginBottom: 8,
-              fontWeight: 500,
-            }}
-          >
-            フロア選択
-          </label>
-          <select
-            value={selectedFloor}
-            onChange={(e) => setSelectedFloor(e.target.value as FloorId)}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 6,
-              color: "#ffffff",
-              fontSize: 14,
-            }}
-          >
-            {floors.map((f) => (
-              <option
-                key={f}
-                value={f}
-                style={{
-                  backgroundColor: "#2C2C2C",
-                  color: "#ffffff",
-                }}
-              >
-                {f}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Columns */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              color: "rgba(255, 255, 255, 0.8)",
-              fontSize: 13,
-              marginBottom: 8,
-              fontWeight: 500,
-            }}
-          >
-            列数
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="10"
-            value={currentLayout.columns || ""}
-            onChange={(e) => handleChange("columns", e.target.value)}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              border: errors["layout.columns"]
-                ? "1px solid #ff4444"
-                : "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 6,
-              color: "#ffffff",
-              fontSize: 14,
-            }}
-          />
-          {errors["layout.columns"] && (
-            <div style={{ color: "#ff4444", fontSize: 12, marginTop: 4 }}>
-              {errors["layout.columns"]}
-            </div>
-          )}
-        </div>
-
-        {/* Rows Per Column (Default) */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              color: "rgba(255, 255, 255, 0.8)",
-              fontSize: 13,
-              marginBottom: 8,
-              fontWeight: 500,
-            }}
-          >
-            行数列 (デフォルト)
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="100"
-            value={currentLayout.rowsPerCol || ""}
-            onChange={(e) => handleChange("rowsPerCol", e.target.value)}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              border: errors["layout.rowsPerCol"]
-                ? "1px solid #ff4444"
-                : "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 6,
-              color: "#ffffff",
-              fontSize: 14,
-            }}
-          />
-          {errors["layout.rowsPerCol"] && (
-            <div style={{ color: "#ff4444", fontSize: 12, marginTop: 4 }}>
-              {errors["layout.rowsPerCol"]}
-            </div>
-          )}
-        </div>
-
-        {/* Per Column Rows */}
-        {currentLayout.columns > 0 && (
-          <div>
-            <label
-              style={{
-                display: "block",
-                color: "rgba(255, 255, 255, 0.8)",
-                fontSize: 13,
-                marginBottom: 12,
-                fontWeight: 500,
-              }}
-            >
-              列ごとの行数
-            </label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {Array.from({ length: currentLayout.columns }).map((_, idx) => (
-                <div key={idx}>
-                  <div
-                    style={{
-                      color: "rgba(255, 255, 255, 0.7)",
-                      fontSize: 12,
-                      marginBottom: 4,
-                    }}
-                  >
-                    列{idx + 1}:
-                  </div>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={
-                      currentLayout.perColumnRows?.[idx] !== undefined
-                        ? currentLayout.perColumnRows[idx]
-                        : ""
-                    }
-                    onChange={(e) =>
-                      handlePerColumnRowsChange(idx, e.target.value)
-                    }
-                    placeholder={`デフォルト: ${currentLayout.rowsPerCol}`}
-                    style={{
-                      width: "100%",
-                      padding: "8px 12px",
-                      backgroundColor: "rgba(255, 255, 255, 0.05)",
-                      border: errors[`layout.perColumnRows.${idx}`]
-                        ? "1px solid #ff4444"
-                        : "1px solid rgba(255, 255, 255, 0.1)",
-                      borderRadius: 6,
-                      color: "#ffffff",
-                      fontSize: 14,
-                    }}
-                  />
-                  {errors[`layout.perColumnRows.${idx}`] && (
-                    <div
-                      style={{ color: "#ff4444", fontSize: 12, marginTop: 4 }}
-                    >
-                      {errors[`layout.perColumnRows.${idx}`]}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Per Column Padding */}
-        {currentLayout.columns > 0 && (
-          <div>
-            <label
-              style={{
-                display: "block",
-                color: "rgba(255, 255, 255, 0.8)",
-                fontSize: 13,
-                marginBottom: 12,
-                fontWeight: 500,
-              }}
-            >
-              列ごとの間隔 (em)
-            </label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {Array.from({ length: currentLayout.columns }).map((_, idx) => (
-                <div key={idx}>
-                  <div
-                    style={{
-                      color: "rgba(255, 255, 255, 0.7)",
-                      fontSize: 12,
-                      marginBottom: 8,
-                    }}
-                  >
-                    列{idx + 1}:
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 8,
-                    }}
-                  >
-                    {[
-                      { key: "top" as const, label: "上" },
-                      { key: "right" as const, label: "右" },
-                      { key: "bottom" as const, label: "下" },
-                      { key: "left" as const, label: "左" },
-                    ].map(({ key, label }) => (
-                      <div key={key}>
-                        <div
-                          style={{
-                            color: "rgba(255, 255, 255, 0.6)",
-                            fontSize: 11,
-                            marginBottom: 4,
-                          }}
-                        >
-                          {label}
-                        </div>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.1"
-                          value={
-                            currentLayout.perColumnPadding?.[idx]?.[key] !==
-                            undefined
-                              ? currentLayout.perColumnPadding[idx][key]
-                              : ""
-                          }
-                          onChange={(e) =>
-                            handlePerColumnPaddingChange(idx, key, e.target.value)
-                          }
-                          placeholder="0"
-                          style={{
-                            width: "100%",
-                            padding: "6px 8px",
-                            backgroundColor: "rgba(255, 255, 255, 0.05)",
-                            border: errors[`layout.perColumnPadding.${idx}.${key}`]
-                              ? "1px solid #ff4444"
-                              : "1px solid rgba(255, 255, 255, 0.1)",
-                            borderRadius: 4,
-                            color: "#ffffff",
-                            fontSize: 12,
-                          }}
-                        />
-                        {errors[`layout.perColumnPadding.${idx}.${key}`] && (
-                          <div
-                            style={{
-                              color: "#ff4444",
-                              fontSize: 11,
-                              marginTop: 2,
-                            }}
-                          >
-                            {errors[`layout.perColumnPadding.${idx}.${key}`]}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// Location Settings Tab
-interface LocationSettingsTabProps {
-  floor: FloorId;
-  onChangeFloor: (floor: FloorId) => void;
-  locationIconSettings: LocationIconSettings;
-  onChangeLocationIconSettings: (settings: LocationIconSettings) => void;
-  errors: Record<string, string>;
-}
-
-const LocationSettingsTab: React.FC<LocationSettingsTabProps> = ({
-  floor,
-  onChangeFloor,
-  locationIconSettings,
-  onChangeLocationIconSettings,
-  errors,
-}) => {
-  const floors: FloorId[] = ["1F", "2F", "3F", "4F"];
-  const [selectedFloor, setSelectedFloor] = useState<FloorId>(floor);
-
-  // Update preview floor when selected floor changes
-  useEffect(() => {
-    onChangeFloor(selectedFloor);
-  }, [selectedFloor, onChangeFloor]);
-  const updateIcon = (
-    iconKey: "speechBubble" | "location",
-    partial: Partial<LocationIconSettings["speechBubble"]>
-  ) => {
-    onChangeLocationIconSettings({
-      ...locationIconSettings,
-      [iconKey]: {
-        ...locationIconSettings[iconKey],
-        ...partial,
-      },
-    });
-  };
-
-  const clampPercent = (value: number) =>
-    Math.min(100, Math.max(0, Number.isNaN(value) ? 0 : value));
-
-  const clampRotation = (value: number) => {
-    const v = Number.isNaN(value) ? 0 : value;
-    if (v < 0) return 0;
-    if (v > 360) return 360;
-    return v;
-  };
-
-  const IconSection: React.FC<{
-    label: string;
-    iconKey: "speechBubble" | "location";
-    config: LocationIconSettings["speechBubble"];
-  }> = ({ label, iconKey, config }) => (
-    <div
-      style={{
-        border: "1px solid rgba(255,255,255,0.1)",
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 20,
-        backgroundColor: "rgba(255,255,255,0.03)",
-      }}
-    >
-      <div
-        style={{
-          fontWeight: 600,
-          color: "rgba(255,255,255,0.9)",
-          marginBottom: 16,
-          fontSize: 14,
-        }}
-      >
-        {label}
-      </div>
-
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          marginBottom: 16,
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={config.enabled}
-          onChange={(e) => updateIcon(iconKey, { enabled: e.target.checked })}
-          style={{
-            marginRight: 10,
-            width: 18,
-            height: 18,
-            accentColor: "#007aff",
-          }}
-        />
-        <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14 }}>
-          表示
-        </span>
-      </label>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div>
-          <div
-            style={{
-              fontSize: 12,
-              marginBottom: 6,
-              color: "rgba(255,255,255,0.7)",
-              fontWeight: 500,
-            }}
-          >
-            X位置 (%)
-          </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={0.1}
-              value={config.xPercent}
-              onChange={(e) =>
-                updateIcon(iconKey, {
-                  xPercent: clampPercent(Number(e.target.value)),
-                })
-              }
-              style={{
-                flex: 1,
-                accentColor: "#007aff",
-              }}
-            />
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={0.1}
-              value={config.xPercent}
-              onChange={(e) =>
-                updateIcon(iconKey, {
-                  xPercent: clampPercent(Number(e.target.value)),
-                })
-              }
-              style={{
-                width: 70,
-                backgroundColor: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 6,
-                padding: "6px 8px",
-                color: "#ffffff",
-                fontSize: 13,
-              }}
-            />
-          </div>
-        </div>
-
-        <div>
-          <div
-            style={{
-              fontSize: 12,
-              marginBottom: 6,
-              color: "rgba(255,255,255,0.7)",
-              fontWeight: 500,
-            }}
-          >
-            Y位置 (%)
-          </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={0.1}
-              value={config.yPercent}
-              onChange={(e) =>
-                updateIcon(iconKey, {
-                  yPercent: clampPercent(Number(e.target.value)),
-                })
-              }
-              style={{
-                flex: 1,
-                accentColor: "#007aff",
-              }}
-            />
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={0.1}
-              value={config.yPercent}
-              onChange={(e) =>
-                updateIcon(iconKey, {
-                  yPercent: clampPercent(Number(e.target.value)),
-                })
-              }
-              style={{
-                width: 70,
-                backgroundColor: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 6,
-                padding: "6px 8px",
-                color: "#ffffff",
-                fontSize: 13,
-              }}
-            />
-          </div>
-        </div>
-
-        <div>
-          <div
-            style={{
-              fontSize: 12,
-              marginBottom: 6,
-              color: "rgba(255,255,255,0.7)",
-              fontWeight: 500,
-            }}
-          >
-            サイズ (px)
-          </div>
-          <input
-            type="number"
-            min={1}
-            max={512}
-            step={0.1}
-            value={config.size}
-            onChange={(e) =>
-              updateIcon(iconKey, {
-                size: Math.max(1, Math.min(512, Number(e.target.value) || 1)),
-              })
-            }
-            style={{
-              width: "100%",
-              backgroundColor: "rgba(255,255,255,0.05)",
-              border: errors[`location.${iconKey}.size`]
-                ? "1px solid #ff4444"
-                : "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 6,
-              padding: "6px 8px",
-              color: "#ffffff",
-              fontSize: 13,
-            }}
-          />
-          {errors[`location.${iconKey}.size`] && (
-            <div style={{ color: "#ff4444", fontSize: 12, marginTop: 4 }}>
-              {errors[`location.${iconKey}.size`]}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div
-            style={{
-              fontSize: 12,
-              marginBottom: 6,
-              color: "rgba(255,255,255,0.7)",
-              fontWeight: 500,
-            }}
-          >
-            回転 (°)
-          </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              type="range"
-              min={0}
-              max={360}
-              value={config.rotation}
-              onChange={(e) =>
-                updateIcon(iconKey, {
-                  rotation: clampRotation(Number(e.target.value)),
-                })
-              }
-              style={{
-                flex: 1,
-                accentColor: "#007aff",
-              }}
-            />
-            <input
-              type="number"
-              min={0}
-              max={360}
-              value={config.rotation}
-              onChange={(e) =>
-                updateIcon(iconKey, {
-                  rotation: clampRotation(Number(e.target.value)),
-                })
-              }
-              style={{
-                width: 70,
-                backgroundColor: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 6,
-                padding: "6px 8px",
-                color: "#ffffff",
-                fontSize: 13,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div>
-      <h3
-        style={{
-          color: "#ffffff",
-          fontSize: 18,
-          fontWeight: 600,
-          marginBottom: 24,
-        }}
-      >
-        位置アイコン設定
-      </h3>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Floor Selection */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              color: "rgba(255, 255, 255, 0.8)",
-              fontSize: 13,
-              marginBottom: 8,
-              fontWeight: 500,
-            }}
-          >
-            フロア選択
-          </label>
-          <select
-            value={selectedFloor}
-            onChange={(e) => setSelectedFloor(e.target.value as FloorId)}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 6,
-              color: "#ffffff",
-              fontSize: 14,
-            }}
-          >
-            {floors.map((f) => (
-              <option
-                key={f}
-                value={f}
-                style={{
-                  backgroundColor: "#2C2C2C",
-                  color: "#ffffff",
-                }}
-              >
-                {f}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <IconSection
-          label="SpeechBubble.svg"
-          iconKey="speechBubble"
-          config={locationIconSettings.speechBubble}
-        />
-        <IconSection
-          label="Location.svg"
-          iconKey="location"
-          config={locationIconSettings.location}
-        />
       </div>
     </div>
   );
 };
 
 export default UnifiedSettingsScreen;
-

@@ -19,8 +19,6 @@ import type { LocationIconSettings } from "../types/locationIcon";
 import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
 
 import { logInfo, logError } from "../logging";
-import FloorLayoutSettingsScreen from "./FloorLayoutSettingsScreen";
-import FloorSettingsScreen from "./FloorSettingsScreen";
 
 const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
@@ -218,59 +216,6 @@ const GidoApp: React.FC<GidoAppProps> = ({
     };
   }, []);
 
-  const handleSaveFloorLayout = async (next: FloorLayout) => {
-    const api = window.electronAPI;
-    if (!api) return;
-
-    try {
-      const saved = await api.saveFloorLayout(next);
-      setFloorLayout(saved);
-    } catch (e) {
-      console.error("Failed to save floor layout", e);
-    }
-  };
-
-  const handleCancelFloorLayout = () => {
-    const api = window.electronAPI;
-    if (!api) return;
-
-    api
-      .getFloorLayout()
-      .then((layout) => {
-        if (layout) setFloorLayout(layout);
-      })
-      .catch((e) => {
-        console.error("Failed to reload floor layout on cancel", e);
-      });
-  };
-
-  const handleSaveFloor = async (nextFloor: "1F" | "2F" | "3F" | "4F") => {
-    const api = window.electronAPI;
-    if (!api) return;
-
-    try {
-      // Use IPC to update floor setting in main process
-      // The main process will broadcast the change via onFloorChanged
-      api.setFloor(nextFloor);
-    } catch (e) {
-      console.error("Failed to save floor", e);
-    }
-  };
-
-  const handleCancelFloor = () => {
-    const api = window.electronAPI;
-    if (!api) return;
-
-    api
-      .getFloor()
-      .then((currentFloor) => {
-        if (currentFloor) setFloor(currentFloor);
-      })
-      .catch((e) => {
-        console.error("Failed to reload floor on cancel", e);
-      });
-  };
-
   const currentLayout =
     floorLayout[floor] ??
     DEFAULT_FLOOR_LAYOUT[floor] ??
@@ -424,21 +369,6 @@ const GidoApp: React.FC<GidoAppProps> = ({
         </div>
       </div>
 
-      {/* Floor layout settings modal (always mounted, opened via app menu) */}
-      <FloorLayoutSettingsScreen
-        layout={floorLayout}
-        onChangeLayout={setFloorLayout}
-        onSave={handleSaveFloorLayout}
-        onCancel={handleCancelFloorLayout}
-      />
-
-      {/* Floor settings modal (always mounted, opened via app menu) */}
-      <FloorSettingsScreen
-        floor={floor as "1F" | "2F" | "3F" | "4F"}
-        onChangeFloor={(f) => setFloor(f)}
-        onSave={handleSaveFloor}
-        onCancel={handleCancelFloor}
-      />
     </div>
   );
 };

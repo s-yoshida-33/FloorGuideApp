@@ -1,7 +1,6 @@
 // src/App.tsx
 import React, { useEffect, useState } from "react";
 import GidoApp from "./screens/GidoApp";
-import LocationIconSettingsScreen from "./screens/LocationIconSettingsScreen";
 import VersionInfoScreen from "./screens/VersionInfoScreen";
 import UnifiedSettingsScreen from "./screens/UnifiedSettingsScreen";
 import {
@@ -38,8 +37,6 @@ const App: React.FC = () => {
   const [locationSettings, setLocationSettings] = useState<LocationIconSettings>(
     DEFAULT_LOCATION_ICON_SETTINGS
   );
-  const [savedLocationSettings, setSavedLocationSettings] =
-    useState<LocationIconSettings>(DEFAULT_LOCATION_ICON_SETTINGS);
 
   // Floor and floor layout state for unified settings
   const [floor, setFloor] = useState<FloorId>("1F");
@@ -59,7 +56,6 @@ const App: React.FC = () => {
         const saved = await api.getLocationIconSettings();
         if (saved) {
           setLocationSettings(saved);
-          setSavedLocationSettings(saved);
         }
       }
 
@@ -88,7 +84,6 @@ const App: React.FC = () => {
         unsubscribeUpdated =
           api.onLocationIconSettingsUpdated((updated) => {
             setLocationSettings(updated);
-            setSavedLocationSettings(updated);
           });
       }
 
@@ -118,18 +113,12 @@ const App: React.FC = () => {
         (await window.electronAPI.saveLocationIconSettings(settings)) ??
         settings;
       setLocationSettings(saved);
-      setSavedLocationSettings(saved);
     } else {
       // Fallback: no Electron available (dev in browser)
       setLocationSettings(settings);
-      setSavedLocationSettings(settings);
     }
   };
 
-  const handleCancelLocationSettings = () => {
-    // Revert to last saved settings
-    setLocationSettings(savedLocationSettings);
-  };
 
   const handleSaveFloor = async (nextFloor: FloorId) => {
     const api = window.electronAPI;
@@ -166,12 +155,6 @@ const App: React.FC = () => {
         onSaveFloorLayout={handleSaveFloorLayout}
         locationIconSettings={locationSettings}
         onSaveLocationIconSettings={handleSaveLocationSettings}
-      />
-      <LocationIconSettingsScreen
-        settings={locationSettings}
-        onChangeSettings={setLocationSettings}
-        onSave={handleSaveLocationSettings}
-        onCancel={handleCancelLocationSettings}
       />
       <VersionInfoScreen onClose={() => {}} />
     </>
