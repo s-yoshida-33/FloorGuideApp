@@ -53,6 +53,7 @@ interface ElectronAPI {
   onOpenFloorLayoutSettings: (cb: () => void) => () => void;
   onOpenFloorSettings: (cb: () => void) => () => void;
   onOpenVersionInfo: (cb: () => void) => () => void;
+  onOpenSettings: (cb: () => void) => () => void;
   manualUpdateCheck: () => void;
   oneClickUpdate: () => void;
   quitApp: () => void;

@@ -58,24 +58,34 @@ const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
 
 interface GidoAppProps {
   locationIconSettings: LocationIconSettings;
+  // Preview mode props (for UnifiedSettingsScreen)
+  previewFloor?: string;
+  previewFloorLayout?: FloorLayout;
 }
 
 const GidoApp: React.FC<GidoAppProps> = ({
   locationIconSettings,
+  previewFloor,
+  previewFloorLayout,
 }) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Current floor for this screen (default from APP_CONFIG for non-Electron)
-  const [floor, setFloor] = useState<string>(APP_CONFIG.floor);
+  // Use previewFloor if available, otherwise load from Electron or use default
+  const [floor, setFloor] = useState<string>(
+    previewFloor ?? APP_CONFIG.floor
+  );
 
   // Runtime floor layout (columns / rows per column)
-  const [floorLayout, setFloorLayout] =
-    useState<FloorLayout>(DEFAULT_FLOOR_LAYOUT);
+  // Use previewFloorLayout if available, otherwise load from Electron or use default
+  const [floorLayout, setFloorLayout] = useState<FloorLayout>(
+    previewFloorLayout ?? DEFAULT_FLOOR_LAYOUT
+  );
 
-  // Floor synchronization with Electron main process
+  // Floor synchronization with Electron main process (only if not in preview mode)
   useEffect(() => {
-    if (!window.electronAPI?.getFloor) {
+    if (previewFloor || !window.electronAPI?.getFloor) {
       return;
     }
 
@@ -103,12 +113,12 @@ const GidoApp: React.FC<GidoAppProps> = ({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [previewFloor]); // Re-run if previewFloor changes
 
-  // Floor layout synchronization with Electron
+  // Floor layout synchronization with Electron (only if not in preview mode)
   useEffect(() => {
     const api = window.electronAPI;
-    if (!api) return;
+    if (previewFloorLayout || !api) return;
 
     let cancelled = false;
 
@@ -135,7 +145,20 @@ const GidoApp: React.FC<GidoAppProps> = ({
       cancelled = true;
       unsubscribe && unsubscribe();
     };
-  }, []);
+  }, [previewFloorLayout]); // Re-run if previewFloorLayout changes
+
+  // Update local state when preview props change
+  useEffect(() => {
+    if (previewFloor !== undefined) {
+      setFloor(previewFloor);
+    }
+  }, [previewFloor]);
+
+  useEffect(() => {
+    if (previewFloorLayout !== undefined) {
+      setFloorLayout(previewFloorLayout);
+    }
+  }, [previewFloorLayout]);
 
   // Select floor map by floor id, fallback to 1F
   const floorMap = FLOOR_MAPS[floor] ?? floorMap1F;
@@ -283,6 +306,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
           <img
             src={floorMap}
             alt={`Floor map ${floor}`}
+            draggable={false}
             style={{
               maxWidth: "100%",
               maxHeight: "100%",
