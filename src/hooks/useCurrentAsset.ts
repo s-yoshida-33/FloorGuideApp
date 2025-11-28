@@ -2,8 +2,8 @@
 import { useEffect, useState, useRef } from 'react';
 import type { CurrentAsset } from '../types/wsp';
 import { fetchCurrentAsset } from '../repositories/wspRepository';
-import { POLLING_INTERVALS } from '../config/appConfig';
-import { logInfo, logWarn, logError } from '../logging';
+import { POLLING_INTERVALS } from '../config';
+import { logInfo, logWarn, logError } from '../logs/logging';
 
 interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
