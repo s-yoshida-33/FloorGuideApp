@@ -10,15 +10,14 @@ import floorMap3F from "../assets/floor-3F-map.svg";
 import floorMap4F from "../assets/floor-4F-map.svg";
 import openTimeImage from "../assets/open-time.svg";
 
-import { APP_CONFIG } from "../config";
-import { POLLING_INTERVALS } from "../config/appConfig";
+import { APP_CONFIG, POLLING_INTERVALS } from "../config";
 import { fetchShops } from "../repositories/shopRepository";
 import VerticalVideoSlot from "../components/VerticalVideoSlot";
 
 import type { LocationIconSettings } from "../types/locationIcon";
 import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
 
-import { logInfo, logError } from "../logging";
+import { logInfo, logError } from "../logs/logging";
 
 const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;

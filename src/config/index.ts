@@ -1,5 +1,5 @@
-// src/config.ts
-import type { LocationIconSettings } from './types/locationIcon';
+// src/config/index.ts
+import type { LocationIconSettings } from '../types/locationIcon';
 
 // Global app configuration (do not use Japanese in comments to avoid encoding issues)
 export const APP_CONFIG = {
@@ -81,3 +81,10 @@ export const FLOOR_ROWS_PER_COL: Record<string, number> = {
   "3F": 20,
   "4F": 18,
 };
+
+// Polling intervals
+export const POLLING_INTERVALS = {
+  SHOP_LIST_MS: 10 * 60 * 1000, // 10 minutes
+  VIDEO_MS: 1000,      // 1 second
+};
+

@@ -9,7 +9,7 @@ import {
   FLOOR_COLUMN_COUNT,
 } from "../config";
 import "../styles/ShopList.css";
-import { logInfo, logError } from "../logging";
+import { logInfo, logError } from "../logs/logging";
 
 type ColumnPadding = {
   top?: number;
