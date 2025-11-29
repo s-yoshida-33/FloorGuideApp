@@ -59,7 +59,9 @@
       "allowElevation": false,
       "perMachine": false,
       "language": "1041",
-      "installerLanguages": ["ja_JP"],
+      "installerLanguages": [
+        "ja_JP"
+      ],
       "menuCategory": true,
       "uninstallDisplayName": "Gido アンインストール",
       "unicode": true,
@@ -80,6 +82,7 @@
     "nodemailer": "^7.0.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-zoom-pan-pinch": "^3.7.0",
     "semver": "^7.7.3"
   },
   "devDependencies": {
