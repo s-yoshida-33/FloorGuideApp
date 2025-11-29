@@ -393,7 +393,15 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
+      devTools: true, // Enable dev tools even in production for debugging
     },
+  });
+
+  // Enable F12 shortcut to toggle dev tools
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12') {
+      mainWindow.webContents.toggleDevTools();
+    }
   });
 
   mainWindow.loadURL(rendererBaseUrl);
@@ -446,6 +454,17 @@ function createAppMenu() {
             logger.info('Unified settings screen menu clicked');
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send('open-settings');
+            }
+          },
+        },
+        { type: 'separator' },
+        {
+          label: '開発者ツール',
+          accelerator: 'F12',
+          click: () => {
+            logger.info('Developer tools toggled');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.toggleDevTools();
             }
           },
         },
