@@ -65,6 +65,12 @@ export const DEFAULT_LOCATION_ICON_SETTINGS: LocationIconSettings = {
       blur: 4,
       opacity: 0.5,
     },
+    animation: {
+      enabled: true,
+      type: "floating",
+      duration: 2.2,
+      amplitude: 18,
+    },
   },
   location: {
     enabled: true,

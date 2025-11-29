@@ -1,6 +1,7 @@
 // src/components/LocationIconsOverlay.tsx
 import React from "react";
-import type { LocationIconSettings, IconPositionConfig } from "../types/locationIcon";
+import { motion } from "framer-motion";
+import type { LocationIconSettings, IconPositionConfig, AnimationConfig } from "../types/locationIcon";
 
 import SpeechBubbleSvg from "../assets/SpeechBubble.svg";
 import LocationSvg from "../assets/Location.svg";
@@ -39,26 +40,79 @@ function buildShadowStyle(shadow: IconPositionConfig['shadow']): React.CSSProper
   };
 }
 
+function buildAnimationProps(animation?: AnimationConfig) {
+  if (!animation || !animation.enabled || animation.type === "none") {
+    return {};
+  }
+
+  const duration = animation.duration;
+  const amplitude = animation.amplitude;
+
+  switch (animation.type) {
+    case "floating":
+      return {
+        animate: {
+          y: [0, -amplitude, 0],
+        },
+        transition: {
+          duration,
+          repeat: Infinity,
+          ease: "easeInOut" as const,
+        },
+      };
+    case "pulse":
+      return {
+        animate: {
+          scale: [1, 1.1, 1],
+        },
+        transition: {
+          duration,
+          repeat: Infinity,
+          ease: "easeInOut" as const,
+        },
+      };
+    case "bounce":
+      return {
+        animate: {
+          y: [0, -amplitude, 0],
+        },
+        transition: {
+          duration,
+          repeat: Infinity,
+          ease: "easeOut" as const,
+        },
+      };
+    default:
+      return {};
+  }
+}
+
 export const LocationIconsOverlay: React.FC<Props> = ({ settings }) => {
   const { speechBubble, location } = settings;
+
+  // Create a key based on animation settings to force re-mount when settings change
+  const animationKey = speechBubble.animation
+    ? `${speechBubble.animation.enabled}-${speechBubble.animation.type}-${speechBubble.animation.duration}-${speechBubble.animation.amplitude}`
+    : "no-animation";
 
   return (
     <>
       {speechBubble.enabled && (
-        <div
-          className="location-icon-bubble"
+        <motion.div
+          key={animationKey}
           style={{
             ...buildWrapperStyle(speechBubble),
             ...buildShadowStyle(speechBubble.shadow),
             zIndex: 5,
           }}
+          {...buildAnimationProps(speechBubble.animation)}
         >
           <img
             src={SpeechBubbleSvg}
             alt="Current location speech bubble"
             style={buildImageStyle(speechBubble)}
           />
-        </div>
+        </motion.div>
       )}
 
       {location.enabled && (

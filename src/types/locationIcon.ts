@@ -11,6 +11,18 @@ export interface ShadowConfig {
   opacity: number;
 }
 
+export type AnimationType = "floating" | "pulse" | "bounce" | "none";
+
+export interface AnimationConfig {
+  enabled: boolean;
+  // Animation type
+  type: AnimationType;
+  // Animation duration in seconds
+  duration: number;
+  // Animation amplitude (movement distance in px, for floating)
+  amplitude: number;
+}
+
 export interface IconPositionConfig {
     enabled: boolean;
     // 0-100: relative position inside the map container
@@ -22,6 +34,8 @@ export interface IconPositionConfig {
     rotation: number;
     // Shadow configuration
     shadow: ShadowConfig;
+    // Animation configuration (only for speech bubble)
+    animation?: AnimationConfig;
   }
   
   export interface LocationIconSettings {

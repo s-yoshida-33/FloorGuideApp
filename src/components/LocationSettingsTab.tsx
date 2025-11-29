@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import type { FloorId } from "../types/floorLayout";
-import type { LocationIconSettings, IconPositionConfig } from "../types/locationIcon";
+import type { LocationIconSettings, IconPositionConfig, AnimationType } from "../types/locationIcon";
 
 export interface LocationSettingsTabProps {
   floor: FloorId;
@@ -23,7 +23,8 @@ const IconConfigSection: React.FC<{
   label: string;
   config: IconPositionConfig;
   onChange: (next: IconPositionConfig) => void;
-}> = ({ label, config, onChange }) => {
+  showAnimation?: boolean;
+}> = ({ label, config, onChange, showAnimation = false }) => {
   const update = (partial: Partial<IconPositionConfig>) => {
     onChange({ ...config, ...partial });
   };
@@ -356,6 +357,171 @@ const IconConfigSection: React.FC<{
           </div>
         )}
       </div>
+
+      {/* Animation settings (only for speech bubble) */}
+      {showAnimation && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+          <label style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+            <input
+              type="checkbox"
+              checked={config.animation?.enabled ?? false}
+              onChange={(e) =>
+                update({
+                  animation: {
+                    ...(config.animation ?? {
+                      enabled: false,
+                      type: "floating",
+                      duration: 2.2,
+                      amplitude: 18,
+                    }),
+                    enabled: e.target.checked,
+                  },
+                })
+              }
+              style={{ marginRight: 10, width: 18, height: 18, accentColor: "#007aff" }}
+            />
+            <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 500 }}>アニメーション</span>
+          </label>
+
+          {config.animation?.enabled && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>タイプ</div>
+                <select
+                  value={config.animation?.type ?? "floating"}
+                  onChange={(e) =>
+                    update({
+                      animation: {
+                        ...(config.animation ?? {
+                          enabled: true,
+                          type: "floating",
+                          duration: 2.2,
+                          amplitude: 18,
+                        }),
+                        type: e.target.value as AnimationType,
+                      },
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 6,
+                    padding: "6px 8px",
+                    color: "#ffffff",
+                    fontSize: 13,
+                  }}
+                >
+                  <option value="floating" style={{ backgroundColor: "#2C2C2C", color: "#ffffff" }}>
+                    フローティング
+                  </option>
+                  <option value="pulse" style={{ backgroundColor: "#2C2C2C", color: "#ffffff" }}>
+                    パルス
+                  </option>
+                  <option value="bounce" style={{ backgroundColor: "#2C2C2C", color: "#ffffff" }}>
+                    バウンス
+                  </option>
+                  <option value="none" style={{ backgroundColor: "#2C2C2C", color: "#ffffff" }}>
+                    なし
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>期間 (秒)</div>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={5}
+                    step={0.1}
+                    value={config.animation?.duration ?? 2.2}
+                    onChange={(e) =>
+                      update({
+                        animation: {
+                          ...(config.animation ?? {
+                            enabled: true,
+                            type: "floating",
+                            duration: 2.2,
+                            amplitude: 18,
+                          }),
+                          duration: Math.max(0.5, Math.min(5, Number(e.target.value) || 2.2)),
+                        },
+                      })
+                    }
+                    style={{
+                      flex: 1,
+                      accentColor: "#007aff",
+                    }}
+                  />
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={5}
+                    step={0.1}
+                    value={config.animation?.duration ?? 2.2}
+                    onChange={(e) =>
+                      update({
+                        animation: {
+                          ...(config.animation ?? {
+                            enabled: true,
+                            type: "floating",
+                            duration: 2.2,
+                            amplitude: 18,
+                          }),
+                          duration: Math.max(0.5, Math.min(5, Number(e.target.value) || 2.2)),
+                        },
+                      })
+                    }
+                    style={{
+                      width: 70,
+                      backgroundColor: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 6,
+                      padding: "6px 8px",
+                      color: "#ffffff",
+                      fontSize: 13,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>振幅 (px)</div>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  step={1}
+                  value={config.animation?.amplitude ?? 18}
+                  onChange={(e) =>
+                    update({
+                      animation: {
+                        ...(config.animation ?? {
+                          enabled: true,
+                          type: "floating",
+                          duration: 2.2,
+                          amplitude: 18,
+                        }),
+                        amplitude: Math.max(1, Math.min(50, Number(e.target.value) || 18)),
+                      },
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 6,
+                    padding: "6px 8px",
+                    color: "#ffffff",
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </fieldset>
   );
 };
@@ -443,6 +609,7 @@ export const LocationSettingsTab: React.FC<LocationSettingsTabProps> = ({
           label="SpeechBubble.svg 設定"
           config={locationIconSettings.speechBubble}
           onChange={(next) => handleIconConfigChange("speechBubble", next)}
+          showAnimation={true}
         />
         <IconConfigSection
           label="Location.svg 設定"

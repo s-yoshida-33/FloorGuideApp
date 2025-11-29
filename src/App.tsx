@@ -55,12 +55,13 @@ const App: React.FC = () => {
       if (api.getLocationIconSettings) {
         const saved = await api.getLocationIconSettings();
         if (saved) {
-          // Ensure shadow config exists for backward compatibility
+          // Ensure shadow and animation config exists for backward compatibility
           const mergedSettings: LocationIconSettings = {
             speechBubble: {
               ...DEFAULT_LOCATION_ICON_SETTINGS.speechBubble,
               ...saved.speechBubble,
               shadow: saved.speechBubble?.shadow ?? DEFAULT_LOCATION_ICON_SETTINGS.speechBubble.shadow,
+              animation: saved.speechBubble?.animation ?? DEFAULT_LOCATION_ICON_SETTINGS.speechBubble.animation,
             },
             location: {
               ...DEFAULT_LOCATION_ICON_SETTINGS.location,
@@ -95,12 +96,13 @@ const App: React.FC = () => {
     if (api) {
       if (api.onLocationIconSettingsUpdated) {
         unsubscribeUpdated = api.onLocationIconSettingsUpdated((updated) => {
-          // Ensure shadow config exists for backward compatibility
+          // Ensure shadow and animation config exists for backward compatibility
           const mergedSettings: LocationIconSettings = {
             speechBubble: {
               ...DEFAULT_LOCATION_ICON_SETTINGS.speechBubble,
               ...updated.speechBubble,
               shadow: updated.speechBubble?.shadow ?? DEFAULT_LOCATION_ICON_SETTINGS.speechBubble.shadow,
+              animation: updated.speechBubble?.animation ?? DEFAULT_LOCATION_ICON_SETTINGS.speechBubble.animation,
             },
             location: {
               ...DEFAULT_LOCATION_ICON_SETTINGS.location,
