@@ -1,5 +1,6 @@
 // src/screens/UnifiedSettingsScreen.tsx
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import GidoApp from "./GidoApp";
 import type { LocationIconSettings } from "../types/locationIcon";
 import type { FloorId, FloorLayout } from "../types/floorLayout";
@@ -38,48 +39,13 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   const [locationIconSettings, setLocationIconSettings] =
     useState<LocationIconSettings>(initialLocationIconSettings);
 
-  // Preview zoom and pan state
-  const [zoom, setZoom] = useState(0.6); // 60% initial
-  const [panX, setPanX] = useState(0);
-  const [panY, setPanY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const previewContainerRef = useRef<HTMLDivElement>(null);
-
-  // Track if preview has been manually panned
-  const [hasBeenPanned, setHasBeenPanned] = useState(false);
-
-  // Calculate initial center position for preview
-  useEffect(() => {
-    if (!visible || !previewContainerRef.current) return;
-
-    const timer = setTimeout(() => {
-      if (!previewContainerRef.current) return;
-
-      const container = previewContainerRef.current;
-      const containerWidth = container.offsetWidth;
-      const containerHeight = container.offsetHeight;
-
-      // GidoApp size
-      const appWidth = 1920;
-      const appHeight = 1080;
-
-      // Calculate scaled dimensions
-      const scaledWidth = appWidth * zoom;
-      const scaledHeight = appHeight * zoom;
-
-      // Calculate center position
-      const centerX = (containerWidth - scaledWidth) / 2;
-      const centerY = (containerHeight - scaledHeight) / 2;
-
-      if (!hasBeenPanned) {
-        setPanX(centerX);
-        setPanY(centerY);
-      }
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [visible, zoom, hasBeenPanned]);
+  // Transform wrapper ref for programmatic control
+  const transformRef = useRef<{
+    zoomIn: () => void;
+    zoomOut: () => void;
+    resetTransform: () => void;
+    setTransform: (x: number, y: number, scale: number) => void;
+  } | null>(null);
 
   // Load initial values when screen opens
   useEffect(() => {
@@ -92,12 +58,11 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         setFloor(initialFloor);
         setFloorLayout(initialFloorLayout);
         setLocationIconSettings(initialLocationIconSettings);
-        setZoom(0.6);
-        // Reset pan position - will be centered by useEffect
-        setPanX(0);
-        setPanY(0);
-        setHasBeenPanned(false);
         setErrors({});
+        // Reset transform when opening settings
+        if (transformRef.current) {
+          transformRef.current.resetTransform();
+        }
       });
     }
 
@@ -125,12 +90,11 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setFloor(initialFloor);
     setFloorLayout(initialFloorLayout);
     setLocationIconSettings(initialLocationIconSettings);
-    setZoom(0.6);
-    // Reset pan position - will be centered by useEffect
-    setPanX(0);
-    setPanY(0);
-    setHasBeenPanned(false);
     setErrors({});
+    // Reset transform
+    if (transformRef.current) {
+      transformRef.current.resetTransform();
+    }
     handleClose();
   };
 
@@ -203,126 +167,20 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     }
   };
 
-  // Zoom controls - マウスホイールはカーソル位置を起点に
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    
-    if (!previewContainerRef.current) return;
-    
-    const container = previewContainerRef.current.getBoundingClientRect();
-    
-    // マウスカーソルのコンテナ内での相対位置を取得
-    const mouseX = e.clientX - container.left;
-    const mouseY = e.clientY - container.top;
-    
-    // 現在のズーム率
-    const currentZoom = zoom;
-    
-    // 新しいズーム率を計算
-    const delta = e.deltaY > 0 ? -0.05 : 0.05;
-    const newZoom = Math.max(0.6, Math.min(1.5, currentZoom + delta));
-    
-    // ズーム率の変化
-    const zoomRatio = newZoom / currentZoom;
-    
-    // マウス位置を中心にズームするための新しいパン位置を計算
-    const newPanX = mouseX - (mouseX - panX) * zoomRatio;
-    const newPanY = mouseY - (mouseY - panY) * zoomRatio;
-    
-    setZoom(newZoom);
-    setPanX(newPanX);
-    setPanY(newPanY);
-    setHasBeenPanned(true);
-  }, [zoom, panX, panY]);
 
-  // ズームボタンは画面中央を起点に
+  // Zoom buttons using library methods
   const handleZoomIn = () => {
-    if (!previewContainerRef.current) {
-      setZoom((prev) => Math.min(1.5, prev + 0.1));
-      return;
+    if (transformRef.current) {
+      transformRef.current.zoomIn();
     }
-    
-    const container = previewContainerRef.current;
-    const centerX = container.offsetWidth / 2;
-    const centerY = container.offsetHeight / 2;
-    
-    const currentZoom = zoom;
-    const newZoom = Math.min(1.5, currentZoom + 0.1);
-    const zoomRatio = newZoom / currentZoom;
-    
-    const newPanX = centerX - (centerX - panX) * zoomRatio;
-    const newPanY = centerY - (centerY - panY) * zoomRatio;
-    
-    setZoom(newZoom);
-    setPanX(newPanX);
-    setPanY(newPanY);
   };
 
   const handleZoomOut = () => {
-    if (!previewContainerRef.current) {
-      setZoom((prev) => Math.max(0.6, prev - 0.1));
-      return;
+    if (transformRef.current) {
+      transformRef.current.zoomOut();
     }
-    
-    const container = previewContainerRef.current;
-    const centerX = container.offsetWidth / 2;
-    const centerY = container.offsetHeight / 2;
-    
-    const currentZoom = zoom;
-    const newZoom = Math.max(0.6, currentZoom - 0.1);
-    const zoomRatio = newZoom / currentZoom;
-    
-    const newPanX = centerX - (centerX - panX) * zoomRatio;
-    const newPanY = centerY - (centerY - panY) * zoomRatio;
-    
-    setZoom(newZoom);
-    setPanX(newPanX);
-    setPanY(newPanY);
   };
 
-  // Drag controls
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return; // Only left mouse button
-    // Check if the event target is from GidoApp content
-    const target = e.target as HTMLElement;
-    // If clicking on interactive elements (buttons, inputs, etc.), don't start dragging
-    if (
-      target.tagName === "BUTTON" ||
-      target.tagName === "INPUT" ||
-      target.tagName === "SELECT" ||
-      target.closest("button") ||
-      target.closest("input") ||
-      target.closest("select")
-    ) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - panX, y: e.clientY - panY });
-  };
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    setPanX(e.clientX - dragStart.x);
-    setPanY(e.clientY - dragStart.y);
-    setHasBeenPanned(true);
-  }, [isDragging, dragStart]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-      return () => {
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
-      };
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   if (!visible) return null;
 
@@ -476,28 +334,35 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
           }}
         >
           <div
-            ref={previewContainerRef}
             style={{
               width: "100%",
               height: "100%",
-              overflow: "hidden",
-              position: "relative",
-              cursor: isDragging ? "grabbing" : "grab",
-              userSelect: "none", // Prevent text selection during drag
             }}
-            onMouseDown={handleMouseDown}
-            onWheel={handleWheel}
-            onDragStart={(e) => e.preventDefault()} // Prevent default drag behavior
           >
-            <div
-              style={{
-                transform: `scale(${zoom})`,
-                transformOrigin: "top left",
-                position: "absolute",
-                left: `${panX}px`,
-                top: `${panY}px`,
-                width: "1920px",
-                height: "1080px",
+            <TransformWrapper
+              initialScale={0.6}
+              minScale={0.6}
+              maxScale={1.5}
+              limitToBounds={false}
+              centerOnInit={true}
+              wheel={{
+                step: 0.05,
+              }}
+              doubleClick={{
+                disabled: true,
+              }}
+              onInit={(ref) => {
+                transformRef.current = ref;
+              }}
+            >
+            <TransformComponent
+              wrapperStyle={{
+                width: "100%",
+                height: "100%",
+              }}
+              contentStyle={{
+                width: `${window.screen.width >= 3840 ? 3840 : 1920}px`,
+                height: `${window.screen.height >= 2160 ? 2160 : 1080}px`,
               }}
             >
               <GidoApp
@@ -505,7 +370,8 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
                 previewFloor={floor}
                 previewFloorLayout={floorLayout}
               />
-            </div>
+            </TransformComponent>
+          </TransformWrapper>
           </div>
 
           {/* Zoom Controls */}
@@ -521,7 +387,6 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
           >
             <button
               onClick={handleZoomIn}
-              disabled={zoom >= 1.5}
               style={{
                 width: 40,
                 height: 40,
@@ -530,8 +395,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
                 border: "1px solid rgba(255, 255, 255, 0.2)",
                 color: "#ffffff",
                 fontSize: 18,
-                cursor: zoom >= 1.5 ? "not-allowed" : "pointer",
-                opacity: zoom >= 1.5 ? 0.5 : 1,
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -541,7 +405,6 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
             </button>
             <button
               onClick={handleZoomOut}
-              disabled={zoom <= 0.6}
               style={{
                 width: 40,
                 height: 40,
@@ -550,8 +413,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
                 border: "1px solid rgba(255, 255, 255, 0.2)",
                 color: "#ffffff",
                 fontSize: 18,
-                cursor: zoom <= 0.6 ? "not-allowed" : "pointer",
-                opacity: zoom <= 0.6 ? 0.5 : 1,
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

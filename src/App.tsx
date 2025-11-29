@@ -55,7 +55,21 @@ const App: React.FC = () => {
       if (api.getLocationIconSettings) {
         const saved = await api.getLocationIconSettings();
         if (saved) {
-          setLocationSettings(saved);
+          // Ensure shadow and animation config exists for backward compatibility
+          const mergedSettings: LocationIconSettings = {
+            speechBubble: {
+              ...DEFAULT_LOCATION_ICON_SETTINGS.speechBubble,
+              ...saved.speechBubble,
+              shadow: saved.speechBubble?.shadow ?? DEFAULT_LOCATION_ICON_SETTINGS.speechBubble.shadow,
+              animation: saved.speechBubble?.animation ?? DEFAULT_LOCATION_ICON_SETTINGS.speechBubble.animation,
+            },
+            location: {
+              ...DEFAULT_LOCATION_ICON_SETTINGS.location,
+              ...saved.location,
+              shadow: saved.location?.shadow ?? DEFAULT_LOCATION_ICON_SETTINGS.location.shadow,
+            },
+          };
+          setLocationSettings(mergedSettings);
         }
       }
 
@@ -81,10 +95,23 @@ const App: React.FC = () => {
     const api = window.electronAPI;
     if (api) {
       if (api.onLocationIconSettingsUpdated) {
-        unsubscribeUpdated =
-          api.onLocationIconSettingsUpdated((updated) => {
-            setLocationSettings(updated);
-          });
+        unsubscribeUpdated = api.onLocationIconSettingsUpdated((updated) => {
+          // Ensure shadow and animation config exists for backward compatibility
+          const mergedSettings: LocationIconSettings = {
+            speechBubble: {
+              ...DEFAULT_LOCATION_ICON_SETTINGS.speechBubble,
+              ...updated.speechBubble,
+              shadow: updated.speechBubble?.shadow ?? DEFAULT_LOCATION_ICON_SETTINGS.speechBubble.shadow,
+              animation: updated.speechBubble?.animation ?? DEFAULT_LOCATION_ICON_SETTINGS.speechBubble.animation,
+            },
+            location: {
+              ...DEFAULT_LOCATION_ICON_SETTINGS.location,
+              ...updated.location,
+              shadow: updated.location?.shadow ?? DEFAULT_LOCATION_ICON_SETTINGS.location.shadow,
+            },
+          };
+          setLocationSettings(mergedSettings);
+        });
       }
 
       if (api.onFloorChanged) {
