@@ -45,7 +45,11 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     zoomOut: () => void;
     resetTransform: () => void;
     setTransform: (x: number, y: number, scale: number) => void;
+    centerView: (scale?: number) => void;
   } | null>(null);
+  
+  // Container ref for calculating center position
+  const previewContainerRef = useRef<HTMLDivElement>(null);
 
   // Load initial values when screen opens
   useEffect(() => {
@@ -178,6 +182,26 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   const handleZoomOut = () => {
     if (transformRef.current) {
       transformRef.current.zoomOut();
+    }
+  };
+
+  const handleReset = () => {
+    if (transformRef.current && previewContainerRef.current) {
+      // Reset to initial scale (0.6) and center position
+      // Calculate center position based on content and container size
+      const contentWidth = window.screen.width >= 3840 ? 3840 : 1920;
+      const contentHeight = window.screen.height >= 2160 ? 2160 : 1080;
+      const scale = 0.6;
+      const scaledWidth = contentWidth * scale;
+      const scaledHeight = contentHeight * scale;
+      
+      // Get container dimensions
+      const containerWidth = previewContainerRef.current.clientWidth;
+      const containerHeight = previewContainerRef.current.clientHeight;
+      // Calculate center position
+      const centerX = (containerWidth - scaledWidth) / 2;
+      const centerY = (containerHeight - scaledHeight) / 2;
+      transformRef.current.setTransform(centerX, centerY, scale);
     }
   };
 
@@ -326,6 +350,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
 
         {/* Center Preview (72%) */}
         <div
+          ref={previewContainerRef}
           style={{
             width: "72%",
             backgroundColor: "#1C1C1C",
@@ -420,6 +445,24 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               }}
             >
               −
+            </button>
+            <button
+              onClick={handleReset}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                backgroundColor: "rgba(0, 0, 0, 0.6)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                color: "#ffffff",
+                fontSize: 18,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              ↻
             </button>
           </div>
         </div>
