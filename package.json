@@ -1,7 +1,7 @@
 {
   "name": "gido",
   "private": true,
-  "version": "0.1.0-beta.24",
+  "version": "0.1.0-beta.25",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
@@ -59,7 +59,9 @@
       "allowElevation": false,
       "perMachine": false,
       "language": "1041",
-      "installerLanguages": ["ja_JP"],
+      "installerLanguages": [
+        "ja_JP"
+      ],
       "menuCategory": true,
       "uninstallDisplayName": "Gido アンインストール",
       "unicode": true,
@@ -77,9 +79,11 @@
   "dependencies": {
     "electron-log": "^5.4.3",
     "electron-updater": "^6.6.2",
+    "framer-motion": "^12.23.24",
     "nodemailer": "^7.0.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-zoom-pan-pinch": "^3.7.0",
     "semver": "^7.7.3"
   },
   "devDependencies": {
