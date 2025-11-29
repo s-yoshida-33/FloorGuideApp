@@ -48,38 +48,201 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
 
   // Track if preview has been manually panned
   const [hasBeenPanned, setHasBeenPanned] = useState(false);
+  
+  // Track if the container has been properly measured
+  const [containerInitialized, setContainerInitialized] = useState(false);
 
   // Calculate initial center position for preview
+  const calculateCenterPosition = useCallback((force = false) => {
+    if (!previewContainerRef.current) return false;
+
+    const container = previewContainerRef.current;
+    
+    // Get container dimensions
+    // Use offsetWidth/offsetHeight for CSS pixel dimensions (more reliable for layout calculations)
+    // getBoundingClientRect() returns physical pixels which can differ on high-DPI displays
+    const containerWidth = container.offsetWidth;
+    const containerHeight = container.offsetHeight;
+    
+    // Also get rect for debugging
+    const rect = container.getBoundingClientRect();
+    const devicePixelRatio = window.devicePixelRatio || 1;
+
+    // Ensure container has valid dimensions
+    if (containerWidth <= 0 || containerHeight <= 0) {
+      console.warn('Container dimensions invalid:', { 
+        containerWidth, 
+        containerHeight,
+        offsetWidth: container.offsetWidth,
+        offsetHeight: container.offsetHeight,
+        rectWidth: rect.width,
+        rectHeight: rect.height,
+        devicePixelRatio
+      });
+      return false;
+    }
+
+    // GidoApp size - in preview mode, it's always rendered at 1920x1080
+    // However, on 4K displays, the actual rendered size might differ
+    // Use the screen resolution to determine the base size for calculations
+    const actualScreenWidth = window.screen.width;
+    const actualScreenHeight = window.screen.height;
+    
+    // For 4K displays (3840x2160), use the actual screen size
+    // For other displays, use 1920x1080
+    // This matches what GidoApp actually renders at
+    const appWidth = actualScreenWidth >= 3840 ? 3840 : 1920;
+    const appHeight = actualScreenHeight >= 2160 ? 2160 : 1080;
+
+    // Calculate scaled dimensions after zoom
+    // zoom is applied as CSS transform scale, so it's in CSS pixels
+    const scaledWidth = appWidth * zoom;
+    const scaledHeight = appHeight * zoom;
+
+    // Calculate center position in CSS pixels
+    // When using transformOrigin: "top left", the element scales from its top-left corner
+    // So we need to position it such that after scaling, it's centered
+    // The left/top position is the position of the top-left corner before scaling
+    const centerX = (containerWidth - scaledWidth) / 2;
+    const centerY = (containerHeight - scaledHeight) / 2;
+
+    // Only update if not manually panned (unless forced)
+    if (force || !hasBeenPanned) {
+      setPanX(centerX);
+      setPanY(centerY);
+      setContainerInitialized(true);
+      console.log('Preview centered:', {
+        containerWidth,
+        containerHeight,
+        scaledWidth,
+        scaledHeight,
+        centerX,
+        centerY,
+        zoom,
+        devicePixelRatio,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight
+      });
+      return true;
+    }
+
+    return false;
+  }, [zoom, hasBeenPanned]);
+
+  // Initialize center position when screen becomes visible
   useEffect(() => {
     if (!visible || !previewContainerRef.current) return;
 
-    const timer = setTimeout(() => {
-      if (!previewContainerRef.current) return;
+    // Reset initialization state when becoming visible
+    setContainerInitialized(false);
+    
+    // Use a more reliable approach: wait for layout to be complete
+    const attemptCentering = () => {
+      let attempts = 0;
+      const maxAttempts = 8;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      
+      const tryCenter = () => {
+        attempts++;
+        
+        // Clear any pending timeout
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        
+        // Progressive delay: longer for first attempts, shorter for retries
+        const delay = attempts <= 2 ? 200 : attempts <= 4 ? 100 : 50;
+        
+        timeoutId = setTimeout(() => {
+          if (!previewContainerRef.current) return;
+          
+          const success = calculateCenterPosition(true);
+          
+          if (!success && attempts < maxAttempts) {
+            // Use requestAnimationFrame for next attempt to ensure layout is updated
+            requestAnimationFrame(() => {
+              requestAnimationFrame(tryCenter);
+            });
+          } else if (success) {
+            console.log(`Preview centered successfully after ${attempts} attempt(s)`);
+          } else {
+            console.warn(`Failed to center preview after ${attempts} attempts`);
+          }
+        }, delay);
+      };
+      
+      // Start with double RAF to ensure DOM is ready and layout is complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          tryCenter();
+        });
+      });
+      
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
+    };
+    
+    const cleanup = attemptCentering();
+    return cleanup;
+  }, [visible, calculateCenterPosition]);
 
-      const container = previewContainerRef.current;
-      const containerWidth = container.offsetWidth;
-      const containerHeight = container.offsetHeight;
+  // Recalculate center position on zoom changes (only if not manually panned)
+  useEffect(() => {
+    if (!visible || !containerInitialized || hasBeenPanned) return;
+    
+    // Recalculate center when zoom changes
+    requestAnimationFrame(() => {
+      calculateCenterPosition();
+    });
+  }, [zoom, visible, containerInitialized, hasBeenPanned, calculateCenterPosition]);
 
-      // GidoApp size
-      const appWidth = 1920;
-      const appHeight = 1080;
+  // Handle container resize
+  useEffect(() => {
+    if (!visible || !previewContainerRef.current) return;
 
-      // Calculate scaled dimensions
-      const scaledWidth = appWidth * zoom;
-      const scaledHeight = appHeight * zoom;
+    const container = previewContainerRef.current;
 
-      // Calculate center position
-      const centerX = (containerWidth - scaledWidth) / 2;
-      const centerY = (containerHeight - scaledHeight) / 2;
+    // Use ResizeObserver with debouncing
+    let resizeTimeout: ReturnType<typeof setTimeout>;
+    const resizeObserver = new ResizeObserver(() => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        // Only recalculate if not manually panned
+        if (!hasBeenPanned) {
+          requestAnimationFrame(() => {
+            calculateCenterPosition();
+          });
+        }
+      }, 100);
+    });
 
-      if (!hasBeenPanned) {
-        setPanX(centerX);
-        setPanY(centerY);
-      }
-    }, 100);
+    resizeObserver.observe(container);
 
-    return () => clearTimeout(timer);
-  }, [visible, zoom, hasBeenPanned]);
+    // Also listen to window resize as fallback
+    const handleWindowResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        if (!hasBeenPanned) {
+          requestAnimationFrame(() => {
+            calculateCenterPosition();
+          });
+        }
+      }, 100);
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+
+    return () => {
+      clearTimeout(resizeTimeout);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+    };
+  }, [visible, hasBeenPanned, calculateCenterPosition]);
 
   // Load initial values when screen opens
   useEffect(() => {
@@ -87,17 +250,20 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
 
     if (window.electronAPI?.onOpenSettings) {
       unsubscribe = window.electronAPI.onOpenSettings(() => {
+        // First reset to initial state
+        setPanX(0);
+        setPanY(0);
+        setZoom(0.6);
+        setHasBeenPanned(false);
+        setContainerInitialized(false);
+        setErrors({});
+        
+        // Then set visibility and other states
         setVisible(true);
         setActiveTab("floor");
         setFloor(initialFloor);
         setFloorLayout(initialFloorLayout);
         setLocationIconSettings(initialLocationIconSettings);
-        setZoom(0.6);
-        // Reset pan position - will be centered by useEffect
-        setPanX(0);
-        setPanY(0);
-        setHasBeenPanned(false);
-        setErrors({});
       });
     }
 
@@ -126,11 +292,11 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setFloorLayout(initialFloorLayout);
     setLocationIconSettings(initialLocationIconSettings);
     setZoom(0.6);
-    // Reset pan position - will be centered by useEffect
+    setHasBeenPanned(false);
+    setContainerInitialized(false);
+    setErrors({});
     setPanX(0);
     setPanY(0);
-    setHasBeenPanned(false);
-    setErrors({});
     handleClose();
   };
 
@@ -203,7 +369,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     }
   };
 
-  // Zoom controls - マウスホイールはカーソル位置を起点に
+  // Zoom controls - mouse wheel zooms from cursor position
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     
@@ -211,23 +377,29 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     
     const container = previewContainerRef.current.getBoundingClientRect();
     
-    // マウスカーソルのコンテナ内での相対位置を取得
+    // Get mouse position relative to container (in container coordinates)
     const mouseX = e.clientX - container.left;
     const mouseY = e.clientY - container.top;
     
-    // 現在のズーム率
+    // Current zoom level
     const currentZoom = zoom;
     
-    // 新しいズーム率を計算
+    // Calculate new zoom level
     const delta = e.deltaY > 0 ? -0.05 : 0.05;
     const newZoom = Math.max(0.6, Math.min(1.5, currentZoom + delta));
     
-    // ズーム率の変化
-    const zoomRatio = newZoom / currentZoom;
+    // Calculate the point in the unscaled content that corresponds to the mouse position
+    // mouseX is in container coordinates
+    // The content's top-left is at (panX, panY) in container coordinates
+    // So the point in content coordinates is: (mouseX - panX) / currentZoom
+    const contentX = (mouseX - panX) / currentZoom;
+    const contentY = (mouseY - panY) / currentZoom;
     
-    // マウス位置を中心にズームするための新しいパン位置を計算
-    const newPanX = mouseX - (mouseX - panX) * zoomRatio;
-    const newPanY = mouseY - (mouseY - panY) * zoomRatio;
+    // After zoom, we want this same content point to be under the mouse
+    // So: mouseX = newPanX + contentX * newZoom
+    // Therefore: newPanX = mouseX - contentX * newZoom
+    const newPanX = mouseX - contentX * newZoom;
+    const newPanY = mouseY - contentY * newZoom;
     
     setZoom(newZoom);
     setPanX(newPanX);
@@ -235,16 +407,16 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setHasBeenPanned(true);
   }, [zoom, panX, panY]);
 
-  // ズームボタンは画面中央を起点に
+  // Zoom buttons zoom from center
   const handleZoomIn = () => {
     if (!previewContainerRef.current) {
       setZoom((prev) => Math.min(1.5, prev + 0.1));
       return;
     }
     
-    const container = previewContainerRef.current;
-    const centerX = container.offsetWidth / 2;
-    const centerY = container.offsetHeight / 2;
+    const container = previewContainerRef.current.getBoundingClientRect();
+    const centerX = container.width / 2;
+    const centerY = container.height / 2;
     
     const currentZoom = zoom;
     const newZoom = Math.min(1.5, currentZoom + 0.1);
@@ -264,9 +436,9 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
       return;
     }
     
-    const container = previewContainerRef.current;
-    const centerX = container.offsetWidth / 2;
-    const centerY = container.offsetHeight / 2;
+    const container = previewContainerRef.current.getBoundingClientRect();
+    const centerX = container.width / 2;
+    const centerY = container.height / 2;
     
     const currentZoom = zoom;
     const newZoom = Math.max(0.6, currentZoom - 0.1);
@@ -491,13 +663,17 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
           >
             <div
               style={{
+                // Use top-left origin for simpler calculations
+                // panX/panY is already calculated to center the scaled content
                 transform: `scale(${zoom})`,
                 transformOrigin: "top left",
                 position: "absolute",
                 left: `${panX}px`,
                 top: `${panY}px`,
-                width: "1920px",
-                height: "1080px",
+                // Use actual screen size for 4K, otherwise 1920x1080
+                width: `${window.screen.width >= 3840 ? 3840 : 1920}px`,
+                height: `${window.screen.height >= 2160 ? 2160 : 1080}px`,
+                willChange: "transform",
               }}
             >
               <GidoApp
