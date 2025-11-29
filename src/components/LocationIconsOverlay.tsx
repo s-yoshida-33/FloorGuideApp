@@ -42,7 +42,10 @@ function buildShadowStyle(shadow: IconPositionConfig['shadow']): React.CSSProper
 
 function buildAnimationProps(animation?: AnimationConfig) {
   if (!animation || !animation.enabled || animation.type === "none") {
-    return {};
+    return {
+      initial: { x: 0, y: 0, scale: 1 },
+      animate: { x: 0, y: 0, scale: 1 },
+    };
   }
 
   const duration = animation.duration;
@@ -51,6 +54,7 @@ function buildAnimationProps(animation?: AnimationConfig) {
   switch (animation.type) {
     case "floating":
       return {
+        initial: { x: 0, y: 0 },
         animate: {
           y: [0, -amplitude, 0],
         },
@@ -62,6 +66,7 @@ function buildAnimationProps(animation?: AnimationConfig) {
       };
     case "pulse":
       return {
+        initial: { scale: 1 },
         animate: {
           scale: [1, 1.1, 1],
         },
@@ -73,6 +78,7 @@ function buildAnimationProps(animation?: AnimationConfig) {
       };
     case "bounce":
       return {
+        initial: { x: 0, y: 0 },
         animate: {
           y: [0, -amplitude, 0],
         },
@@ -83,7 +89,10 @@ function buildAnimationProps(animation?: AnimationConfig) {
         },
       };
     default:
-      return {};
+      return {
+        initial: { x: 0, y: 0, scale: 1 },
+        animate: { x: 0, y: 0, scale: 1 },
+      };
   }
 }
 
@@ -95,16 +104,18 @@ export const LocationIconsOverlay: React.FC<Props> = ({ settings }) => {
     ? `${speechBubble.animation.enabled}-${speechBubble.animation.type}-${speechBubble.animation.duration}-${speechBubble.animation.amplitude}`
     : "no-animation";
 
+  const speechBubbleWrapperStyle = {
+    ...buildWrapperStyle(speechBubble),
+    ...buildShadowStyle(speechBubble.shadow),
+    zIndex: 5,
+  };
+
   return (
     <>
       {speechBubble.enabled && (
         <motion.div
           key={animationKey}
-          style={{
-            ...buildWrapperStyle(speechBubble),
-            ...buildShadowStyle(speechBubble.shadow),
-            zIndex: 5,
-          }}
+          style={speechBubbleWrapperStyle}
           {...buildAnimationProps(speechBubble.animation)}
         >
           <img
