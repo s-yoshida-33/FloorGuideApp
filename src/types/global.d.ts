@@ -8,6 +8,7 @@ import type {
 } from "./wsp";
 
 import type { LocationIconSettings } from "./locationIcon";
+import type { ImageSettings } from "./imageSettings";
 
 type ColumnPadding = {
   top?: number;
@@ -54,6 +55,9 @@ interface ElectronAPI {
   onOpenFloorSettings: (cb: () => void) => () => void;
   onOpenVersionInfo: (cb: () => void) => () => void;
   onOpenSettings: (cb: () => void) => () => void;
+  getImageSettings: () => Promise<ImageSettings>;
+  saveImageSettings: (settings: ImageSettings) => Promise<ImageSettings>;
+  onImageSettingsUpdated: (cb: (settings: ImageSettings) => void) => () => void;
   manualUpdateCheck: () => void;
   oneClickUpdate: () => void;
   quitApp: () => void;
