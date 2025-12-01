@@ -16,6 +16,8 @@ import VerticalVideoSlot from "../components/VerticalVideoSlot";
 
 import type { LocationIconSettings } from "../types/locationIcon";
 import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
+import type { ImageSettings } from "../types/imageSettings";
+import type { FloorId } from "../types/floorLayout";
 
 import { logInfo, logError } from "../logs/logging";
 
@@ -58,12 +60,14 @@ interface GidoAppProps {
   // Preview mode props (for UnifiedSettingsScreen)
   previewFloor?: string;
   previewFloorLayout?: FloorLayout;
+  imageSettings?: ImageSettings;
 }
 
 const GidoApp: React.FC<GidoAppProps> = ({
   locationIconSettings,
   previewFloor,
   previewFloorLayout,
+  imageSettings,
 }) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -157,8 +161,10 @@ const GidoApp: React.FC<GidoAppProps> = ({
     }
   }, [previewFloorLayout]);
 
-  // Select floor map by floor id, fallback to 1F
-  const floorMap = FLOOR_MAPS[floor] ?? floorMap1F;
+  // Select floor map by floor id, use custom image if available, fallback to default
+  const floorId = floor as FloorId;
+  const customFloorMap = floorId ? imageSettings?.floorMaps?.[floorId] : undefined;
+  const floorMap = customFloorMap || FLOOR_MAPS[floor] || floorMap1F;
 
   // Video area width (16:9 aspect ratio)
   const videoWidthVh = TOP_HEIGHT_VH * (9 / 16);
@@ -345,7 +351,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
           }}
         >
           <img
-            src={openTimeImage}
+            src={imageSettings?.openTimeImage || openTimeImage}
             alt="Open Time"
             style={{
               maxWidth: "100%",
@@ -355,12 +361,12 @@ const GidoApp: React.FC<GidoAppProps> = ({
             }}
             onLoad={() => {
               logInfo("openTime", "Open-time image loaded", {
-                src: openTimeImage,
+                src: imageSettings?.openTimeImage || openTimeImage,
               });
             }}
             onError={(event) => {
               logError("openTime", "Failed to load open-time image", {
-                src: openTimeImage,
+                src: imageSettings?.openTimeImage || openTimeImage,
               });
               (event.target as HTMLImageElement).style.visibility = "hidden";
             }}
