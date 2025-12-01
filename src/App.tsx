@@ -7,6 +7,8 @@ import {
   DEFAULT_LOCATION_ICON_SETTINGS,
 } from "./config";
 import type { LocationIconSettings } from "./types/locationIcon";
+import type { ImageSettings } from "./types/imageSettings";
+import { DEFAULT_IMAGE_SETTINGS } from "./types/imageSettings";
 
 type FloorId = "1F" | "2F" | "3F" | "4F";
 
@@ -41,6 +43,7 @@ const App: React.FC = () => {
   // Floor and floor layout state for unified settings
   const [floor, setFloor] = useState<FloorId>("1F");
   const [floorLayout, setFloorLayout] = useState<FloorLayout>(DEFAULT_FLOOR_LAYOUT);
+  const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_IMAGE_SETTINGS);
 
   // Load initial settings from Electron and subscribe to updates
   useEffect(() => {
@@ -88,6 +91,14 @@ const App: React.FC = () => {
           setFloorLayout(layout);
         }
       }
+
+      // Load image settings
+      if (api.getImageSettings) {
+        const saved = await api.getImageSettings();
+        if (saved) {
+          setImageSettings(saved);
+        }
+      }
     };
 
     init();
@@ -123,6 +134,12 @@ const App: React.FC = () => {
       if (api.onFloorLayoutChanged) {
         unsubscribeFloorLayout = api.onFloorLayoutChanged((layout) => {
           setFloorLayout(layout);
+        });
+      }
+
+      if (api.onImageSettingsUpdated) {
+        api.onImageSettingsUpdated((updated) => {
+          setImageSettings(updated);
         });
       }
     }
@@ -172,9 +189,23 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveImageSettings = async (settings: ImageSettings) => {
+    const api = window.electronAPI;
+    if (!api) return;
+
+    try {
+      const saved = await api.saveImageSettings(settings);
+      if (saved) {
+        setImageSettings(saved);
+      }
+    } catch (e) {
+      console.error("Failed to save image settings", e);
+    }
+  };
+
   return (
     <>
-      <GidoApp locationIconSettings={locationSettings} />
+      <GidoApp locationIconSettings={locationSettings} imageSettings={imageSettings} />
       <UnifiedSettingsScreen
         floor={floor}
         onSaveFloor={handleSaveFloor}
@@ -182,6 +213,8 @@ const App: React.FC = () => {
         onSaveFloorLayout={handleSaveFloorLayout}
         locationIconSettings={locationSettings}
         onSaveLocationIconSettings={handleSaveLocationSettings}
+        imageSettings={imageSettings}
+        onSaveImageSettings={handleSaveImageSettings}
       />
       <VersionInfoScreen onClose={() => {}} />
     </>

@@ -7,9 +7,11 @@ import type { FloorId, FloorLayout } from "../types/floorLayout";
 import { FloorSettingsTab } from "../components/FloorSettingsTab";
 import { LayoutSettingsTab } from "../components/LayoutSettingsTab";
 import { LocationSettingsTab } from "../components/LocationSettingsTab";
+import { ImageSettingsTab } from "../components/ImageSettingsTab";
 import iconSvg from "../assets/icon.svg";
+import type { ImageSettings } from "../types/imageSettings";
 
-type TabType = "floor" | "layout" | "location";
+type TabType = "floor" | "layout" | "location" | "image";
 
 interface UnifiedSettingsScreenProps {
   floor: FloorId;
@@ -18,6 +20,8 @@ interface UnifiedSettingsScreenProps {
   onSaveFloorLayout: (layout: FloorLayout) => Promise<void> | void;
   locationIconSettings: LocationIconSettings;
   onSaveLocationIconSettings: (settings: LocationIconSettings) => Promise<void> | void;
+  imageSettings: ImageSettings;
+  onSaveImageSettings: (settings: ImageSettings) => Promise<void> | void;
 }
 
 const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
@@ -27,6 +31,8 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   onSaveFloorLayout,
   locationIconSettings: initialLocationIconSettings,
   onSaveLocationIconSettings,
+  imageSettings: initialImageSettings,
+  onSaveImageSettings,
 }) => {
   const [visible, setVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("floor");
@@ -38,6 +44,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   const [floorLayout, setFloorLayout] = useState<FloorLayout>(initialFloorLayout);
   const [locationIconSettings, setLocationIconSettings] =
     useState<LocationIconSettings>(initialLocationIconSettings);
+  const [imageSettings, setImageSettings] = useState<ImageSettings>(initialImageSettings);
 
   // Transform wrapper ref for programmatic control
   const transformRef = useRef<{
@@ -62,6 +69,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         setFloor(initialFloor);
         setFloorLayout(initialFloorLayout);
         setLocationIconSettings(initialLocationIconSettings);
+        setImageSettings(initialImageSettings);
         setErrors({});
         // Reset transform when opening settings
         if (transformRef.current) {
@@ -73,7 +81,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [initialFloor, initialFloorLayout, initialLocationIconSettings]);
+  }, [initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings]);
 
   // Sync with external changes when screen is closed
   useEffect(() => {
@@ -81,8 +89,9 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
       setFloor(initialFloor);
       setFloorLayout(initialFloorLayout);
       setLocationIconSettings(initialLocationIconSettings);
+      setImageSettings(initialImageSettings);
     }
-  }, [visible, initialFloor, initialFloorLayout, initialLocationIconSettings]);
+  }, [visible, initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings]);
 
   const handleClose = () => {
     setVisible(false);
@@ -94,6 +103,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setFloor(initialFloor);
     setFloorLayout(initialFloorLayout);
     setLocationIconSettings(initialLocationIconSettings);
+    setImageSettings(initialImageSettings);
     setErrors({});
     // Reset transform
     if (transformRef.current) {
@@ -161,6 +171,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         onSaveFloor(floor),
         onSaveFloorLayout(floorLayout),
         onSaveLocationIconSettings(locationIconSettings),
+        onSaveImageSettings(imageSettings),
       ]);
       handleClose();
     } catch (e) {
@@ -325,6 +336,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               { id: "floor" as TabType, label: "フロア" },
               { id: "layout" as TabType, label: "レイアウト" },
               { id: "location" as TabType, label: "現在地" },
+              { id: "image" as TabType, label: "画像" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -394,6 +406,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
                 locationIconSettings={locationIconSettings}
                 previewFloor={floor}
                 previewFloorLayout={floorLayout}
+                imageSettings={imageSettings}
               />
             </TransformComponent>
           </TransformWrapper>
@@ -498,6 +511,14 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               onChangeFloor={setFloor}
               locationIconSettings={locationIconSettings}
               onChangeLocationIconSettings={setLocationIconSettings}
+            />
+          )}
+          {activeTab === "image" && (
+            <ImageSettingsTab
+              floor={floor}
+              onChangeFloor={setFloor}
+              imageSettings={imageSettings}
+              onChangeImageSettings={setImageSettings}
             />
           )}
         </div>

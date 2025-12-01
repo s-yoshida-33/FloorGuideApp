@@ -1,7 +1,7 @@
 // electron/main.cjs
 // Electron main process entry point (with startup patch window)
 
-const { app, BrowserWindow, Menu, ipcMain, globalShortcut } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, globalShortcut, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -98,6 +98,15 @@ function loadSettings() {
     floor: '1F',
     locationIcons: DEFAULT_LOCATION_ICON_SETTINGS,
     floorLayout: DEFAULT_FLOOR_LAYOUT,
+    imageSettings: {
+      floorMaps: {
+        '1F': '',
+        '2F': '',
+        '3F': '',
+        '4F': '',
+      },
+      openTimeImage: '',
+    },
   };
 
   try {
@@ -145,6 +154,15 @@ function loadSettings() {
             ...parsed.floorLayout,
           }
         : base.floorLayout,
+      imageSettings: parsed.imageSettings
+        ? {
+            floorMaps: {
+              ...base.imageSettings.floorMaps,
+              ...parsed.imageSettings.floorMaps,
+            },
+            openTimeImage: parsed.imageSettings.openTimeImage || base.imageSettings.openTimeImage,
+          }
+        : base.imageSettings,
     };
 
 
@@ -562,6 +580,156 @@ ipcMain.handle('save-location-icon-settings', (_event, locationIcons) => {
   const settings = saveSettings({ locationIcons });
   broadcastLocationIconSettings(settings.locationIcons);
   return settings.locationIcons;
+});
+
+/**
+ * Get images directory path (userData/images)
+ */
+function getImagesDirectory() {
+  const imagesDir = path.join(app.getPath('userData'), 'images');
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true });
+  }
+  return imagesDir;
+}
+
+/**
+ * Save SVG file from data URL to disk
+ */
+function saveSvgFile(dataUrl, filename) {
+  try {
+    // Extract base64 data from data URL
+    const base64Data = dataUrl.replace(/^data:image\/svg\+xml;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const filePath = path.join(getImagesDirectory(), filename);
+    fs.writeFileSync(filePath, buffer);
+    return filePath;
+  } catch (error) {
+    logger.error('Failed to save SVG file', {
+      error: error?.message,
+      filename,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Read SVG file and return as data URL
+ */
+function readSvgFileAsDataUrl(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+    const buffer = fs.readFileSync(filePath);
+    const base64 = buffer.toString('base64');
+    return `data:image/svg+xml;base64,${base64}`;
+  } catch (error) {
+    logger.error('Failed to read SVG file', {
+      error: error?.message,
+      filePath,
+    });
+    return null;
+  }
+}
+
+/**
+ * IPC handlers for image settings.
+ */
+ipcMain.handle('get-image-settings', () => {
+  const settings = loadSettings();
+  logger.debug('IPC get-image-settings');
+  
+  // Convert file paths to data URLs if they exist
+  const imageSettings = settings.imageSettings || {
+    floorMaps: { '1F': '', '2F': '', '3F': '', '4F': '' },
+    openTimeImage: '',
+  };
+  
+  const result = {
+    floorMaps: {},
+    openTimeImage: '',
+  };
+  
+  // Convert floor map paths to data URLs
+  for (const floor of ['1F', '2F', '3F', '4F']) {
+    const filePath = imageSettings.floorMaps?.[floor];
+    if (filePath && filePath.startsWith('file://')) {
+      const localPath = filePath.replace('file://', '');
+      const dataUrl = readSvgFileAsDataUrl(localPath);
+      result.floorMaps[floor] = dataUrl || '';
+    } else if (filePath && filePath.startsWith('data:')) {
+      // Already a data URL
+      result.floorMaps[floor] = filePath;
+    } else {
+      result.floorMaps[floor] = '';
+    }
+  }
+  
+  // Convert open time image path to data URL
+  const openTimePath = imageSettings.openTimeImage;
+  if (openTimePath && openTimePath.startsWith('file://')) {
+    const localPath = openTimePath.replace('file://', '');
+    const dataUrl = readSvgFileAsDataUrl(localPath);
+    result.openTimeImage = dataUrl || '';
+  } else if (openTimePath && openTimePath.startsWith('data:')) {
+    result.openTimeImage = openTimePath;
+  } else {
+    result.openTimeImage = '';
+  }
+  
+  return result;
+});
+
+ipcMain.handle('save-image-settings', async (_event, imageSettings) => {
+  logger.info('IPC save-image-settings');
+  
+  try {
+    const savedSettings = {
+      floorMaps: {},
+      openTimeImage: '',
+    };
+    
+    // Save floor maps
+    for (const floor of ['1F', '2F', '3F', '4F']) {
+      const dataUrl = imageSettings.floorMaps?.[floor] || '';
+      if (dataUrl && dataUrl.startsWith('data:')) {
+        const filename = `floor-${floor}-map.svg`;
+        const filePath = saveSvgFile(dataUrl, filename);
+        savedSettings.floorMaps[floor] = `file://${filePath}`;
+      } else if (dataUrl) {
+        // Already a file path, keep it
+        savedSettings.floorMaps[floor] = dataUrl;
+      } else {
+        savedSettings.floorMaps[floor] = '';
+      }
+    }
+    
+    // Save open time image
+    const openTimeDataUrl = imageSettings.openTimeImage || '';
+    if (openTimeDataUrl && openTimeDataUrl.startsWith('data:')) {
+      const filename = 'open-time.svg';
+      const filePath = saveSvgFile(openTimeDataUrl, filename);
+      savedSettings.openTimeImage = `file://${filePath}`;
+    } else if (openTimeDataUrl) {
+      savedSettings.openTimeImage = openTimeDataUrl;
+    } else {
+      savedSettings.openTimeImage = '';
+    }
+    
+    const settings = saveSettings({ imageSettings: savedSettings });
+    // Broadcast to main window if it exists
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('image-settings-updated', settings.imageSettings);
+    }
+    
+    return settings.imageSettings;
+  } catch (error) {
+    logger.error('Failed to save image settings', {
+      error: error?.message,
+    });
+    throw error;
+  }
 });
 
 /**

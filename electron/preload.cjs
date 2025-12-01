@@ -102,6 +102,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('open-settings', listener);
     };
   },
+  getImageSettings() {
+    return ipcRenderer.invoke('get-image-settings');
+  },
+  saveImageSettings(settings) {
+    return ipcRenderer.invoke('save-image-settings', settings);
+  },
+  onImageSettingsUpdated(callback) {
+    const listener = (_event, updated) => callback(updated);
+    ipcRenderer.on('image-settings-updated', listener);
+
+    return () => {
+      ipcRenderer.removeListener('image-settings-updated', listener);
+    };
+  },
   manualUpdateCheck() {
     ipcRenderer.send('menu:check-updates');
   },
