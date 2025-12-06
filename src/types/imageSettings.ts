@@ -15,3 +15,6 @@ export const DEFAULT_IMAGE_SETTINGS: ImageSettings = {
   openTimeImage: "",
 };
 
+
+
+
