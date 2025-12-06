@@ -301,7 +301,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
               background: "#000",
             }}
           >
-            <VerticalVideoSlot />
+            <VerticalVideoSlot muted={previewFloor !== undefined} />
           </div>
         </div>
       </div>

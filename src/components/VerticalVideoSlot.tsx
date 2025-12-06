@@ -3,7 +3,11 @@ import React from 'react';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
 import { logInfo, logWarn, logError } from '../logs/logging';
 
-const VerticalVideoSlot: React.FC = () => {
+interface VerticalVideoSlotProps {
+  muted?: boolean;
+}
+
+const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) => {
   const { asset, isLoading } = useCurrentAsset();
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
@@ -93,6 +97,7 @@ const VerticalVideoSlot: React.FC = () => {
       autoPlay
       loop={true}
       playsInline
+      muted={muted}
       style={{
         width: '100%',
         height: '100%',
