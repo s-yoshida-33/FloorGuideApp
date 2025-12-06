@@ -323,11 +323,11 @@ function isPortAvailable(port, host = '127.0.0.1') {
  * Returns the first port that responds to HTTP requests successfully.
  */
 async function findAvailablePortInRange(minPort, maxPort, path = '/', host = '127.0.0.1') {
-  logger.debug('Starting port detection', { minPort, maxPort, path, host });
+  logger.info('Starting port detection', { minPort, maxPort, path, host });
   for (let port = minPort; port <= maxPort; port++) {
     try {
       const url = `http://${host}:${port}${path}`;
-      // logger.debug('Trying port', { port, url });
+      logger.debug('Trying port', { port, url, host });
       
       // Try a quick HTTP request to see if the service is available
       const available = await new Promise((resolve) => {
@@ -335,23 +335,23 @@ async function findAvailablePortInRange(minPort, maxPort, path = '/', host = '12
           // Check if status code is in success range (200-299)
           if (res.statusCode >= 200 && res.statusCode < 300) {
             req.destroy();
-            logger.debug('Port responded successfully', { port, statusCode: res.statusCode });
+            logger.info('Port responded successfully', { port, host, statusCode: res.statusCode, url });
             resolve(true); // Service is responding with success
           } else {
             req.destroy();
-            logger.debug('Port responded with non-success status', { port, statusCode: res.statusCode });
+            logger.debug('Port responded with non-success status', { port, host, statusCode: res.statusCode, url });
             resolve(false); // Service is responding but with error status
           }
         });
 
         req.on('error', (err) => {
-          logger.debug('Port connection error', { port, error: err.code });
+          logger.debug('Port connection error', { port, host, error: err.code, url });
           resolve(false); // Service is not responding
         });
 
         req.on('timeout', () => {
           req.destroy();
-          logger.debug('Port connection timeout', { port });
+          logger.debug('Port connection timeout', { port, host, url });
           resolve(false);
         });
 
@@ -359,11 +359,11 @@ async function findAvailablePortInRange(minPort, maxPort, path = '/', host = '12
       });
 
       if (available) {
-        logger.info('Found available port in range', { port, minPort, maxPort, path, host });
+        logger.info('Found available port in range', { port, minPort, maxPort, path, host, url: `http://${host}:${port}` });
         return port;
       }
     } catch (error) {
-      logger.debug('Exception while checking port', { port, error: error?.message });
+      logger.debug('Exception while checking port', { port, host, error: error?.message });
       // Continue to next port
     }
   }
@@ -398,22 +398,60 @@ async function getCmsBaseUrl() {
 
   logger.debug('Getting CMS base URL', { portRange });
   if (portRange && portRange.min && portRange.max) {
-    const port = await findAvailablePortInRange(portRange.min, portRange.max, '/current-timeline', '127.0.0.1');
-    if (port) {
-      const baseUrl = `http://127.0.0.1:${port}`;
-      logger.info('CMS base URL determined', { baseUrl, port, portRange });
-      return baseUrl;
-    } else {
-      logger.warn('CMS port detection failed, using fallback', { portRange });
+    // Try both localhost and 127.0.0.1 to handle different network configurations
+    const hosts = ['localhost', '127.0.0.1'];
+    for (const host of hosts) {
+      const port = await findAvailablePortInRange(portRange.min, portRange.max, '/current-timeline', host);
+      if (port) {
+        const baseUrl = `http://${host}:${port}`;
+        logger.info('CMS base URL determined', { baseUrl, port, portRange, host });
+        return baseUrl;
+      }
     }
+    logger.warn('CMS port detection failed for all hosts, using fallback', { portRange });
   } else {
     logger.debug('CMS port range not configured, using fallback');
   }
 
   // Fallback to default (8080 or 8081 depending on legacy config, here using 8080 to match detection range)
   // Gido originally used 8081, but Gido-Touch uses 8080-8089. We will fallback to 8080.
-  const fallbackUrl = 'http://127.0.0.1:8080';
-  logger.info('Using CMS fallback URL', { fallbackUrl });
+  // Try both localhost and 127.0.0.1 for fallback
+  const fallbackHosts = ['localhost', '127.0.0.1'];
+  const fallbackPort = 8080;
+  
+  for (const host of fallbackHosts) {
+    try {
+      const testUrl = `http://${host}:${fallbackPort}/current-timeline`;
+      const available = await new Promise((resolve) => {
+        const req = http.get(testUrl, { timeout: 2000 }, (res) => {
+          req.destroy();
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        });
+        req.on('error', () => resolve(false));
+        req.on('timeout', () => {
+          req.destroy();
+          resolve(false);
+        });
+        req.setTimeout(2000);
+      });
+      
+      if (available) {
+        const fallbackUrl = `http://${host}:${fallbackPort}`;
+        logger.info('Using CMS fallback URL (verified)', { fallbackUrl, host });
+        return fallbackUrl;
+      }
+    } catch (error) {
+      logger.debug('Fallback host test failed', { host, error: error?.message });
+    }
+  }
+  
+  // If all fallback attempts failed, still return localhost:8080 as last resort
+  const fallbackUrl = 'http://localhost:8080';
+  logger.warn('Using CMS fallback URL (unverified)', { fallbackUrl });
   return fallbackUrl;
 }
 
@@ -441,11 +479,46 @@ async function getCachedBridgeBaseUrl() {
 async function getCachedCmsBaseUrl() {
   const now = Date.now();
   if (!cachedCmsBaseUrl || (now - lastPortCheckTime) > PORT_CHECK_INTERVAL) {
+    logger.info('Refreshing CMS base URL cache', { 
+      cached: cachedCmsBaseUrl, 
+      lastCheck: lastPortCheckTime,
+      interval: PORT_CHECK_INTERVAL 
+    });
     cachedCmsBaseUrl = await getCmsBaseUrl();
     lastPortCheckTime = now;
+    logger.info('CMS base URL cache updated', { baseUrl: cachedCmsBaseUrl });
+  } else {
+    logger.debug('Using cached CMS base URL', { baseUrl: cachedCmsBaseUrl });
   }
   return cachedCmsBaseUrl;
 }
+
+/**
+ * Clear CMS base URL cache to force re-detection on next request.
+ */
+function clearCmsBaseUrlCache() {
+  cachedCmsBaseUrl = null;
+  lastPortCheckTime = 0;
+  logger.info('CMS base URL cache cleared');
+}
+
+/**
+ * IPC handler to clear CMS base URL cache (for debugging).
+ */
+ipcMain.handle('cms:clear-cache', () => {
+  clearCmsBaseUrlCache();
+  logger.info('CMS cache cleared via IPC');
+  return true;
+});
+
+/**
+ * IPC handler to get current CMS base URL (for debugging).
+ */
+ipcMain.handle('cms:get-base-url', async () => {
+  const baseUrl = await getCachedCmsBaseUrl();
+  logger.info('CMS base URL requested via IPC', { baseUrl });
+  return baseUrl;
+});
 
 /**
  * Simple HTTP GET helper that retrieves JSON from a given URL.
@@ -596,6 +669,8 @@ function createMainWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       devTools: true, // Enable dev tools even in production for debugging
+      // Allow loading local file:// URLs for media assets
+      webSecurity: false, // Required to load local file:// URLs from CMS
     },
   });
 
@@ -930,7 +1005,7 @@ ipcMain.handle('wsp:get-current-asset', async () => {
   try {
     const baseUrl = await getCachedCmsBaseUrl();
     const url = `${baseUrl}/current-timeline`;
-    logger.debug('wsp:get-current-asset: requesting', { url, baseUrl });
+    logger.info('wsp:get-current-asset: requesting', { url, baseUrl });
     const json = await httpGetJson(url);
 
     if (!json || !json.current_timeline) {
@@ -939,9 +1014,14 @@ ipcMain.handle('wsp:get-current-asset', async () => {
     }
 
     const tl = json.current_timeline;
-    const assets = tl.media_assets || [];
+    // Support both old format (tl.media_assets) and new format (tl.data.media_assets)
+    const data = tl.data || tl;
+    const assets = data.media_assets || [];
     if (!Array.isArray(assets) || assets.length === 0) {
-      logger.warn('wsp:get-current-asset: media_assets is empty');
+      logger.warn('wsp:get-current-asset: media_assets is empty', {
+        hasData: !!tl.data,
+        hasMediaAssets: !!(tl.data?.media_assets || tl.media_assets),
+      });
       return null;
     }
 
@@ -949,37 +1029,56 @@ ipcMain.handle('wsp:get-current-asset', async () => {
 
     // Determine media type from asset properties or URL extension
     const mediaType = asset.mediaType || asset.type || '';
-    const assetUrl = asset.url || '';
-    const urlLower = assetUrl.toLowerCase();
+    // Support both 'url' and 'localPath' fields
+    const assetPath = asset.url || asset.localPath || '';
+    const pathLower = assetPath.toLowerCase();
     
     // Infer media type from URL extension if not provided
     let inferredMediaType = mediaType;
     if (!inferredMediaType) {
-      if (urlLower.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/)) {
+      if (pathLower.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/)) {
         inferredMediaType = 'video';
-      } else if (urlLower.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/)) {
+      } else if (pathLower.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/)) {
         inferredMediaType = 'image';
       }
     }
 
+    // Convert localPath or url to file:// URL
+    let src = '';
+    if (assetPath) {
+      if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
+        src = assetPath;
+      } else {
+        src = toFileUrl(assetPath);
+      }
+    }
+
+    // Support both old format (tl.media_names) and new format (data.media_names)
+    const mediaNames = data.media_names || tl.media_names || [];
+    // Support both old format (tl.start_time) and new format (data.start_time)
+    const startTime = data.start_time || tl.start_time || '';
+    const endTime = data.end_time || tl.end_time || '';
+
     logger.info('wsp:get-current-asset: returning first asset', {
       assetId: asset.id,
-      url: asset.url,
+      path: assetPath,
+      src,
       mediaType: inferredMediaType,
+      hasData: !!tl.data,
     });
 
     return {
       id: asset.id,
-      src: toFileUrl(asset.url),
+      src: src,
       duration: asset.duration,
       width: asset.width,
       height: asset.height,
       name:
-        Array.isArray(tl.media_names) && tl.media_names.length > 0
-          ? tl.media_names[0]
+        Array.isArray(mediaNames) && mediaNames.length > 0
+          ? mediaNames[0]
           : '',
-      startTime: tl.start_time,
-      endTime: tl.end_time,
+      startTime: startTime,
+      endTime: endTime,
       mediaType: inferredMediaType,
       type: asset.type,
     };
@@ -987,6 +1086,11 @@ ipcMain.handle('wsp:get-current-asset', async () => {
     logger.error('wsp:get-current-asset failed', {
       error: error?.message,
     });
+    // Clear cache on connection error to force re-detection
+    if (error?.message?.includes('ECONNREFUSED') || error?.message?.includes('timeout') || error?.message?.includes('ENOTFOUND')) {
+      logger.warn('Connection error detected, clearing CMS cache for re-detection');
+      clearCmsBaseUrlCache();
+    }
     return null;
   }
 });
@@ -1005,6 +1109,11 @@ ipcMain.handle('wsp:get-current-timeline', async () => {
     logger.error('wsp:get-current-timeline failed', {
       error: error?.message,
     });
+    // Clear cache on connection error to force re-detection
+    if (error?.message?.includes('ECONNREFUSED') || error?.message?.includes('timeout') || error?.message?.includes('ENOTFOUND')) {
+      logger.warn('Connection error detected, clearing CMS cache for re-detection');
+      clearCmsBaseUrlCache();
+    }
     return null;
   }
 });
@@ -1030,6 +1139,11 @@ ipcMain.handle('wsp:get-timeline', async (_event, options) => {
     logger.error('wsp:get-timeline failed', {
       error: error?.message,
     });
+    // Clear cache on connection error to force re-detection
+    if (error?.message?.includes('ECONNREFUSED') || error?.message?.includes('timeout') || error?.message?.includes('ENOTFOUND')) {
+      logger.warn('Connection error detected, clearing CMS cache for re-detection');
+      clearCmsBaseUrlCache();
+    }
     return null;
   }
 });
