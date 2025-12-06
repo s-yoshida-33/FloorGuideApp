@@ -600,9 +600,16 @@ function createMainWindow() {
   });
 
   // Enable F12 shortcut to toggle dev tools
+  // Enable Ctrl+R shortcut to reload in dev environment
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F12') {
       mainWindow.webContents.toggleDevTools();
+    }
+    // Ctrl+R to reload in dev environment
+    if (isDev && input.control && (input.key === 'r' || input.key === 'R')) {
+      event.preventDefault();
+      mainWindow.webContents.reload();
+      logger.info('Window reloaded via Ctrl+R');
     }
   });
 

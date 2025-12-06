@@ -11,7 +11,8 @@ export interface ShadowConfig {
   opacity: number;
 }
 
-export type AnimationType = "floating" | "pulse" | "bounce" | "none";
+// "blink" を追加
+export type AnimationType = "floating" | "pulse" | "bounce" | "blink" | "none";
 
 export interface AnimationConfig {
   enabled: boolean;
@@ -21,6 +22,12 @@ export interface AnimationConfig {
   duration: number;
   // Animation amplitude (movement distance in px, for floating)
   amplitude: number;
+  // Ripple color for blink animation (RGB/HEX, default: "#FFFFFF")
+  rippleColor?: string;
+  // Ripple size multiplier for blink animation (default: 1.5)
+  rippleSize?: number;
+  // Ripple center size (initial scale, default: 0.95)
+  rippleCenterSize?: number;
 }
 
 export interface IconPositionConfig {
@@ -34,7 +41,7 @@ export interface IconPositionConfig {
     rotation: number;
     // Shadow configuration
     shadow: ShadowConfig;
-    // Animation configuration (only for speech bubble)
+    // Animation configuration
     animation?: AnimationConfig;
   }
   
@@ -42,4 +49,3 @@ export interface IconPositionConfig {
     speechBubble: IconPositionConfig;
     location: IconPositionConfig;
   }
-  

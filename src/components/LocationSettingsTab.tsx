@@ -1,3 +1,4 @@
+// src/components/LocationSettingsTab.tsx
 import React, { useEffect, useState, useCallback } from "react";
 import type { FloorId } from "../types/floorLayout";
 import type { LocationIconSettings, IconPositionConfig, AnimationType } from "../types/locationIcon";
@@ -358,7 +359,7 @@ const IconConfigSection: React.FC<{
         )}
       </div>
 
-      {/* Animation settings (only for speech bubble) */}
+      {/* Animation settings (for both speech bubble and location) */}
       {showAnimation && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
           <label style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
@@ -420,6 +421,9 @@ const IconConfigSection: React.FC<{
                   </option>
                   <option value="bounce" style={{ backgroundColor: "#2C2C2C", color: "#ffffff" }}>
                     バウンス
+                  </option>
+                  <option value="blink" style={{ backgroundColor: "#2C2C2C", color: "#ffffff" }}>
+                    点滅 (波紋)
                   </option>
                   <option value="none" style={{ backgroundColor: "#2C2C2C", color: "#ffffff" }}>
                     なし
@@ -486,38 +490,234 @@ const IconConfigSection: React.FC<{
                 </div>
               </div>
 
-              <div>
-                <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>振幅 (px)</div>
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  step={1}
-                  value={config.animation?.amplitude ?? 18}
-                  onChange={(e) =>
-                    update({
-                      animation: {
-                        ...(config.animation ?? {
-                          enabled: true,
-                          type: "floating",
-                          duration: 2.2,
-                          amplitude: 18,
-                        }),
-                        amplitude: Math.max(1, Math.min(50, Number(e.target.value) || 18)),
-                      },
-                    })
-                  }
-                  style={{
-                    width: "100%",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 6,
-                    padding: "6px 8px",
-                    color: "#ffffff",
-                    fontSize: 13,
-                  }}
-                />
-              </div>
+              {config.animation?.type === "blink" ? (
+                <>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>波紋の色</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        type="color"
+                        value={config.animation?.rippleColor || "#FFFFFF"}
+                        onChange={(e) =>
+                          update({
+                            animation: {
+                              ...(config.animation ?? {
+                                enabled: true,
+                                type: "blink",
+                                duration: 2.2,
+                                amplitude: 18,
+                              }),
+                              rippleColor: e.target.value,
+                            },
+                          })
+                        }
+                        style={{
+                          width: 40,
+                          height: 32,
+                          border: "none",
+                          borderRadius: 4,
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      />
+                      {/* Fixed # styling */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          backgroundColor: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 6,
+                          padding: "0 8px",
+                          flex: 1,
+                        }}
+                      >
+                        <span style={{ color: "rgba(255,255,255,0.5)", marginRight: 4, userSelect: "none" }}>#</span>
+                        <input
+                          type="text"
+                          value={(config.animation?.rippleColor || "#FFFFFF").replace(/^#/, "")}
+                          onChange={(e) => {
+                             // Allow typing hex, auto-prepend #
+                             let val = e.target.value.replace(/[^0-9A-Fa-f]/g, "").slice(0, 6);
+                             update({
+                                animation: {
+                                  ...(config.animation ?? {
+                                    enabled: true,
+                                    type: "blink",
+                                    duration: 2.2,
+                                    amplitude: 18,
+                                  }),
+                                  rippleColor: `#${val}`,
+                                },
+                             })
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#ffffff",
+                            fontSize: 13,
+                            width: "100%",
+                            outline: "none",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ripple Size (Max) */}
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>波紋サイズ (最大倍率)</div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <input
+                        type="range"
+                        min={1}
+                        max={3}
+                        step={0.1}
+                        value={config.animation?.rippleSize ?? 1.5}
+                        onChange={(e) =>
+                          update({
+                            animation: {
+                              ...(config.animation ?? {
+                                enabled: true,
+                                type: "blink",
+                                duration: 2.2,
+                                amplitude: 18,
+                              }),
+                              rippleSize: Math.max(1, Math.min(3, Number(e.target.value) || 1.5)),
+                            },
+                          })
+                        }
+                        style={{
+                          flex: 1,
+                          accentColor: "#007aff",
+                        }}
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        max={3}
+                        step={0.1}
+                        value={config.animation?.rippleSize ?? 1.5}
+                        onChange={(e) =>
+                          update({
+                            animation: {
+                              ...(config.animation ?? {
+                                enabled: true,
+                                type: "blink",
+                                duration: 2.2,
+                                amplitude: 18,
+                              }),
+                              rippleSize: Math.max(1, Math.min(3, Number(e.target.value) || 1.5)),
+                            },
+                          })
+                        }
+                        style={{
+                          width: 70,
+                          backgroundColor: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 6,
+                          padding: "6px 8px",
+                          color: "#ffffff",
+                          fontSize: 13,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Ripple Center Size (Start) */}
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>波紋サイズ (初期倍率)</div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <input
+                        type="range"
+                        min={0.1}
+                        max={1.5}
+                        step={0.05}
+                        value={config.animation?.rippleCenterSize ?? 0.95}
+                        onChange={(e) =>
+                          update({
+                            animation: {
+                              ...(config.animation ?? {
+                                enabled: true,
+                                type: "blink",
+                                duration: 2.2,
+                                amplitude: 18,
+                              }),
+                              rippleCenterSize: Math.max(0.1, Math.min(1.5, Number(e.target.value) || 0.95)),
+                            },
+                          })
+                        }
+                        style={{
+                          flex: 1,
+                          accentColor: "#007aff",
+                        }}
+                      />
+                      <input
+                        type="number"
+                        min={0.1}
+                        max={1.5}
+                        step={0.05}
+                        value={config.animation?.rippleCenterSize ?? 0.95}
+                        onChange={(e) =>
+                          update({
+                            animation: {
+                              ...(config.animation ?? {
+                                enabled: true,
+                                type: "blink",
+                                duration: 2.2,
+                                amplitude: 18,
+                              }),
+                              rippleCenterSize: Math.max(0.1, Math.min(1.5, Number(e.target.value) || 0.95)),
+                            },
+                          })
+                        }
+                        style={{
+                          width: 70,
+                          backgroundColor: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 6,
+                          padding: "6px 8px",
+                          color: "#ffffff",
+                          fontSize: 13,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 12, marginBottom: 6, color: "rgba(255,255,255,0.7)", fontWeight: 500 }}>振幅 (px)</div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    step={1}
+                    value={config.animation?.amplitude ?? 18}
+                    onChange={(e) =>
+                      update({
+                        animation: {
+                          ...(config.animation ?? {
+                            enabled: true,
+                            type: "floating",
+                            duration: 2.2,
+                            amplitude: 18,
+                          }),
+                          amplitude: Math.max(1, Math.min(50, Number(e.target.value) || 18)),
+                        },
+                      })
+                    }
+                    style={{
+                      width: "100%",
+                      backgroundColor: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 6,
+                      padding: "6px 8px",
+                      color: "#ffffff",
+                      fontSize: 13,
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -615,9 +815,9 @@ export const LocationSettingsTab: React.FC<LocationSettingsTabProps> = ({
           label="Location.svg 設定"
           config={locationIconSettings.location}
           onChange={(next) => handleIconConfigChange("location", next)}
+          showAnimation={true}
         />
       </div>
     </div>
   );
 };
-
