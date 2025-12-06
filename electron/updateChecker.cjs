@@ -111,6 +111,41 @@ async function checkForUpdates(isManual = false) {
   if (!isManual && patchWindowExists) {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = false;
+    
+    // Set timeout to prevent freezing (30 seconds)
+    let timeoutCleared = false;
+    const timeout = setTimeout(() => {
+      if (timeoutCleared) return;
+      timeoutCleared = true;
+      
+      const win = getPatchWindow && getPatchWindow();
+      if (win) {
+        win.webContents.send('update-status', {
+          state: 'error',
+          message: 'Update check timed out. Launching app…',
+        });
+        
+        setTimeout(() => {
+          const w = getPatchWindow && getPatchWindow();
+          if (w) w.close();
+          if (createMainWindow) createMainWindow();
+        }, 1500);
+      }
+    }, 30000); // 30 seconds timeout
+    
+    // Clear timeout when update check completes
+    const clearTimeoutOnComplete = () => {
+      if (!timeoutCleared) {
+        timeoutCleared = true;
+        clearTimeout(timeout);
+      }
+    };
+    
+    // Use once to avoid duplicate handlers
+    autoUpdater.once('error', clearTimeoutOnComplete);
+    autoUpdater.once('update-not-available', clearTimeoutOnComplete);
+    autoUpdater.once('update-available', clearTimeoutOnComplete);
+    
     autoUpdater.checkForUpdates();
     return;
   }

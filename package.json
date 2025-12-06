@@ -1,7 +1,7 @@
 {
   "name": "gido",
   "private": true,
-  "version": "0.1.0-beta.29",
+  "version": "0.1.0-beta.30",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
@@ -95,6 +95,8 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
     "autoprefixer": "^10.4.22",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "electron": "^39.2.2",
     "electron-builder": "^26.0.12",
     "eslint": "^9.39.1",
@@ -107,6 +109,7 @@
     "to-ico": "^1.1.5",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vite": "^7.2.2"
+    "vite": "^7.2.2",
+    "wait-on": "^8.0.1"
   }
 }

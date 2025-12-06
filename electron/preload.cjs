@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('appInfo', {
 });
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  getBridgeBaseUrl() {
+    return ipcRenderer.invoke('get-bridge-base-url');
+  },
   getFloor() {
     return ipcRenderer.invoke('settings:get-floor');
   },
@@ -65,7 +68,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFloorLayoutChanged(callback) {
     const listener = (_event, layout) => callback(layout);
     ipcRenderer.on('settings:floor-layout-changed', listener);
-
     return () => {
       ipcRenderer.removeListener('settings:floor-layout-changed', listener);
     };
@@ -73,7 +75,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenFloorLayoutSettings(callback) {
     const listener = () => callback();
     ipcRenderer.on('open-floor-layout-settings', listener);
-
     return () => {
       ipcRenderer.removeListener('open-floor-layout-settings', listener);
     };
@@ -81,7 +82,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenFloorSettings(callback) {
     const listener = () => callback();
     ipcRenderer.on('open-floor-settings', listener);
-
     return () => {
       ipcRenderer.removeListener('open-floor-settings', listener);
     };
@@ -89,7 +89,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenVersionInfo(callback) {
     const listener = () => callback();
     ipcRenderer.on('open-version-info', listener);
-
     return () => {
       ipcRenderer.removeListener('open-version-info', listener);
     };
@@ -97,7 +96,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenSettings(callback) {
     const listener = () => callback();
     ipcRenderer.on('open-settings', listener);
-
     return () => {
       ipcRenderer.removeListener('open-settings', listener);
     };
@@ -111,7 +109,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onImageSettingsUpdated(callback) {
     const listener = (_event, updated) => callback(updated);
     ipcRenderer.on('image-settings-updated', listener);
-
     return () => {
       ipcRenderer.removeListener('image-settings-updated', listener);
     };

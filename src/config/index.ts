@@ -20,11 +20,48 @@ export const APP_CONFIG = {
 };
 
 // Effective API base URL
-// Priority: window.__BWP_BASE_URL__ (injected by BridgeWebPopper) > Vite env > default
-export const API_BASE_URL: string =
-  (window as any).__BWP_BASE_URL__ ??
-  import.meta.env.VITE_API_BASE ??
-  APP_CONFIG.defaultApiBaseUrl;
+// Priority: window.__BWP_BASE_URL__ (injected by BridgeWebPopper) > Electron API (port range detection) > Vite env > default
+// Note: API_BASE_URL is now a function that returns a Promise to support async port detection
+let cachedApiBaseUrl: string | null = null;
+
+export async function getApiBaseUrl(): Promise<string> {
+  // Priority 1: window.__BWP_BASE_URL__ (injected by BridgeWebPopper)
+  if ((window as any).__BWP_BASE_URL__) {
+    return (window as any).__BWP_BASE_URL__;
+  }
+
+  // Priority 2: Electron API (port range detection)
+  if ((window as any).electronAPI?.getBridgeBaseUrl) {
+    try {
+      const url = await (window as any).electronAPI.getBridgeBaseUrl();
+      if (url) {
+        cachedApiBaseUrl = url;
+        return url;
+      }
+    } catch (error) {
+      console.warn('Failed to get Bridge base URL from Electron API', error);
+    }
+  }
+
+  // Priority 3: Cached value (if available)
+  if (cachedApiBaseUrl) {
+    return cachedApiBaseUrl;
+  }
+
+  // Priority 4: Vite env
+  if (import.meta.env.VITE_API_BASE) {
+    const viteUrl = import.meta.env.VITE_API_BASE;
+    cachedApiBaseUrl = viteUrl;
+    return viteUrl;
+  }
+
+  // Priority 5: Default
+  cachedApiBaseUrl = APP_CONFIG.defaultApiBaseUrl;
+  return APP_CONFIG.defaultApiBaseUrl;
+}
+
+// For backward compatibility, export a synchronous getter that uses cached value or default
+export const API_BASE_URL: string = APP_CONFIG.defaultApiBaseUrl;
 
 // Data source switch (prepared for future extensions)
 export type DataSource = "bridge" | "api" | "cms" | "hybrid";
@@ -41,7 +78,7 @@ export const GENRE_ORDER: string[] = [
   "サービス",
 ];
 
-// Japanese → English genre dictionary
+// Japanese -> English genre dictionary
 export const GENRE_ENGLISH: Record<string, string> = {
   "ファッション": "Fashion",
   "ファッション雑貨": "Fashion Goods",
@@ -107,4 +144,3 @@ export const POLLING_INTERVALS = {
   SHOP_LIST_MS: 10 * 60 * 1000, // 10 minutes
   VIDEO_MS: 1000,      // 1 second
 };
-
