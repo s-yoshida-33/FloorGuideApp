@@ -5,6 +5,7 @@ const { app, BrowserWindow, Menu, ipcMain, globalShortcut, dialog } = require('e
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const net = require('net'); // Added net module for port checking
 const { pathToFileURL } = require('url');
 const {
   initAutoUpdater,
@@ -15,7 +16,6 @@ const {
 const logger = require('./logger.cjs');
 
 const isDev = !app.isPackaged;
-
 let patchWindow = null;
 let mainWindow = null;
 
@@ -107,6 +107,17 @@ function loadSettings() {
       },
       openTimeImage: '',
     },
+    // Port ranges for auto-detection (Bridge: 8090-8099, CMS: 8080-8089)
+    portRanges: {
+      bridge: {
+        min: 8090,
+        max: 8099,
+      },
+      cms: {
+        min: 8080,
+        max: 8089,
+      },
+    },
   };
 
   try {
@@ -122,7 +133,6 @@ function loadSettings() {
     // Deep merge function to ensure all nested properties are preserved
     const deepMerge = (target, source) => {
       if (!source) return target;
-      
       const result = { ...target };
       
       Object.keys(source).forEach(key => {
@@ -132,7 +142,6 @@ function loadSettings() {
           result[key] = source[key];
         }
       });
-      
       return result;
     };
 
@@ -163,15 +172,25 @@ function loadSettings() {
             openTimeImage: parsed.imageSettings.openTimeImage || base.imageSettings.openTimeImage,
           }
         : base.imageSettings,
+      portRanges: parsed.portRanges
+        ? {
+            bridge: {
+              min: typeof parsed.portRanges.bridge?.min === 'number' ? parsed.portRanges.bridge.min : base.portRanges.bridge.min,
+              max: typeof parsed.portRanges.bridge?.max === 'number' ? parsed.portRanges.bridge.max : base.portRanges.bridge.max,
+            },
+            cms: {
+              min: typeof parsed.portRanges.cms?.min === 'number' ? parsed.portRanges.cms.min : base.portRanges.cms.min,
+              max: typeof parsed.portRanges.cms?.max === 'number' ? parsed.portRanges.cms.max : base.portRanges.cms.max,
+            },
+          }
+        : base.portRanges,
     };
-
 
     logger.debug('Settings loaded', {
       floor: merged.floor,
       hasAnimation: !!merged.locationIcons.speechBubble.animation,
       animationEnabled: merged.locationIcons.speechBubble.animation?.enabled,
     });
-
     return merged;
   } catch (error) {
     logger.error('Failed to load settings, using defaults', {
@@ -246,7 +265,6 @@ function updateFloorLayout(floor, partialLayout) {
     columns: next.floorLayout[floor].columns,
     rowsPerCol: next.floorLayout[floor].rowsPerCol,
   });
-
   broadcastFloorLayout(next.floorLayout);
 }
 
@@ -266,6 +284,167 @@ function updateFloorSetting(floor) {
   const next = saveSettings({ floor });
   logger.info('Floor updated', { floor: next.floor });
   broadcastFloor(next.floor);
+}
+
+/**
+ * Check if a port is available by attempting to connect to it.
+ */
+function isPortAvailable(port, host = '127.0.0.1') {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    const timeout = 1000; // 1 second timeout
+
+    socket.setTimeout(timeout);
+    
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true); // Port is open (service is running)
+    });
+
+    socket.once('timeout', () => {
+      socket.destroy();
+      resolve(false); // Port is not responding
+    });
+
+    socket.once('error', (err) => {
+      if (err.code === 'ECONNREFUSED') {
+        resolve(false); // Port is not open
+      } else {
+        resolve(false); // Other error, assume not available
+      }
+    });
+
+    socket.connect(port, host);
+  });
+}
+
+/**
+ * Find an available port within the specified range by checking HTTP connectivity.
+ * Returns the first port that responds to HTTP requests successfully.
+ */
+async function findAvailablePortInRange(minPort, maxPort, path = '/', host = '127.0.0.1') {
+  logger.debug('Starting port detection', { minPort, maxPort, path, host });
+  for (let port = minPort; port <= maxPort; port++) {
+    try {
+      const url = `http://${host}:${port}${path}`;
+      // logger.debug('Trying port', { port, url });
+      
+      // Try a quick HTTP request to see if the service is available
+      const available = await new Promise((resolve) => {
+        const req = http.get(url, { timeout: 2000 }, (res) => {
+          // Check if status code is in success range (200-299)
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            req.destroy();
+            logger.debug('Port responded successfully', { port, statusCode: res.statusCode });
+            resolve(true); // Service is responding with success
+          } else {
+            req.destroy();
+            logger.debug('Port responded with non-success status', { port, statusCode: res.statusCode });
+            resolve(false); // Service is responding but with error status
+          }
+        });
+
+        req.on('error', (err) => {
+          logger.debug('Port connection error', { port, error: err.code });
+          resolve(false); // Service is not responding
+        });
+
+        req.on('timeout', () => {
+          req.destroy();
+          logger.debug('Port connection timeout', { port });
+          resolve(false);
+        });
+
+        req.setTimeout(2000);
+      });
+
+      if (available) {
+        logger.info('Found available port in range', { port, minPort, maxPort, path, host });
+        return port;
+      }
+    } catch (error) {
+      logger.debug('Exception while checking port', { port, error: error?.message });
+      // Continue to next port
+    }
+  }
+
+  logger.warn('No available port found in range', { minPort, maxPort, path, host });
+  return null;
+}
+
+/**
+ * Get the base URL for BridgeWebPopper, using port range detection if configured.
+ */
+async function getBridgeBaseUrl() {
+  const settings = loadSettings();
+  const portRange = settings.portRanges?.bridge;
+  if (portRange && portRange.min && portRange.max) {
+    const port = await findAvailablePortInRange(portRange.min, portRange.max, '/api/shops', 'localhost');
+    if (port) {
+      return `http://localhost:${port}`;
+    }
+  }
+
+  // Fallback to default
+  return 'http://localhost:8080';
+}
+
+/**
+ * Get the base URL for CMS (WSP), using port range detection if configured.
+ */
+async function getCmsBaseUrl() {
+  const settings = loadSettings();
+  const portRange = settings.portRanges?.cms;
+
+  logger.debug('Getting CMS base URL', { portRange });
+  if (portRange && portRange.min && portRange.max) {
+    const port = await findAvailablePortInRange(portRange.min, portRange.max, '/current-timeline', '127.0.0.1');
+    if (port) {
+      const baseUrl = `http://127.0.0.1:${port}`;
+      logger.info('CMS base URL determined', { baseUrl, port, portRange });
+      return baseUrl;
+    } else {
+      logger.warn('CMS port detection failed, using fallback', { portRange });
+    }
+  } else {
+    logger.debug('CMS port range not configured, using fallback');
+  }
+
+  // Fallback to default (8080 or 8081 depending on legacy config, here using 8080 to match detection range)
+  // Gido originally used 8081, but Gido-Touch uses 8080-8089. We will fallback to 8080.
+  const fallbackUrl = 'http://127.0.0.1:8080';
+  logger.info('Using CMS fallback URL', { fallbackUrl });
+  return fallbackUrl;
+}
+
+// Cache for base URLs to avoid repeated port detection
+let cachedBridgeBaseUrl = null;
+let cachedCmsBaseUrl = null;
+let lastPortCheckTime = 0;
+const PORT_CHECK_INTERVAL = 30000; // Check every 30 seconds
+
+/**
+ * Get cached or fresh Bridge base URL.
+ */
+async function getCachedBridgeBaseUrl() {
+  const now = Date.now();
+  if (!cachedBridgeBaseUrl || (now - lastPortCheckTime) > PORT_CHECK_INTERVAL) {
+    cachedBridgeBaseUrl = await getBridgeBaseUrl();
+    lastPortCheckTime = now;
+  }
+  return cachedBridgeBaseUrl;
+}
+
+/**
+ * Get cached or fresh CMS base URL.
+ */
+async function getCachedCmsBaseUrl() {
+  const now = Date.now();
+  if (!cachedCmsBaseUrl || (now - lastPortCheckTime) > PORT_CHECK_INTERVAL) {
+    cachedCmsBaseUrl = await getCmsBaseUrl();
+    lastPortCheckTime = now;
+  }
+  return cachedCmsBaseUrl;
 }
 
 /**
@@ -335,7 +514,6 @@ function httpGetJson(url) {
       });
       reject(error);
     });
-
     req.end();
   });
 }
@@ -452,12 +630,9 @@ function createMainWindow() {
  */
 function createAppMenu() {
   const settings = loadSettings();
-
   logger.info('Creating application menu', {
     initialFloor: settings.floor,
   });
-
-  const layout = settings.floorLayout || DEFAULT_FLOOR_LAYOUT;
 
   const template = [
     {
@@ -561,6 +736,12 @@ ipcMain.handle('get-latest-version-info', async () => {
   logger.debug('IPC get-latest-version-info');
   const info = await getLatestVersionInfo();
   return info;
+});
+
+ipcMain.handle('get-bridge-base-url', async () => {
+  logger.debug('IPC get-bridge-base-url');
+  const url = await getCachedBridgeBaseUrl();
+  return url;
 });
 
 /**
@@ -718,6 +899,7 @@ ipcMain.handle('save-image-settings', async (_event, imageSettings) => {
     }
     
     const settings = saveSettings({ imageSettings: savedSettings });
+    
     // Broadcast to main window if it exists
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('image-settings-updated', settings.imageSettings);
@@ -739,7 +921,10 @@ ipcMain.handle('save-image-settings', async (_event, imageSettings) => {
  */
 ipcMain.handle('wsp:get-current-asset', async () => {
   try {
-    const json = await httpGetJson('http://127.0.0.1:8081/current-timeline');
+    const baseUrl = await getCachedCmsBaseUrl();
+    const url = `${baseUrl}/current-timeline`;
+    logger.debug('wsp:get-current-asset: requesting', { url, baseUrl });
+    const json = await httpGetJson(url);
 
     if (!json || !json.current_timeline) {
       logger.warn('wsp:get-current-asset: current_timeline is missing');
@@ -757,8 +942,8 @@ ipcMain.handle('wsp:get-current-asset', async () => {
 
     // Determine media type from asset properties or URL extension
     const mediaType = asset.mediaType || asset.type || '';
-    const url = asset.url || '';
-    const urlLower = url.toLowerCase();
+    const assetUrl = asset.url || '';
+    const urlLower = assetUrl.toLowerCase();
     
     // Infer media type from URL extension if not provided
     let inferredMediaType = mediaType;
@@ -804,7 +989,9 @@ ipcMain.handle('wsp:get-current-asset', async () => {
  */
 ipcMain.handle('wsp:get-current-timeline', async () => {
   try {
-    const json = await httpGetJson('http://127.0.0.1:8081/current-timeline');
+    const baseUrl = await getCachedCmsBaseUrl();
+    const url = `${baseUrl}/current-timeline`;
+    const json = await httpGetJson(url);
     logger.debug('wsp:get-current-timeline: success');
     return json || null;
   } catch (error) {
@@ -825,7 +1012,8 @@ ipcMain.handle('wsp:get-timeline', async (_event, options) => {
         ? options.hour
         : undefined;
 
-    const baseUrl = 'http://127.0.0.1:8081/timeline';
+    const cmsBaseUrl = await getCachedCmsBaseUrl();
+    const baseUrl = `${cmsBaseUrl}/timeline`;
     const url = hour != null ? `${baseUrl}?hour=${hour}` : baseUrl;
 
     const json = await httpGetJson(url);
@@ -898,6 +1086,14 @@ app.whenReady().then(() => {
     env: process.env.NODE_ENV || 'production',
     isDev,
   });
+
+  // In development mode, skip update check and open main window directly
+  if (isDev) {
+    logger.info('Development mode: skipping update check');
+    createAppMenu();
+    createMainWindow();
+    return;
+  }
 
   createPatchWindow();
   createAppMenu();

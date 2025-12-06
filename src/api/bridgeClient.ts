@@ -1,5 +1,5 @@
 // src/api/bridgeClient.ts
-import { API_BASE_URL, APP_CONFIG } from "../config";
+import { getApiBaseUrl, APP_CONFIG } from "../config";
 import type { BridgeShop, Shop, FloorId } from "../types/shop";
 
 import { logInfo, logWarn, logError } from "../logs/logging";
@@ -43,7 +43,8 @@ function parseFloorsFromBridge(
 
 // Fetches shop list from BridgeWebPopper and normalizes it to Shop[]
 export async function fetchShopsFromBridge(): Promise<Shop[]> {
-  const url = `${API_BASE_URL}/api/shops`;
+  const baseUrl = await getApiBaseUrl();
+  const url = `${baseUrl}/api/shops`;
 
   logInfo("shopList", "Requesting shops from Bridge API", { url });
 
