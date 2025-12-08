@@ -88,6 +88,7 @@ interface WspApi {
   getCurrentAsset: () => Promise<CurrentAsset | null>;
   getCurrentTimeline: () => Promise<WspCurrentTimelineResponse | null>;
   getTimeline: (hour?: number) => Promise<WspTimelineResponse | null>;
+  getCmsBaseUrl: () => Promise<string>;
 }
 
 interface LoggerApi {

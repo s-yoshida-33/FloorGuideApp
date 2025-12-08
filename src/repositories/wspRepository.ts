@@ -60,4 +60,20 @@ import type {
       return null;
     }
   }
+
+  /**
+   * Get CMS base URL (e.g. http://localhost:8080) from main process.
+   */
+  export async function getCmsBaseUrl(): Promise<string | null> {
+    if (!window.wspApi?.getCmsBaseUrl) {
+      return null;
+    }
+
+    try {
+      return await window.wspApi.getCmsBaseUrl();
+    } catch (error) {
+      console.error('[getCmsBaseUrl] failed:', error);
+      return null;
+    }
+  }
   
