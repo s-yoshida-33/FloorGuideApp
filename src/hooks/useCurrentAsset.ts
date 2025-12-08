@@ -2,7 +2,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { CurrentAsset } from '../types/wsp';
 import { getCmsBaseUrl, fetchCurrentAsset } from '../repositories/wspRepository';
-import { POLLING_INTERVALS } from '../config';
 import { logInfo, logWarn, logError } from '../logs/logging';
 
 interface UseCurrentAssetResult {

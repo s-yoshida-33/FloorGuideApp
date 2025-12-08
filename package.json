@@ -13,6 +13,7 @@
     "electron:dev": "cross-env NODE_ENV=development concurrently \"npm:dev\" \"npm:electron:start\"",
     "electron:start": "wait-on http://localhost:5173 && electron .",
     "electron:build": "npm run build && electron-builder",
+    "export-settings": "node scripts/export-settings.cjs",
     "icon:gen": "magick -background none -density 1024 src/assets/icon.svg -define icon:auto-resize=256,128,64,48,32,16 -write src/assets/icon.ico build/icon.ico"
   },
   "main": "electron/main.cjs",

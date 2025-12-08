@@ -1,0 +1,119 @@
+{
+  "locationIcons": {
+    "speechBubble": {
+      "enabled": true,
+      "xPercent": 14.6,
+      "yPercent": 52,
+      "size": 90,
+      "rotation": 0,
+      "shadow": {
+        "enabled": true,
+        "offsetX": 4,
+        "offsetY": 4,
+        "blur": 4,
+        "opacity": 0.5
+      },
+      "animation": {
+        "enabled": true,
+        "type": "floating",
+        "duration": 3,
+        "amplitude": 20,
+        "distance": 30,
+        "easing": "ease-in-out",
+        "iterationCount": -1,
+        "rippleColor": "#E63B93",
+        "rippleSize": 1.6,
+        "rippleCenterSize": 0.8
+      }
+    },
+    "location": {
+      "enabled": true,
+      "xPercent": 15.2,
+      "yPercent": 57.2,
+      "size": 50,
+      "rotation": 90,
+      "shadow": {
+        "enabled": true,
+        "offsetX": 4,
+        "offsetY": 4,
+        "blur": 4,
+        "opacity": 0.5
+      },
+      "animation": {
+        "enabled": true,
+        "type": "blink",
+        "duration": 2,
+        "amplitude": 18,
+        "rippleSize": 1.6,
+        "rippleCenterSize": 0.8,
+        "rippleColor": "#E63B93"
+      }
+    }
+  },
+  "floorLayout": {
+    "1F": {
+      "columns": 3,
+      "rowsPerCol": 20,
+      "perColumnPadding": [
+        {
+          "top": 0
+        },
+        {
+          "top": 0.8
+        },
+        {
+          "top": 0.8
+        }
+      ],
+      "perColumnRows": [
+        22,
+        22
+      ]
+    },
+    "2F": {
+      "columns": 2,
+      "rowsPerCol": 19,
+      "perColumnRows": [
+        22
+      ],
+      "perColumnPadding": [
+        null,
+        {
+          "top": 0.8
+        }
+      ]
+    },
+    "3F": {
+      "columns": 3,
+      "rowsPerCol": 20,
+      "perColumnRows": [
+        22,
+        23
+      ],
+      "perColumnPadding": [
+        null,
+        {
+          "top": 0.8
+        },
+        {
+          "top": 0.8
+        }
+      ]
+    },
+    "4F": {
+      "columns": 2,
+      "rowsPerCol": 18,
+      "perColumnPadding": [
+        {
+          "top": 0
+        },
+        {
+          "top": 0.8
+        }
+      ],
+      "perColumnRows": [
+        22
+      ]
+    }
+  }
+}
