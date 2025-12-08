@@ -134,6 +134,9 @@ contextBridge.exposeInMainWorld('wspApi', {
   getTimeline(hour) {
     return ipcRenderer.invoke('wsp:get-timeline', { hour });
   },
+  getCmsBaseUrl() {
+    return ipcRenderer.invoke('cms:get-base-url');
+  },
 });
 
 contextBridge.exposeInMainWorld('logger', {
