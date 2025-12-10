@@ -749,7 +749,7 @@ function createAppMenu() {
       label: '設定',
       submenu: [
         {
-          label: '設定画面を開く...',
+          label: '設定画面を開く',
           click: () => {
             logger.info('Unified settings screen menu clicked');
             if (mainWindow && !mainWindow.isDestroyed()) {
