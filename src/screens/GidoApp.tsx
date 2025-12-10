@@ -1,5 +1,5 @@
 // src/screens/GidoApp.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 import ShopList from "../components/ShopList";
 import type { Shop } from "../types/shop";
@@ -83,6 +83,50 @@ const GidoApp: React.FC<GidoAppProps> = ({
   const [floorLayout, setFloorLayout] = useState<FloorLayout>(
     previewFloorLayout ?? DEFAULT_FLOOR_LAYOUT
   );
+
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // References for visibility check
+  const floorMapRef = useRef<HTMLImageElement>(null);
+  const openTimeImageRef = useRef<HTMLImageElement>(null);
+
+  // Periodic check for image visibility (every 5 minutes)
+  useEffect(() => {
+    // Skip checking in preview mode
+    if (previewFloor) return;
+
+    const checkVisibility = () => {
+      let needsReload = false;
+
+      // Check Floor Map
+      if (floorMapRef.current) {
+        const { naturalWidth, complete } = floorMapRef.current;
+        if (!complete || naturalWidth === 0) {
+          logError("monitor", "Floor map image not visible/loaded", { floor });
+          needsReload = true;
+        }
+      }
+
+      // Check Open Time Image
+      if (openTimeImageRef.current) {
+        const { naturalWidth, complete } = openTimeImageRef.current;
+        if (!complete || naturalWidth === 0) {
+          logError("monitor", "Open time image not visible/loaded");
+          needsReload = true;
+        }
+      }
+
+      if (needsReload) {
+        logInfo("monitor", "Image visibility check failed, forcing reload");
+        setRefreshKey(prev => prev + 1);
+      } else {
+        logInfo("monitor", "Image visibility check passed");
+      }
+    };
+
+    const intervalId = window.setInterval(checkVisibility, POLLING_INTERVALS.IMAGE_CHECK_MS);
+    return () => window.clearInterval(intervalId);
+  }, [floor, previewFloor]);
 
   // Floor synchronization with Electron main process (only if not in preview mode)
   useEffect(() => {
@@ -219,7 +263,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
         window.clearTimeout(timerId);
       }
     };
-  }, []);
+  }, [refreshKey]);
 
   const currentLayout =
     floorLayout[floor] ??
@@ -254,6 +298,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
           }}
         >
           <img
+            ref={floorMapRef}
             src={floorMap}
             alt={`Floor map ${floor}`}
             draggable={false}
@@ -301,7 +346,24 @@ const GidoApp: React.FC<GidoAppProps> = ({
               background: "#000",
             }}
           >
-            <VerticalVideoSlot muted={previewFloor !== undefined} />
+            {previewFloor ? (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#555",
+                  fontSize: "1.5vh",
+                  fontWeight: "normal",
+                }}
+              >
+                (設定中は非表示)
+              </div>
+            ) : (
+              <VerticalVideoSlot key={refreshKey} />
+            )}
           </div>
         </div>
       </div>
@@ -351,6 +413,8 @@ const GidoApp: React.FC<GidoAppProps> = ({
           }}
         >
           <img
+            ref={openTimeImageRef}
+            key={`opentime-${refreshKey}`}
             src={imageSettings?.openTimeImage || openTimeImage}
             alt="Open Time"
             style={{
