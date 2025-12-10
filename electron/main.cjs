@@ -687,7 +687,11 @@ function createMainWindow() {
       // Allow loading local file:// URLs for media assets
       webSecurity: false, // Required to load local file:// URLs from CMS
     },
+    alwaysOnTop: true,
   });
+
+  // Ensure it stays on top even if other apps try to take focus
+  mainWindow.setAlwaysOnTop(true, 'screen-saver');
 
   // Enable F12 shortcut to toggle dev tools
   // Enable Ctrl+R shortcut to reload in dev environment
