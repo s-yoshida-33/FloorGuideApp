@@ -106,11 +106,24 @@ FunctionEnd
   ${EndIf}
 
   ; Windows auto-start registry
+  IfSilent SilentMode UI_Mode
+
+SilentMode:
+  ; In silent mode, only update if the key already exists (preserve user preference)
+  ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido"
+  ${If} $0 != ""
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido" "$INSTDIR\Gido.exe"
+  ${EndIf}
+  Goto AutoStartEnd
+
+UI_Mode:
   ${If} $WantAutoStart == ${BST_CHECKED}
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido" "$INSTDIR\Gido.exe"
   ${Else}
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido"
   ${EndIf}
+
+AutoStartEnd:
 
 !macroend
 
