@@ -143,4 +143,5 @@ export const FLOOR_ROWS_PER_COL: Record<string, number> = {
 export const POLLING_INTERVALS = {
   SHOP_LIST_MS: 10 * 60 * 1000, // 10 minutes
   VIDEO_MS: 1000,      // 1 second
+  IMAGE_CHECK_MS: 5 * 60 * 1000, // 5 minutes
 };
