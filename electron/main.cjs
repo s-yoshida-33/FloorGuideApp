@@ -1191,6 +1191,17 @@ ipcMain.on('menu:check-updates', () => {
   checkForUpdates(true);
 });
 
+// Startup wait completed (from PatchScreen)
+ipcMain.on('startup-wait-completed', () => {
+  logger.info('Startup wait completed, switching to main window');
+  
+  if (patchWindow && !patchWindow.isDestroyed()) {
+    patchWindow.close();
+  }
+  
+  createMainWindow();
+});
+
 // One-click update
 ipcMain.on('menu:one-click-update', () => {
   oneClickUpdate();

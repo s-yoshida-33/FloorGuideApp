@@ -48,12 +48,6 @@ function initAutoUpdater(opts) {
       state: 'none',
       message: 'You are running the latest version. Launching app…',
     });
-
-    setTimeout(() => {
-      const w = getPatchWindow && getPatchWindow();
-      if (w) w.close();
-      if (createMainWindow) createMainWindow();
-    }, 0);
   });
 
   autoUpdater.on('download-progress', (progress) => {
@@ -90,12 +84,6 @@ function initAutoUpdater(opts) {
       state: 'error',
       message: `Update error: ${err?.message ?? err}`,
     });
-
-    setTimeout(() => {
-      const w = getPatchWindow && getPatchWindow();
-      if (w) w.close();
-      if (createMainWindow) createMainWindow();
-    }, 1500);
   });
 }
 
@@ -125,11 +113,7 @@ async function checkForUpdates(isManual = false) {
           message: 'Update check timed out. Launching app…',
         });
         
-        setTimeout(() => {
-          const w = getPatchWindow && getPatchWindow();
-          if (w) w.close();
-          if (createMainWindow) createMainWindow();
-        }, 1500);
+        // Removed automatic transition here as well, relying on renderer to handle error state
       }
     }, 30000); // 30 seconds timeout
     
