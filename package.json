@@ -1,7 +1,7 @@
 {
   "name": "gido",
   "private": true,
-  "version": "0.1.0-beta.37",
+  "version": "0.1.0-beta.39",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
