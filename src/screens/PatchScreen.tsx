@@ -50,7 +50,13 @@ export function PatchScreen() {
 
     window.updater.onStatus((data) => {
       setStatusState(data.state);
-      setStatusMessage(data.message);
+
+      if (data.state === 'error') {
+        // エラー時は詳細を表示せず、簡易メッセージにする
+        setStatusMessage('アップデートの確認に失敗しました。\nそのまま起動します。');
+      } else {
+        setStatusMessage(data.message);
+      }
 
       // アップデートなし、またはエラーの場合に待機モードへ
       if (data.state === 'none' || data.state === 'error') {
@@ -283,10 +289,10 @@ export function PatchScreen() {
               style={{
                 height: '100%',
                 width: `${displayPercent}%`,
-                backgroundColor: isWaiting ? '#0088ff' : '#00ff88',
-                borderRight: displayPercent < 100 ? (isWaiting ? '2px solid #0066cc' : '2px solid #00cc66') : 'none',
+                backgroundColor: '#0088ff',
+                borderRight: displayPercent < 100 ? '2px solid #0066cc' : 'none',
                 transition: 'width 0.2s linear',
-                boxShadow: displayPercent > 0 ? (isWaiting ? 'inset 0 0 8px rgba(0,136,255,0.3)' : 'inset 0 0 8px rgba(0,255,136,0.3)') : 'none',
+                boxShadow: displayPercent > 0 ? 'inset 0 0 8px rgba(0,136,255,0.3)' : 'none',
               }}
             />
           </div>
