@@ -11,6 +11,11 @@ export function PatchScreen() {
   const [speed, setSpeed] = useState<number | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
 
+  // 待機用ステート
+  const [isWaiting, setIsWaiting] = useState(false);
+  const [waitProgress, setWaitProgress] = useState(0); // 0-100%
+  const [countdown, setCountdown] = useState(90);      // 秒数
+
   useEffect(() => {
     // Mock data for browser preview
     const isBrowser = !window.electronAPI;
@@ -47,7 +52,9 @@ export function PatchScreen() {
       setStatusState(data.state);
       setStatusMessage(data.message);
 
+      // アップデートなし、またはエラーの場合に待機モードへ
       if (data.state === 'none' || data.state === 'error') {
+        setIsWaiting(true);
         setPercent(null);
         setTransferred(null);
         setTotal(null);
@@ -62,6 +69,41 @@ export function PatchScreen() {
       setSpeed(data.speed);
     });
   }, []);
+
+  // 待機完了・スキップ時の処理
+  const finishWait = () => {
+    if (window.updater?.startupWaitCompleted) {
+      window.updater.startupWaitCompleted();
+    }
+  };
+
+  // 90秒タイマーのロジック
+  useEffect(() => {
+    if (!isWaiting) return;
+
+    const startTime = Date.now();
+    const duration = 90 * 1000; // 90秒
+
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      
+      // 進捗率計算
+      const progress = Math.min(100, (elapsed / duration) * 100);
+      setWaitProgress(progress);
+      
+      // 残り秒数計算
+      const remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
+      setCountdown(remaining);
+
+      // 完了時
+      if (elapsed >= duration) {
+        clearInterval(timer);
+        finishWait();
+      }
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, [isWaiting]);
 
   useEffect(() => {
     // Mock data for browser preview
@@ -109,6 +151,10 @@ export function PatchScreen() {
     if (bytesPerSec == null || bytesPerSec <= 0) return '-';
     return (bytesPerSec / (1024 * 1024)).toFixed(1) + ' MB/s';
   };
+
+  // UI描画用変数
+  // 待機中は待機進捗、ダウンロード中はダウンロード進捗を表示
+  const displayPercent = isWaiting ? waitProgress : (percent ?? 0);
 
   return (
     <div
@@ -199,7 +245,9 @@ export function PatchScreen() {
               whiteSpace: 'pre-line',
             }}
           >
-            {statusMessage}
+            {isWaiting 
+              ? `${statusMessage}\nあと ${countdown} 秒で起動します。`
+              : statusMessage}
           </p>
         </div>
 
@@ -216,7 +264,7 @@ export function PatchScreen() {
           }}
         >
           <div style={{ fontSize: 12, color: '#888888', marginBottom: 6 }}>
-            Download status
+            {isWaiting ? 'Startup Wait' : 'Download status'}
           </div>
 
           {/* Progress Bar */}
@@ -234,63 +282,53 @@ export function PatchScreen() {
             <div
               style={{
                 height: '100%',
-                width: `${percent ?? 0}%`,
-                backgroundColor: '#00ff88',
-                borderRight: percent && percent < 100 ? '2px solid #00cc66' : 'none',
+                width: `${displayPercent}%`,
+                backgroundColor: isWaiting ? '#0088ff' : '#00ff88',
+                borderRight: displayPercent < 100 ? (isWaiting ? '2px solid #0066cc' : '2px solid #00cc66') : 'none',
                 transition: 'width 0.2s linear',
-                boxShadow: percent && percent > 0 ? 'inset 0 0 8px rgba(0,255,136,0.3)' : 'none',
+                boxShadow: displayPercent > 0 ? (isWaiting ? 'inset 0 0 8px rgba(0,136,255,0.3)' : 'inset 0 0 8px rgba(0,255,136,0.3)') : 'none',
               }}
             />
-            {percent && percent > 0 && percent < 100 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: '2px',
-                  backgroundColor: '#00ff88',
-                  boxShadow: '0 0 4px #00ff88',
-                }}
-              />
-            )}
           </div>
 
           <div style={{ fontSize: 12, textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>
-            {percent != null ? `${percent.toFixed(1)}%` : '待機中…'}
+            {isWaiting ? `${countdown}s` : (percent != null ? `${percent.toFixed(1)}%` : '待機中…')}
           </div>
 
           {/* Numeric Info */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              rowGap: 8,
-              columnGap: 16,
-              fontSize: 11,
-              paddingTop: 8,
-              borderTop: '1px solid #1a1a1a',
-            }}
-          >
-            <div style={{ color: '#888888' }}>Transferred</div>
-            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(transferred)}</div>
+          {!isWaiting && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                rowGap: 8,
+                columnGap: 16,
+                fontSize: 11,
+                paddingTop: 8,
+                borderTop: '1px solid #1a1a1a',
+              }}
+            >
+              <div style={{ color: '#888888' }}>Transferred</div>
+              <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(transferred)}</div>
 
-            <div style={{ color: '#888888' }}>Total</div>
-            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(total)}</div>
+              <div style={{ color: '#888888' }}>Total</div>
+              <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(total)}</div>
 
-            <div style={{ color: '#888888' }}>Speed</div>
-            <div style={{ textAlign: 'right', color: '#00ff88', fontWeight: 600 }}>{formatSpeed(speed)}</div>
+              <div style={{ color: '#888888' }}>Speed</div>
+              <div style={{ textAlign: 'right', color: '#00ff88', fontWeight: 600 }}>{formatSpeed(speed)}</div>
 
-            <div style={{ color: '#888888' }}>State</div>
-            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600, textTransform: 'uppercase' }}>{statusState}</div>
-          </div>
+              <div style={{ color: '#888888' }}>State</div>
+              <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600, textTransform: 'uppercase' }}>{statusState}</div>
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
+        {/* Footer with Skip Button */}
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
+            alignItems: 'center', // Align items vertically
             fontSize: 11,
             color: '#666666',
             marginTop: 'auto',
@@ -298,8 +336,38 @@ export function PatchScreen() {
             borderTop: '1px solid #1a1a1a',
           }}
         >
-          <div>Do not turn off your device while updating.</div>
-          <div>© 2025 Toei Techno International Inc.</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div>Do not turn off your device while updating.</div>
+            <div>© 2025 Toei Techno International Inc.</div>
+          </div>
+
+          {/* Skip Button (only visible when waiting) */}
+          {isWaiting && (
+            <button
+              onClick={finishWait}
+              style={{
+                backgroundColor: '#333',
+                color: '#fff',
+                border: '1px solid #555',
+                borderRadius: 4,
+                padding: '6px 16px',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#444';
+                e.currentTarget.style.borderColor = '#666';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#333';
+                e.currentTarget.style.borderColor = '#555';
+              }}
+            >
+              スキップして起動
+            </button>
+          )}
         </div>
       </div>
     </div>
