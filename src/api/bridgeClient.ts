@@ -87,21 +87,24 @@ export async function fetchShopsFromBridge(): Promise<Shop[]> {
 
     const shops: Shop[] = rawList.map((item) => {
       const floors = parseFloorsFromBridge(item.floors, defaultFloor);
+      const shopId = item.shopId ?? item.shop_id;
+      const shopName = item.shopName ?? item.shop_name;
+      const genreMemo = item.genreMemo ?? item.genre_memo;
 
       if (floors.length === 0) {
         logWarn("shopList", "Shop has no floors after normalization", {
-          shopId: item.shop_id,
-          name: item.shop_name,
+          shopId,
+          name: shopName,
           rawFloors: item.floors,
           defaultFloor,
         });
       }
 
       return {
-        shopId: item.shop_id,
-        name: item.shop_name,
+        shopId: shopId,
+        name: shopName || "",
         genre: item.genre,
-        genreMemo: item.genre_memo,
+        genreMemo: genreMemo || "",
         number: item.number,
         floors,
       };

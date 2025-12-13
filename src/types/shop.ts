@@ -15,8 +15,13 @@ export interface Shop {
 export interface BridgeShop {
   genre: string;
   number: string;
-  genre_memo: string;
-  shop_name: string;
+  genreMemo: string; // CamelCase from API
+  shopName: string;  // CamelCase from API
+  shopId: string;    // CamelCase from API
   floors?: string | string[];
+  
+  // Also support snake_case for compatibility if mixed
+  genre_memo?: string;
+  shop_name?: string;
   shop_id?: string;
 }
