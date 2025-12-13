@@ -4,7 +4,7 @@ import type { LocationIconSettings } from '../types/locationIcon';
 // Global app configuration (do not use Japanese in comments to avoid encoding issues)
 export const APP_CONFIG = {
   // Default base URL for BridgeWebPopper HTTP server
-  defaultApiBaseUrl: "http://localhost:8080",
+  defaultApiBaseUrl: "http://localhost:8090",
 
   // Default floor for this screen (this screen is dedicated to one floor)
   floor: "3F",
@@ -141,7 +141,5 @@ export const FLOOR_ROWS_PER_COL: Record<string, number> = {
 
 // Polling intervals
 export const POLLING_INTERVALS = {
-  SHOP_LIST_MS: 10 * 60 * 1000, // 10 minutes
-  VIDEO_MS: 1000,      // 1 second
   IMAGE_CHECK_MS: 5 * 60 * 1000, // 5 minutes
 };

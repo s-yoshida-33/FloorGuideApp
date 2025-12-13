@@ -1,5 +1,5 @@
 // src/screens/GidoApp.tsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 
 import ShopList from "../components/ShopList";
 import type { Shop } from "../types/shop";
@@ -12,6 +12,7 @@ import openTimeImage from "../assets/open-time.svg";
 
 import { APP_CONFIG, POLLING_INTERVALS } from "../config";
 import { fetchShops } from "../repositories/shopRepository";
+import { useBridgeEvents } from "../hooks/useBridgeEvents";
 import VerticalVideoSlot from "../components/VerticalVideoSlot";
 
 import type { LocationIconSettings } from "../types/locationIcon";
@@ -217,53 +218,41 @@ const GidoApp: React.FC<GidoAppProps> = ({
   const listWidthVh = 100 - videoWidthVh;
 
   // Shop data loading
+  const loadShops = useCallback(async () => {
+    try {
+      const data = await fetchShops();
+
+      const cleaned = data.map((s) => ({
+        ...s,
+        // Remove furigana / kana in brackets from name
+        name: s.name ? s.name.replace(/【.*?】/g, "").trim() : "",
+      }));
+
+      setShops(cleaned);
+      setError(null);
+
+      logInfo("shopList", "Shop data synced", {
+        count: cleaned.length,
+      });
+    } catch (e: any) {
+      console.error(e);
+
+      const message = e?.message ?? "failed to load";
+      setError(message);
+
+      logError("shopList", "Failed to load shop list", {
+        error: message,
+      });
+    }
+  }, []);
+
+  // Initial sync on startup or refresh
   useEffect(() => {
-    let cancelled = false;
-    let timerId: number | null = null;
-
-    const loadShops = async () => {
-      try {
-        const data = await fetchShops();
-        if (cancelled) return;
-
-        const cleaned = data.map((s) => ({
-          ...s,
-          // Remove furigana / kana in brackets from name
-          name: s.name.replace(/【.*?】/g, "").trim(),
-        }));
-
-        setShops(cleaned);
-        setError(null);
-
-        logInfo("shopList", "Shop data synced", {
-          count: cleaned.length,
-        });
-      } catch (e: any) {
-        console.error(e);
-        if (cancelled) return;
-
-        const message = e?.message ?? "failed to load";
-        setError(message);
-
-        logError("shopList", "Failed to load shop list", {
-          error: message,
-        });
-      } finally {
-        if (cancelled) return;
-        timerId = window.setTimeout(loadShops, POLLING_INTERVALS.SHOP_LIST_MS);
-      }
-    };
-
-    // Initial sync on startup
     loadShops();
+  }, [loadShops, refreshKey]);
 
-    return () => {
-      cancelled = true;
-      if (timerId !== null) {
-        window.clearTimeout(timerId);
-      }
-    };
-  }, [refreshKey]);
+  // Listen for Bridge events (SSE) to update shops
+  useBridgeEvents(loadShops);
 
   const currentLayout =
     floorLayout[floor] ??
