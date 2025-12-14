@@ -118,10 +118,6 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
 
   return (
     <div style={{ color: "#ffffff" }}>
-      <h2 style={{ marginTop: 0, marginBottom: 24, fontSize: 20, fontWeight: 600 }}>
-        画像設定
-      </h2>
-
       {/* Floor Selection */}
       <div style={{ marginBottom: 32 }}>
         <label

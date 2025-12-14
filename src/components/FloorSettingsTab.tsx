@@ -15,16 +15,6 @@ export const FloorSettingsTab: React.FC<FloorSettingsTabProps> = ({
 
   return (
     <div>
-      <h3
-        style={{
-          color: "#ffffff",
-          fontSize: 18,
-          fontWeight: 600,
-          marginBottom: 24,
-        }}
-      >
-        フロア設定
-      </h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {floors.map((f) => (
           <label

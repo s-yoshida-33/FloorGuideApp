@@ -752,17 +752,6 @@ export const LocationSettingsTab: React.FC<LocationSettingsTabProps> = ({
 
   return (
     <div>
-      <h3
-        style={{
-          color: "#ffffff",
-          fontSize: 18,
-          fontWeight: 600,
-          marginBottom: 24,
-        }}
-      >
-        位置アイコン設定
-      </h3>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {/* Floor Selection */}
         <div>

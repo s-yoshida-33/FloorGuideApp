@@ -2,19 +2,15 @@ import React, { useState, useEffect } from "react";
 import { fetchShopsFromBridge } from "../api/bridgeClient";
 import type { Shop } from "../types/shop";
 import type { ShopSettings } from "../types/shopSettings";
-import ShopList from "./ShopList";
-import type { GenreMappings } from "../types/genreSettings";
 
 interface ShopSettingsTabProps {
   shopSettings: ShopSettings;
   onChangeShopSettings: (settings: ShopSettings) => void;
-  genreMappings: GenreMappings; // Need for preview
 }
 
 export const ShopSettingsTab: React.FC<ShopSettingsTabProps> = ({
   shopSettings,
   onChangeShopSettings,
-  genreMappings,
 }) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedFloor, setSelectedFloor] = useState<string>("1F");
@@ -54,68 +50,99 @@ export const ShopSettingsTab: React.FC<ShopSettingsTabProps> = ({
 
   return (
     <div style={{ color: "#fff", display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: "0 0 8px 0", fontSize: 18 }}>ショップ別設定</h3>
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.7 }}>
-          個別のショップごとにジャンルメモの表示件数を設定します。<br/>
-          区切り文字（、 , ・ / | ｜ スペース）で区切られた項目のうち、先頭から指定した件数だけを表示します。<br/>
-          ここでの設定はジャンルごとの設定よりも優先されます。
-        </p>
-      </div>
 
       {/* Floor Selector */}
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-        <label>フロア:</label>
-        <select 
-            value={selectedFloor} 
-            onChange={e => {
-                setSelectedFloor(e.target.value);
-                setSelectedShopId(null);
-            }} 
-            style={{ 
-                padding: "4px 8px", 
-                borderRadius: 4, 
-                border: "1px solid rgba(255,255,255,0.2)",
-                backgroundColor: "rgba(255,255,255,0.1)",
-                color: "#fff"
-            }}
+      <div style={{ marginBottom: 16 }}>
+        <label
+          style={{
+            display: "block",
+            color: "rgba(255, 255, 255, 0.8)",
+            fontSize: 13,
+            marginBottom: 8,
+            fontWeight: 500,
+          }}
         >
-            {["1F", "2F", "3F", "4F"].map(f => <option key={f} value={f}>{f}</option>)}
+          フロア選択
+        </label>
+        <select
+          value={selectedFloor}
+          onChange={(e) => {
+            setSelectedFloor(e.target.value);
+            setSelectedShopId(null);
+          }}
+          style={{
+            width: "100%",
+            padding: "8px 12px",
+            backgroundColor: "rgba(255, 255, 255, 0.05)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: 6,
+            color: "#ffffff",
+            fontSize: 14,
+          }}
+        >
+          {["1F", "2F", "3F", "4F"].map((f) => (
+            <option
+              key={f}
+              value={f}
+              style={{
+                backgroundColor: "#2C2C2C",
+                color: "#ffffff",
+              }}
+            >
+              {f}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Shop Selector (Dropdown) */}
+      <div style={{ marginBottom: 16 }}>
+        <label
+          style={{
+            display: "block",
+            color: "rgba(255, 255, 255, 0.8)",
+            fontSize: 13,
+            marginBottom: 8,
+            fontWeight: 500,
+          }}
+        >
+          ショップ選択
+        </label>
+        <select
+          value={selectedShopId || ""}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSelectedShopId(val || null);
+          }}
+          style={{
+            width: "100%",
+            padding: "8px 12px",
+            backgroundColor: "rgba(255, 255, 255, 0.05)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: 6,
+            color: "#ffffff",
+            fontSize: 14,
+          }}
+        >
+          <option value="" style={{ backgroundColor: "#2C2C2C", color: "#999" }}>
+            （選択してください）
+          </option>
+          {floorShops.map((s) => (
+            <option
+              key={s.shopId || s.name}
+              value={s.shopId || ""}
+              style={{
+                backgroundColor: "#2C2C2C",
+                color: "#ffffff",
+              }}
+            >
+              {s.number ? `${s.number} - ` : ""}{s.name}
+            </option>
+          ))}
         </select>
       </div>
 
       <div style={{ display: "flex", gap: 24, flex: 1, minHeight: 0 }}>
-          {/* Shop List */}
-          <div style={{ 
-              flex: 1, 
-              border: "1px solid rgba(255,255,255,0.1)", 
-              borderRadius: 6,
-              backgroundColor: "rgba(0,0,0,0.2)",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column"
-          }}>
-            {floorShops.map(s => (
-                <div 
-                    key={s.shopId || s.name} 
-                    onClick={() => setSelectedShopId(s.shopId || null)}
-                    style={{ 
-                        padding: "8px 12px", 
-                        cursor: "pointer",
-                        backgroundColor: selectedShopId === s.shopId ? "rgba(0, 122, 255, 0.5)" : "transparent",
-                        borderBottom: "1px solid rgba(255,255,255,0.05)",
-                        fontSize: 14
-                    }}
-                >
-                    <span style={{ display: "inline-block", width: "3em", opacity: 0.7 }}>{s.number}</span>
-                    <span>{s.name}</span>
-                </div>
-            ))}
-            {floorShops.length === 0 && (
-                <div style={{ padding: 20, textAlign: "center", opacity: 0.5 }}>ショップがありません</div>
-            )}
-          </div>
-
           {/* Settings & Preview */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
             {selectedShop ? (
@@ -141,38 +168,6 @@ export const ShopSettingsTab: React.FC<ShopSettingsTabProps> = ({
                             }}
                         />
                     </div>
-                    
-                    <div>
-                        <h5 style={{ margin: "0 0 8px 0", fontSize: 14, opacity: 0.7 }}>プレビュー</h5>
-                        <div style={{ 
-                            border: "1px solid #ddd", 
-                            height: 120, // fixed height for preview
-                            backgroundColor: "#fff", 
-                            color: "#000",
-                            overflow: "hidden",
-                            position: "relative"
-                        }}>
-                             {/* Mock ShopList Environment */}
-                             <div style={{ 
-                                 transform: "scale(0.8)", 
-                                 transformOrigin: "top left", 
-                                 width: "125%", 
-                                 height: "125%" 
-                             }}>
-                                <ShopList 
-                                    shops={[selectedShop]} 
-                                    floor={selectedFloor} 
-                                    columnCount={1}
-                                    rowsPerColumn={5}
-                                    genreMappings={genreMappings}
-                                    shopSettings={shopSettings}
-                                />
-                             </div>
-                        </div>
-                        <p style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>
-                            ※実際の表示はレイアウト設定により異なります
-                        </p>
-                    </div>
                 </div>
             ) : (
                 <div style={{ 
@@ -182,9 +177,10 @@ export const ShopSettingsTab: React.FC<ShopSettingsTabProps> = ({
                     justifyContent: "center", 
                     opacity: 0.5, 
                     backgroundColor: "rgba(255,255,255,0.02)",
-                    borderRadius: 6
+                    borderRadius: 6,
+                    height: "200px" // give it some height
                 }}>
-                    左のリストからショップを選択してください
+                    上のプルダウンからショップを選択してください
                 </div>
             )}
           </div>
