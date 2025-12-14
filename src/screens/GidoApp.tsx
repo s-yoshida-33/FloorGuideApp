@@ -19,6 +19,8 @@ import type { LocationIconSettings } from "../types/locationIcon";
 import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
 import type { ImageSettings } from "../types/imageSettings";
 import type { FloorId } from "../types/floorLayout";
+import { DEFAULT_GENRE_MAPPINGS, type GenreMappings } from "../types/genreSettings";
+import type { ShopSettings } from "../types/shopSettings";
 
 import { logInfo, logError } from "../logs/logging";
 
@@ -62,6 +64,8 @@ interface GidoAppProps {
   previewFloor?: string;
   previewFloorLayout?: FloorLayout;
   imageSettings?: ImageSettings;
+  genreMappings?: GenreMappings;
+  shopSettings?: ShopSettings;
 }
 
 const GidoApp: React.FC<GidoAppProps> = ({
@@ -69,6 +73,8 @@ const GidoApp: React.FC<GidoAppProps> = ({
   previewFloor,
   previewFloorLayout,
   imageSettings,
+  genreMappings = DEFAULT_GENRE_MAPPINGS,
+  shopSettings,
 }) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -385,6 +391,8 @@ const GidoApp: React.FC<GidoAppProps> = ({
               rowsPerColumn={currentLayout.rowsPerCol}
               perColumnRows={currentLayout.perColumnRows}
               perColumnPadding={currentLayout.perColumnPadding}
+              genreMappings={genreMappings}
+              shopSettings={shopSettings}
             />
           )}
         </div>

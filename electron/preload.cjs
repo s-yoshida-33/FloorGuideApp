@@ -116,6 +116,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('image-settings-updated', listener);
     };
   },
+  getGenreMappings() {
+    return ipcRenderer.invoke('get-genre-mappings');
+  },
+  saveGenreMappings(mappings) {
+    return ipcRenderer.invoke('save-genre-mappings', mappings);
+  },
+  onGenreMappingsUpdated(callback) {
+    const listener = (_event, updated) => callback(updated);
+    ipcRenderer.on('genre-mappings-updated', listener);
+    return () => {
+      ipcRenderer.removeListener('genre-mappings-updated', listener);
+    };
+  },
+  getShopSettings() {
+    return ipcRenderer.invoke('get-shop-settings');
+  },
+  saveShopSettings(settings) {
+    return ipcRenderer.invoke('save-shop-settings', settings);
+  },
+  onShopSettingsUpdated(callback) {
+    const listener = (_event, updated) => callback(updated);
+    ipcRenderer.on('shop-settings-updated', listener);
+    return () => {
+      ipcRenderer.removeListener('shop-settings-updated', listener);
+    };
+  },
   manualUpdateCheck() {
     ipcRenderer.send('menu:check-updates');
   },
