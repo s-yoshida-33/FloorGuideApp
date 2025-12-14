@@ -4,12 +4,13 @@ import type { Shop } from "../types/shop";
 import {
   APP_CONFIG,
   GENRE_ORDER,
-  GENRE_ENGLISH,
   FLOOR_ROWS_PER_COL,
   FLOOR_COLUMN_COUNT,
 } from "../config";
 import "../styles/ShopList.css";
 import { logInfo, logError } from "../logs/logging";
+import { DEFAULT_GENRE_MAPPINGS, type GenreMappings, DEFAULT_GENRE_CONFIG } from "../types/genreSettings";
+import type { ShopSettings } from "../types/shopSettings";
 
 type ColumnPadding = {
   top?: number;
@@ -25,6 +26,8 @@ interface ShopListProps {
   rowsPerColumn?: number;
   perColumnRows?: number[]; // Column-by-column row overrides
   perColumnPadding?: ColumnPadding[]; // Column-by-column padding
+  genreMappings?: GenreMappings;
+  shopSettings?: ShopSettings;
 }
 
 // Internal representation of a single line item (header or shop row)
@@ -91,6 +94,8 @@ const ShopList: React.FC<ShopListProps> = ({
   rowsPerColumn,
   perColumnRows,
   perColumnPadding,
+  genreMappings = DEFAULT_GENRE_MAPPINGS,
+  shopSettings,
 }) => {
   const normalizedFloor = normalizeFloor(floor);
 
@@ -137,7 +142,12 @@ const ShopList: React.FC<ShopListProps> = ({
     // Build list of ordered lines (genre headers + shop rows)
     const lines: Line[] = [];
 
-    for (const genre of GENRE_ORDER) {
+    // Determine the order: use keys from genreMappings first, then fallback to GENRE_ORDER
+    const configuredOrder = Object.keys(genreMappings);
+    // If configuredOrder is empty (e.g. initial load before settings), fallback to GENRE_ORDER
+    const primaryOrder = configuredOrder.length > 0 ? configuredOrder : GENRE_ORDER;
+
+    for (const genre of primaryOrder) {
       const list = floorShops
         .filter((s) => s.genre === genre)
         .sort(compareShopNumberAsc);
@@ -151,8 +161,8 @@ const ShopList: React.FC<ShopListProps> = ({
       }
     }
 
-    // Add genres not included in predefined GENRE_ORDER
-    const knownSet = new Set(GENRE_ORDER);
+    // Add genres not included in primary order
+    const knownSet = new Set(primaryOrder);
     const otherGenres = Array.from(
       new Set(
         floorShops
@@ -292,141 +302,121 @@ const ShopList: React.FC<ShopListProps> = ({
                 ...paddingStyle,
               }}
             >
-              {sections.map((section) => (
-                <section
-                  key={`${colIdx}-${section.genre}-${section.showHeader ? "h" : "c"}`}
-                  style={{ marginBottom: "10px" }}
-                >
-                  {/* Genre Header */}
-                  {section.showHeader &&
-                    (() => {
-                      const isFashion = section.genre === "ファッション";
-                      const isFashionGoods = section.genre === "ファッション雑貨";
-                      const isGoods = section.genre === "雑貨";
-                      const isFood = section.genre === "飲食店・食品";
-                      const isService = section.genre === "サービス";
+              {sections.map((section) => {
+                const config = genreMappings[section.genre] || DEFAULT_GENRE_CONFIG;
+                // Inject CSS variables for this section's genre colors
+                const sectionStyle = {
+                  "--genre-color-text": config.headerTextColor,
+                  "--genre-color-border": config.headerBorderColor,
+                  "--genre-color-row": config.rowBackgroundColor,
+                  marginBottom: "10px",
+                } as React.CSSProperties;
 
-                      const headerClassNames = [
-                        (isFashion ||
-                          isFashionGoods ||
-                          isGoods ||
-                          isFood ||
-                          isService) && "shoplist-genre-header",
-                        isFashion && "shoplist-genre-header--fashion",
-                        isFashionGoods && "shoplist-genre-header--fashion-goods",
-                        isGoods && "shoplist-genre-header--goods",
-                        isFood && "shoplist-genre-header--food",
-                        isService && "shoplist-genre-header--service",
+                return (
+                  <section
+                    key={`${colIdx}-${section.genre}-${section.showHeader ? "h" : "c"}`}
+                    style={sectionStyle}
+                  >
+                    {/* Genre Header */}
+                    {section.showHeader && (
+                      <div
+                        className="shoplist-genre-header"
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-end",
+                          fontSize: "1.2em",
+                          fontWeight: 700,
+                          marginBottom: "8px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <span>{section.genre}</span>
+                        <span style={{ fontSize: "0.7em" }}>
+                          {config.labelEn ?? ""}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Shop rows */}
+                    {section.shops.map((s, idx) => {
+                      const shopConfig =
+                        s.shopId && shopSettings && typeof shopSettings === 'object' ? shopSettings[s.shopId] : undefined;
+                      const maxItems = shopConfig?.genreMemoMaxItems;
+                      
+                      let displayMemo = s.genreMemo;
+                      if (displayMemo && maxItems !== undefined && maxItems >= 0) {
+                        const parts = displayMemo.split(/[、,，・/／\s　|｜]+/);
+                        // Filter out empty strings first, then slice
+                        const nonEmptyParts = parts.filter((p) => p.trim().length > 0);
+                        const sliced = nonEmptyParts.slice(0, maxItems);
+                        displayMemo = sliced.join("・");
+                      }
+
+                      const rowClassNames = [
+                        "shoplist-row",
+                        idx === 0 && "shoplist-row-first",
+                        idx % 2 === 0 && "shoplist-row-striped",
                       ]
                         .filter(Boolean)
                         .join(" ");
 
                       return (
                         <div
-                          className={headerClassNames}
+                          key={`${s.number}-${s.name}`}
+                          className={rowClassNames}
                           style={{
                             display: "flex",
                             justifyContent: "space-between",
-                            alignItems: "flex-end",
-                            fontSize: "1.2em",
-                            fontWeight: 700,
-                            marginBottom: "8px",
                             whiteSpace: "nowrap",
-                          }}
-                        >
-                          <span>{section.genre}</span>
-                          <span style={{ fontSize: "0.7em" }}>
-                            {GENRE_ENGLISH[section.genre] ?? ""}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                  {/* Shop rows */}
-                  {section.shops.map((s, idx) => {
-                    const isFashion = section.genre === "ファッション";
-                    const isFashionGoods = section.genre === "ファッション雑貨";
-                    const isGoods = section.genre === "雑貨";
-                    const isFood = section.genre === "飲食店・食品";
-                    const isService = section.genre === "サービス";
-
-                    const rowClassNames = [
-                      (isFashion ||
-                        isFashionGoods ||
-                        isGoods ||
-                        isFood ||
-                        isService) && "shoplist-row",
-                      (isFashion ||
-                        isFashionGoods ||
-                        isGoods ||
-                        isFood ||
-                        isService) &&
-                        idx === 0 &&
-                        "shoplist-row-first",
-                      isFashion && idx % 2 === 0 && "shoplist-row--fashion-striped",
-                      isFashionGoods && idx % 2 === 0 && "shoplist-row--fashion-goods-striped",
-                      isGoods && idx % 2 === 0 && "shoplist-row--goods-striped",
-                      isFood && idx % 2 === 0 && "shoplist-row--food-striped",
-                      isService && idx % 2 === 0 && "shoplist-row--service-striped",
-                    ]
-                      .filter(Boolean)
-                      .join(" ");
-
-                    return (
-                      <div
-                        key={`${s.number}-${s.name}`}
-                        className={rowClassNames}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          whiteSpace: "nowrap",
-                          width: "100%",
-                        }}
-                      >
-                        <span
-                          style={{
-                            marginLeft: "0.5em",
-                            display: "inline-flex",
-                            alignItems: "center",
+                            width: "100%",
                           }}
                         >
                           <span
                             style={{
-                              display: "inline-block",
-                              width: "4em",
-                              textAlign: "left",
+                              marginLeft: "0.5em",
+                              display: "inline-flex",
+                              alignItems: "center",
                             }}
                           >
-                            {s.number}
-                          </span>
-
-                          {s.genreMemo && (
                             <span
                               style={{
-                                marginLeft: "0.5em",
-                                fontFamily: "Rounded Mplus 1c, sans-serif",
-                                fontWeight: 400,
-                                fontSize: "0.7em",
+                                display: "inline-block",
+                                width: "4em",
+                                textAlign: "left",
                               }}
                             >
-                              {`[${s.genreMemo}]`}
+                              {s.number}
                             </span>
-                          )}
-                        </span>
 
-                        <span
-                          style={{
-                            marginLeft: "12px",
-                            marginRight: "0.5em",
-                          }}
-                        >
-                          {s.name}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </section>
-              ))}
+                            {displayMemo && (
+                              <span
+                                style={{
+                                  marginLeft: "0.5em",
+                                  fontFamily: "Rounded Mplus 1c, sans-serif",
+                                  fontWeight: 400,
+                                  fontSize: "0.7em",
+                                }}
+                              >
+                                {`[${displayMemo}]`}
+                              </span>
+                            )}
+                          </span>
+
+                          <span
+                            style={{
+                              marginLeft: "12px",
+                              marginRight: "0.5em",
+                            }}
+                          >
+                            {s.name}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </section>
+                );
+              })}
             </div>
           );
         })}
@@ -457,9 +447,24 @@ const ShopList: React.FC<ShopListProps> = ({
           overflow: "hidden",
         }}
       >
-        {floorShops.map((s) => (
-          <div
-            key={`${s.number}-${s.name}`}
+        {floorShops.map((s) => {
+          // const config = genreMappings[s.genre] || DEFAULT_GENRE_CONFIG;
+          const shopConfig =
+            s.shopId && shopSettings && typeof shopSettings === 'object' ? shopSettings[s.shopId] : undefined;
+          const maxItems = shopConfig?.genreMemoMaxItems;
+          
+          let displayMemo = s.genreMemo;
+          if (displayMemo && maxItems !== undefined && maxItems >= 0) {
+            const parts = displayMemo.split(/[、,，・/／\s　|｜]+/);
+            // Filter out empty strings first, then slice
+            const nonEmptyParts = parts.filter((p) => p.trim().length > 0);
+            const sliced = nonEmptyParts.slice(0, maxItems);
+            displayMemo = sliced.join("・");
+          }
+
+          return (
+            <div
+              key={`${s.number}-${s.name}`}
             style={{
               display: "flex",
               justifyContent: "space-between",
@@ -476,7 +481,7 @@ const ShopList: React.FC<ShopListProps> = ({
               >
                 {s.number}
               </span>
-              {s.genreMemo && (
+              {displayMemo && (
                 <span
                   style={{
                     marginLeft: "0.5em",
@@ -485,13 +490,14 @@ const ShopList: React.FC<ShopListProps> = ({
                     fontSize: "0.7em",
                   }}
                 >
-                  {`[${s.genreMemo}]`}
+                  {`[${displayMemo}]`}
                 </span>
               )}
             </span>
             <span>{s.name}</span>
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   }

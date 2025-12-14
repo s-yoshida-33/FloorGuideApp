@@ -112,6 +112,9 @@ FunctionEnd
     ${Else}
       DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido"
     ${EndIf}
+  ${Else}
+    ; Silent install (e.g. auto-update) - Force auto-start
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido" "$INSTDIR\Gido.exe"
   ${EndIf}
 
 !macroend

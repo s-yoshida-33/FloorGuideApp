@@ -2,13 +2,15 @@
 .shoplist-genre-header {
     position: relative;
     padding-bottom: 4px;
+    /* CSS変数で色指定（デフォルトは黒） */
+    color: var(--genre-color-text, #000000);
 }
 
 .shoplist-genre-header span {
     padding: 0 10px;
 }
   
-/* 下線の共通形状（色は後で上書き） */
+/* 下線の共通形状 */
 .shoplist-genre-header::after {
     content: "";
     position: absolute;
@@ -17,51 +19,8 @@
     height: 3px;
     width: 100%;
     border-radius: 3px;
-}
-
-/* ファッション（#00ADE4） */
-.shoplist-genre-header--fashion {
-    color: #00ade4;
-}
-
-.shoplist-genre-header--fashion::after {
-    background: #00ade4;
-}
-
-/* ファッション雑貨（#40B93C） */
-.shoplist-genre-header--fashion-goods {
-    color: #40b93c;
-}
-
-.shoplist-genre-header--fashion-goods::after {
-    background: #40b93c;
-}
-
-/* 雑貨（#475EB4） */
-.shoplist-genre-header--goods {
-    color: #475eb4;
-}
-  
-.shoplist-genre-header--goods::after {
-    background: #475eb4;
-}
-
-/* 飲食店・食品（#F47216） */
-.shoplist-genre-header--food {
-    color: #f47216;
-}
-  
-.shoplist-genre-header--food::after {
-    background: #f47216;
-}
-
-/* サービス（#EF2F5A） */
-.shoplist-genre-header--service {
-    color: #ef2f5a;
-}
-  
-.shoplist-genre-header--service::after {
-    background: #ef2f5a;
+    /* CSS変数で色指定 */
+    background: var(--genre-color-border, #000000);
 }
 
 /* 行間0（共通） */
@@ -75,49 +34,7 @@
     margin-top: -4px;
 }
 
-/* ファッション用グラデ（左 → 右） */
-.shoplist-row--fashion-striped {
-    background: linear-gradient(
-      to right,
-      rgba(193, 235, 246, 0.5) 0%,
-      rgba(193, 235, 246, 0.5) 100%
-    );
+/* 偶数行用のストライプスタイル（CSS変数で色指定） */
+.shoplist-row-striped {
+    background: var(--genre-color-row, transparent);
 }
-
-
-/* ファッション雑貨用グラデ（左 → 右） */
-.shoplist-row--fashion-goods-striped {
-    background: linear-gradient(
-      to right,
-      rgba(182, 226, 142, 0.5) 0%,
-      rgba(182, 226, 142, 0.5) 100%
-    );
-}
-
-/* 雑貨用グラデ（左→右） */
-.shoplist-row--goods-striped {
-    background: linear-gradient(
-      to right,
-      rgba(182, 183, 226, 0.5) 0%,
-      rgba(182, 183, 226, 0.5) 100%
-    );
-}
-
-/* 飲食店・食品用グラデ（左→右） */
-.shoplist-row--food-striped {
-    background: linear-gradient(
-      to right,
-      rgba(252, 206, 120, 0.5) 0%,
-      rgba(252, 206, 120, 0.5) 100%
-    );
-}
-
-/* サービス用グラデ（左→右） */
-.shoplist-row--service-striped {
-    background: linear-gradient(
-      to right,
-      rgba(248, 164, 171, 0.5) 0%,
-      rgba(248, 164, 171, 0.5) 100%
-    );
-}
-  

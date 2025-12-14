@@ -9,6 +9,8 @@ import type {
 
 import type { LocationIconSettings } from "./locationIcon";
 import type { ImageSettings } from "./imageSettings";
+import type { GenreMappings } from "./genreSettings";
+import type { ShopSettings } from "./shopSettings";
 
 type ColumnPadding = {
   top?: number;
@@ -58,6 +60,12 @@ interface ElectronAPI {
   getImageSettings: () => Promise<ImageSettings>;
   saveImageSettings: (settings: ImageSettings) => Promise<ImageSettings>;
   onImageSettingsUpdated: (cb: (settings: ImageSettings) => void) => () => void;
+  getGenreMappings: () => Promise<GenreMappings>;
+  saveGenreMappings: (mappings: GenreMappings) => Promise<GenreMappings>;
+  onGenreMappingsUpdated: (cb: (mappings: GenreMappings) => void) => () => void;
+  getShopSettings: () => Promise<ShopSettings>;
+  saveShopSettings: (settings: ShopSettings) => Promise<ShopSettings>;
+  onShopSettingsUpdated: (cb: (settings: ShopSettings) => void) => () => void;
   manualUpdateCheck: () => void;
   oneClickUpdate: () => void;
   quitApp: () => void;

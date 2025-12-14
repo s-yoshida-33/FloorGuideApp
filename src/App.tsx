@@ -9,6 +9,9 @@ import {
 import type { LocationIconSettings } from "./types/locationIcon";
 import type { ImageSettings } from "./types/imageSettings";
 import { DEFAULT_IMAGE_SETTINGS } from "./types/imageSettings";
+import { DEFAULT_GENRE_MAPPINGS } from "./types/genreSettings";
+import type { GenreMappings } from "./types/genreSettings";
+import type { ShopSettings } from "./types/shopSettings";
 
 type FloorId = "1F" | "2F" | "3F" | "4F";
 
@@ -44,6 +47,8 @@ const App: React.FC = () => {
   const [floor, setFloor] = useState<FloorId>("1F");
   const [floorLayout, setFloorLayout] = useState<FloorLayout>(DEFAULT_FLOOR_LAYOUT);
   const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_IMAGE_SETTINGS);
+  const [genreMappings, setGenreMappings] = useState<GenreMappings>(DEFAULT_GENRE_MAPPINGS);
+  const [shopSettings, setShopSettings] = useState<ShopSettings>({});
 
   // Load initial settings from Electron and subscribe to updates
   useEffect(() => {
@@ -99,6 +104,26 @@ const App: React.FC = () => {
           setImageSettings(saved);
         }
       }
+
+      // Load genre mappings
+      if (api.getGenreMappings) {
+        const saved = await api.getGenreMappings();
+        if (saved) {
+          setGenreMappings(saved);
+        }
+      }
+
+      // Load shop settings
+      if (api.getShopSettings) {
+        try {
+          const saved = await api.getShopSettings();
+          if (saved) {
+            setShopSettings(saved);
+          }
+        } catch (e) {
+          console.error("Failed to load shop settings", e);
+        }
+      }
     };
 
     init();
@@ -140,6 +165,18 @@ const App: React.FC = () => {
       if (api.onImageSettingsUpdated) {
         api.onImageSettingsUpdated((updated) => {
           setImageSettings(updated);
+        });
+      }
+
+      if (api.onGenreMappingsUpdated) {
+        api.onGenreMappingsUpdated((updated) => {
+          setGenreMappings(updated);
+        });
+      }
+
+      if (api.onShopSettingsUpdated) {
+        api.onShopSettingsUpdated((updated) => {
+          setShopSettings(updated);
         });
       }
     }
@@ -203,9 +240,42 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveGenreMappings = async (mappings: GenreMappings) => {
+    const api = window.electronAPI;
+    if (!api) return;
+
+    try {
+      const saved = await api.saveGenreMappings(mappings);
+      if (saved) {
+        setGenreMappings(saved);
+      }
+    } catch (e) {
+      console.error("Failed to save genre mappings", e);
+    }
+  };
+
+  const handleSaveShopSettings = async (settings: ShopSettings) => {
+    const api = window.electronAPI;
+    if (!api) return;
+
+    try {
+      const saved = await api.saveShopSettings(settings);
+      if (saved) {
+        setShopSettings(saved);
+      }
+    } catch (e) {
+      console.error("Failed to save shop settings", e);
+    }
+  };
+
   return (
     <>
-      <GidoApp locationIconSettings={locationSettings} imageSettings={imageSettings} />
+      <GidoApp 
+        locationIconSettings={locationSettings} 
+        imageSettings={imageSettings} 
+        genreMappings={genreMappings}
+        shopSettings={shopSettings}
+      />
       <UnifiedSettingsScreen
         floor={floor}
         onSaveFloor={handleSaveFloor}
@@ -215,6 +285,10 @@ const App: React.FC = () => {
         onSaveLocationIconSettings={handleSaveLocationSettings}
         imageSettings={imageSettings}
         onSaveImageSettings={handleSaveImageSettings}
+        genreMappings={genreMappings}
+        onSaveGenreMappings={handleSaveGenreMappings}
+        shopSettings={shopSettings}
+        onSaveShopSettings={handleSaveShopSettings}
       />
       <VersionInfoScreen onClose={() => {}} />
     </>
