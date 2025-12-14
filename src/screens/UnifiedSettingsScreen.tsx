@@ -557,7 +557,6 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               <ShopSettingsTab
                 shopSettings={shopSettings}
                 onChangeShopSettings={setShopSettings}
-                genreMappings={genreMappings}
               />
             )}
           </div>

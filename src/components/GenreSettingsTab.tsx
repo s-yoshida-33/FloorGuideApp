@@ -291,14 +291,6 @@ export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
 
   return (
     <div style={{ color: "#ffffff", display: "flex", flexDirection: "column", gap: 24 }}>
-      <div>
-        <h3 style={{ margin: "0 0 8px 0", fontSize: 18 }}>ジャンル表記・配色・並び順設定</h3>
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.7, lineHeight: 1.5 }}>
-          フロアガイドのジャンル名（英語表記）と配色を設定します。<br/>
-          ドラッグ＆ドロップで表示順を変更できます。<br/>
-          行背景色は `rgba(r,g,b,a)` 形式で指定すると透明度を調整できます。
-        </p>
-      </div>
       
       <Reorder.Group axis="y" values={order} onReorder={handleReorder} style={{ padding: 0, margin: 0 }}>
         {order.length === 0 && (
