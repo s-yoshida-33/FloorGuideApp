@@ -1,86 +1,42 @@
-import { useEffect, useRef } from "react";
-import { getApiBaseUrl } from "../config";
-import { logInfo, logError } from "../logs/logging";
+import { useEffect } from "react";
+import { sseClient } from "../api/sseClient";
+import { logInfo, logError, logDebug } from "../logs/logging";
 
 export function useBridgeEvents(onUpdate: () => void) {
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<number | null>(null);
-
   useEffect(() => {
-    let mounted = true;
+    // Connect if not already connected
+    sseClient.connect();
 
-    const connect = async () => {
-      try {
-        const baseUrl = await getApiBaseUrl();
-        const url = `${baseUrl}/api/events`;
-
-        logInfo("BridgeEvents", "Connecting to SSE", { url });
-
-        // Close existing connection if any
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-        }
-
-        const eventSource = new EventSource(url);
-        eventSourceRef.current = eventSource;
-
-        eventSource.addEventListener("connected", (e) => {
-          try {
-            const data = e.data ? JSON.parse(e.data) : {};
-            logInfo("BridgeEvents", "Connected", data);
-          } catch (err) {
-            logInfo("BridgeEvents", "Connected (parse error)", { data: e.data });
-          }
-        });
-
-        eventSource.addEventListener("update", (e) => {
-          try {
-            const data = e.data ? JSON.parse(e.data) : {};
-            logInfo("BridgeEvents", "Update received", data);
+    const unsubscribeUpdate = sseClient.on('update', (data) => {
+        try {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            // Use debug level to avoid flooding logs with frequent updates
+            logDebug("BridgeEvents", "Update received", parsed);
             onUpdate();
-          } catch (err) {
+        } catch (err) {
             logError("BridgeEvents", "Error parsing update event", { error: err });
-            // Even if parse fails, we might want to trigger update if event fired? 
-            // Better to trigger it to be safe.
             onUpdate();
-          }
-        });
-
-        eventSource.addEventListener("heartbeat", () => {
-          // Heartbeat received
-        });
-
-        eventSource.onerror = (e) => {
-          logError("BridgeEvents", "SSE connection error", { event: e });
-          eventSource.close();
-          eventSourceRef.current = null;
-
-          if (mounted) {
-            logInfo("BridgeEvents", "Reconnecting in 5s...");
-            reconnectTimeoutRef.current = window.setTimeout(connect, 5000);
-          }
-        };
-
-      } catch (err) {
-        logError("BridgeEvents", "Failed to initialize SSE", { error: err });
-        if (mounted) {
-          reconnectTimeoutRef.current = window.setTimeout(connect, 5000);
         }
-      }
-    };
+    });
 
-    connect();
-
+    const unsubscribeConnected = sseClient.on('connected', (data) => {
+         try {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            logInfo("BridgeEvents", "Connected", parsed);
+          } catch (err) {
+            logInfo("BridgeEvents", "Connected (parse error)", { data });
+          }
+    });
+    
+    // We could also subscribe to status changes to log errors/reconnections if needed
+    
     return () => {
-      mounted = false;
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      if (reconnectTimeoutRef.current !== null) {
-        window.clearTimeout(reconnectTimeoutRef.current);
-      }
+      unsubscribeUpdate();
+      unsubscribeConnected();
+      // We do not disconnect here because sseClient is a singleton potentially used by others (debug window)
+      // or we want it to persist. 
+      // If we want to disconnect when the last listener leaves, we'd need reference counting in sseClient.
+      // For now, persistent connection is fine for this app.
     };
-  }, [onUpdate]); // Re-connect if onUpdate changes, which is acceptable if wrapped in useCallback
+  }, [onUpdate]);
 }
-

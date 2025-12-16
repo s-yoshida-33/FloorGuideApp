@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { CurrentAsset } from '../types/wsp';
 import { getCmsBaseUrl, fetchCurrentAsset } from '../repositories/wspRepository';
-import { logInfo, logWarn, logError } from '../logs/logging';
+import { logInfo, logWarn, logError, logDebug } from '../logs/logging';
 
 interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
@@ -173,7 +173,7 @@ export function useCurrentAsset(
 
       // Event: update (Timeline update)
       es.addEventListener('update', () => {
-          logInfo('video', 'SSE: update event received, refreshing asset');
+          logDebug('video', 'SSE: update event received, refreshing asset');
           // Fetch latest state on update event
           fetchCurrentAsset().then(next => handleAssetUpdate(next));
       });

@@ -156,6 +156,22 @@ function notifySlack(level, message, context = {}) {
    Core logging wrapper
    -------------------------------------------------------------------------- */
 
+const listeners = [];
+
+function onLog(callback) {
+  listeners.push(callback);
+}
+
+function notifyListeners(level, message, context, line) {
+  for (const listener of listeners) {
+    try {
+      listener({ level, message, context, line, timestamp: new Date().toISOString() });
+    } catch (e) {
+      console.error('Error in log listener', e);
+    }
+  }
+}
+
 /**
  * Format one unified JSON log line.
  */
@@ -182,6 +198,15 @@ function formatMessage(level, message, context = {}) {
  */
 function write(level, message, context = {}) {
   const line = formatMessage(level, message, context);
+
+  // Notify listeners (e.g. for debug window)
+  // FILTERING: Do not notify listeners for debug logs to prevent IPC flooding
+  // The renderer only needs info/warn/error for operational status
+  if (level !== 'debug') {
+    // Additionally filter out known high-frequency info logs if necessary
+    // e.g. "Image visibility check passed" from renderer if it loops back here (though renderer logs come via IPC)
+    notifyListeners(level, message, context, line);
+  }
 
   switch (level) {
     case 'debug':
@@ -227,4 +252,5 @@ module.exports = {
   logFromRenderer: ({ level = 'info', message = '', context = {} } = {}) => {
     write(level, message, { ...context, source: 'renderer' });
   },
+  onLog,
 };

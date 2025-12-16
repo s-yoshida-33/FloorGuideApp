@@ -66,6 +66,8 @@ interface ElectronAPI {
   getShopSettings: () => Promise<ShopSettings>;
   saveShopSettings: (settings: ShopSettings) => Promise<ShopSettings>;
   onShopSettingsUpdated: (cb: (settings: ShopSettings) => void) => () => void;
+  getDebugSettingsStatus: () => Promise<any>;
+  onDebugLog: (cb: (entry: any) => void) => () => void;
   manualUpdateCheck: () => void;
   oneClickUpdate: () => void;
   quitApp: () => void;
