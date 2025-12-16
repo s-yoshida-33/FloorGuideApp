@@ -142,6 +142,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('shop-settings-updated', listener);
     };
   },
+  // DEBUG API
+  getDebugSettingsStatus() {
+    return ipcRenderer.invoke('debug:get-settings-status');
+  },
+  onDebugLog(callback) {
+    const listener = (_event, entry) => callback(entry);
+    ipcRenderer.on('debug:log', listener);
+    return () => {
+      ipcRenderer.removeListener('debug:log', listener);
+    };
+  },
   manualUpdateCheck() {
     ipcRenderer.send('menu:check-updates');
   },

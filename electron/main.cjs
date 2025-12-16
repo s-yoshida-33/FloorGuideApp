@@ -65,6 +65,17 @@ const DEFAULT_FLOOR_LAYOUT = {
   '4F': { columns: 2, rowsPerCol: 18 },
 };
 
+// Hook up logger to renderer
+logger.onLog((entry) => {
+  // Debug logs are already filtered out in logger.cjs (notifyListeners)
+  // but we keep a safety check here or for other potential sources
+  if (entry.level === 'debug') return;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('debug:log', entry);
+  }
+});
+
 // Default Genre Mappings (Japanese -> English + Colors)
 const DEFAULT_GENRE_MAPPINGS = {
   "ファッション": {
@@ -150,6 +161,17 @@ const rendererBaseUrl = isDev
 function getSettingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
+
+// DEBUG: Track internal state of loadSettings
+let lastLoadSettingsDebug = {
+  timestamp: null,
+  rawPreview: null,
+  parsedValue: null,
+  parsedType: null,
+  checkResult: null,
+  finalValue: null,
+  error: null
+};
 
 function loadSettings() {
   const base = {
@@ -274,13 +296,30 @@ function loadSettings() {
       shopSettings: parsed.shopSettings || base.shopSettings,
     };
 
-    logger.debug('Settings loaded', {
+    // DEBUG: Record internal state
+    lastLoadSettingsDebug = {
+      timestamp: new Date().toISOString(),
+      rawPreview: raw.substring(0, 100),
+      parsedValue: parsed.floor,
+      parsedType: typeof parsed.floor,
+      checkResult: typeof parsed.floor === 'string',
+      finalValue: merged.floor,
+      error: null
+    };
+
+    logger.info('Settings loaded', {
       floor: merged.floor,
       hasAnimation: !!merged.locationIcons.speechBubble.animation,
       animationEnabled: merged.locationIcons.speechBubble.animation?.enabled,
     });
     return merged;
   } catch (error) {
+    // DEBUG: Record error
+    lastLoadSettingsDebug = {
+      timestamp: new Date().toISOString(),
+      error: error.message,
+      stack: error.stack
+    };
     logger.error('Failed to load settings, using defaults', {
       error: error?.message,
     });
@@ -944,6 +983,45 @@ ipcMain.handle('save-shop-settings', (_event, shopSettings) => {
   const settings = saveSettings({ shopSettings });
   broadcastShopSettings(settings.shopSettings);
   return settings.shopSettings;
+});
+
+ipcMain.handle('debug:get-settings-status', () => {
+  const settingsPath = getSettingsPath();
+  const exists = fs.existsSync(settingsPath);
+  let content = null;
+  let parsed = null;
+  let error = null;
+
+  if (exists) {
+    try {
+      let raw = fs.readFileSync(settingsPath, 'utf-8');
+      if (raw.charCodeAt(0) === 0xFEFF) { // BOM除去
+        raw = raw.slice(1);
+      }
+      content = raw.substring(0, 200) + (raw.length > 200 ? '...' : '');
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      error = e.message;
+    }
+  }
+
+  const loadedSettings = loadSettings();
+
+  return {
+    path: settingsPath,
+    exists,
+    contentPreview: content,
+    jsonParseResult: parsed ? {
+      currentFloorSetting: parsed.floor,
+      typeOfFloor: typeof parsed.floor
+    } : null,
+    loadSettingsResult: {
+      currentFloorSetting: loadedSettings.floor,
+      typeOfFloor: typeof loadedSettings.floor
+    },
+    internalDebug: lastLoadSettingsDebug,
+    error
+  };
 });
 
 ipcMain.handle('get-app-version', () => {

@@ -127,7 +127,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
         logInfo("monitor", "Image visibility check failed, forcing reload");
         setRefreshKey(prev => prev + 1);
       } else {
-        logInfo("monitor", "Image visibility check passed");
+        // logInfo("monitor", "Image visibility check passed");
       }
     };
 

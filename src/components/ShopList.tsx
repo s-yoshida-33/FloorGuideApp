@@ -8,7 +8,7 @@ import {
   FLOOR_COLUMN_COUNT,
 } from "../config";
 import "../styles/ShopList.css";
-import { logInfo, logError } from "../logs/logging";
+import { logInfo, logError, logDebug } from "../logs/logging";
 import { DEFAULT_GENRE_MAPPINGS, type GenreMappings, DEFAULT_GENRE_CONFIG } from "../types/genreSettings";
 import type { ShopSettings } from "../types/shopSettings";
 
@@ -259,7 +259,8 @@ const ShopList: React.FC<ShopListProps> = ({
 
     // Logging
     if (floorShops.length > 0) {
-      logInfo("shopList", "ShopList rendered", {
+      // Use debug level to avoid flooding logs on re-renders
+      logDebug("shopList", "ShopList rendered", {
         floor: normalizedFloor,
         floorShopsCount: floorShops.length,
         totalLines,
