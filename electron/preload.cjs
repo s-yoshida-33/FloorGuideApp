@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('updater', {
   startupWaitCompleted() {
     ipcRenderer.send('startup-wait-completed');
   },
+  checkForUpdatesReady() {
+    ipcRenderer.send('updater:check-for-updates-ready');
+  },
 });
 
 contextBridge.exposeInMainWorld('appInfo', {

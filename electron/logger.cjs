@@ -173,17 +173,55 @@ function notifyListeners(level, message, context, line) {
 }
 
 /**
+ * Truncate long strings in object to prevent log flooding
+ */
+function truncate(val, maxLen = 500) {
+  if (typeof val === 'string') {
+    return val.length > maxLen
+      ? val.substring(0, maxLen) + `...[TRUNCATED ${val.length} chars]`
+      : val;
+  }
+  return val;
+}
+
+function safeLogObject(obj, maxLen = 500, depth = 3) {
+  if (depth < 0) return '[MAX_DEPTH]';
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') return truncate(obj, maxLen);
+  if (typeof obj !== 'object') return obj;
+
+  try {
+    if (Array.isArray(obj)) {
+      return obj.map((item) => safeLogObject(item, maxLen, depth - 1));
+    }
+
+    const newObj = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        newObj[key] = safeLogObject(obj[key], maxLen, depth - 1);
+      }
+    }
+    return newObj;
+  } catch (e) {
+    return '[CIRCULAR_OR_ERROR]';
+  }
+}
+
+/**
  * Format one unified JSON log line.
  */
 function formatMessage(level, message, context = {}) {
   const appVersion = app.getVersion ? app.getVersion() : 'dev';
+
+  // Sanitize context to prevent huge logs (e.g. base64 images)
+  const safeContext = safeLogObject(context);
 
   const base = {
     level,
     app: 'Gido',
     version: appVersion,
     host: hostname,
-    ...context,
+    ...safeContext,
   };
 
   return JSON.stringify({

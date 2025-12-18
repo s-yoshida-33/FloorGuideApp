@@ -8,7 +8,7 @@ import {
   FLOOR_COLUMN_COUNT,
 } from "../config";
 import "../styles/ShopList.css";
-import { logInfo, logError, logDebug } from "../logs/logging";
+import { logError, logDebug } from "../logs/logging";
 import { DEFAULT_GENRE_MAPPINGS, type GenreMappings, DEFAULT_GENRE_CONFIG } from "../types/genreSettings";
 import type { ShopSettings } from "../types/shopSettings";
 

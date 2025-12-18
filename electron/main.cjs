@@ -1388,6 +1388,12 @@ ipcMain.on('menu:check-updates', () => {
   checkForUpdates(true);
 });
 
+// Startup update check ready (from PatchScreen)
+ipcMain.on('updater:check-for-updates-ready', () => {
+  logger.info('Renderer ready for updates, starting initial check');
+  checkForUpdates(false);
+});
+
 // Startup wait completed (from PatchScreen)
 ipcMain.on('startup-wait-completed', () => {
   logger.info('Startup wait completed, switching to main window');
@@ -1452,9 +1458,9 @@ app.whenReady().then(() => {
     createMainWindow,
   });
 
-  // Startup update check (silent, handled inside updateChecker)
-  logger.info('Starting initial update check');
-  checkForUpdates(false);
+  // Startup update check is now triggered by renderer via IPC (updater:check-for-updates-ready)
+  // to avoid race conditions where events are sent before listeners are registered.
+  // checkForUpdates(false);
 
   app.on('activate', () => {
     if (process.platform !== 'darwin') return;

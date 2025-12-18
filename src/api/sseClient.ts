@@ -61,7 +61,7 @@ class SseClient {
         this.setStatus('connected');
       };
 
-      this.eventSource.onerror = (error) => {
+      this.eventSource.onerror = (_error) => {
         this.setStatus('error');
         this.eventSource?.close();
         this.eventSource = null;

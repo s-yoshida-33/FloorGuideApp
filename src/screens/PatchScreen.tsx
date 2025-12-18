@@ -74,6 +74,11 @@ export function PatchScreen() {
       setTotal(data.total);
       setSpeed(data.speed);
     });
+
+    // Notify main process that we are ready to receive update events
+    if (window.updater.checkForUpdatesReady) {
+      window.updater.checkForUpdatesReady();
+    }
   }, []);
 
   // 待機完了・スキップ時の処理
