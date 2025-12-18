@@ -84,6 +84,7 @@ export interface UpdaterAPI {
     speed: number;
   }) => void) => void;
   startupWaitCompleted: () => void;
+  checkForUpdatesReady: () => void;
 }
 
 export interface AppInfoAPI {
