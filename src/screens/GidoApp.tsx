@@ -12,6 +12,7 @@ import openTimeImage from "../assets/open-time.svg";
 
 import { APP_CONFIG, POLLING_INTERVALS } from "../config";
 import { fetchShops } from "../repositories/shopRepository";
+import { loadShopCache, saveShopCache } from "../repositories/shopCache";
 import { useBridgeEvents } from "../hooks/useBridgeEvents";
 import VerticalVideoSlot from "../components/VerticalVideoSlot";
 
@@ -224,9 +225,35 @@ const GidoApp: React.FC<GidoAppProps> = ({
   const listWidthVh = 100 - videoWidthVh;
 
   // Shop data loading
-  const loadShops = useCallback(async () => {
+  const loadShops = useCallback(async (providedShops?: Shop[]) => {
     try {
-      const data = await fetchShops();
+      let data: Shop[];
+      
+      if (providedShops && providedShops.length > 0) {
+        // Case 1: Updated data from SSE event
+        data = providedShops;
+        logInfo("shopList", "Using shops from SSE event", { count: data.length });
+        
+        // Update cache when we receive fresh data from server
+        saveShopCache(data);
+      } else {
+        // Case 2: No data provided (startup or manual refresh)
+        // Try to load from cache first
+        const cached = loadShopCache();
+        
+        if (cached && cached.length > 0) {
+            data = cached;
+            logInfo("shopList", "Using cached shop data", { count: data.length });
+        } else {
+            // Case 3: No cache available, fetch from REST API as fallback
+            // (Only happens if cache is empty, e.g. first launch)
+            logInfo("shopList", "No cache found, fetching from API");
+            data = await fetchShops();
+            if (data.length > 0) {
+                saveShopCache(data);
+            }
+        }
+      }
 
       const cleaned = data.map((s) => ({
         ...s,
@@ -242,6 +269,15 @@ const GidoApp: React.FC<GidoAppProps> = ({
       });
     } catch (e: any) {
       console.error(e);
+
+      // If error occurs (e.g. fetch failed), try to load from cache as fallback
+      const cached = loadShopCache();
+      if (cached && cached.length > 0) {
+          logInfo("shopList", "Error occurred, falling back to cache", { error: e.message });
+          setShops(cached);
+          setError(null);
+          return;
+      }
 
       const message = e?.message ?? "failed to load";
       setError(message);

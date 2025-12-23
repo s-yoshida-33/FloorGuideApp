@@ -82,6 +82,10 @@ class SseClient {
       this.eventSource.addEventListener('update', (e) => {
           this.notifyListeners('update', e.data);
       });
+
+      this.eventSource.addEventListener('shops', (e) => {
+          this.notifyListeners('shops', e.data);
+      });
       
       this.eventSource.addEventListener('connected', (e) => {
           this.notifyListeners('connected', e.data);
