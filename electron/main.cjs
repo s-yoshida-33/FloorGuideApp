@@ -808,6 +808,11 @@ function createMainWindow() {
     width: 1920,
     height: 1080,
     fullscreen: true,
+    // --- 追加・変更箇所 ここから ---
+    kiosk: true,        // ユーザー操作によるウィンドウ切り替えを制限
+    alwaysOnTop: true,  // 常に手前に表示
+    resizable: false,   // リサイズ不可（TeamViewer等のタブ干渉対策）
+    // --- 追加・変更箇所 ここまで ---
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -817,11 +822,40 @@ function createMainWindow() {
       // Allow loading local file:// URLs for media assets
       webSecurity: false, // Required to load local file:// URLs from CMS
     },
-    alwaysOnTop: true,
   });
 
-  // Ensure it stays on top even if other apps try to take focus
+  // --- 以下を追加 ---
+
+  // 1. 最前面レベルを 'screen-saver' (通常より優先度高) に設定
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  // 2. フォーカスが外れた場合（TeamViewer操作やAlt+Tabなど）の即時復帰
+  mainWindow.on('blur', () => {
+    // OSのウィンドウ切り替え完了を少し待ってから再適用
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      }
+    }, 100);
+  });
+
+  // 3. 定期監視 (Watchdog) - 2秒ごとに最前面を強制
+  // 何らかの理由で背面に回ってしまった場合の自動復帰用
+  const focusWatchdog = setInterval(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // 最小化されていたら元に戻す
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      // 最前面設定を再適用
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      // 視覚的に最前面へ移動
+      mainWindow.moveTop();
+    } else {
+      // ウィンドウが破棄されていたら監視終了
+      clearInterval(focusWatchdog);
+    }
+  }, 2000);
 
   // Enable F12 shortcut to toggle dev tools
   // Enable Ctrl+R shortcut to reload in dev environment
