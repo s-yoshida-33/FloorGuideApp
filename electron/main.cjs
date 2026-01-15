@@ -821,6 +821,7 @@ function createMainWindow() {
       devTools: true, // Enable dev tools even in production for debugging
       // Allow loading local file:// URLs for media assets
       webSecurity: false, // Required to load local file:// URLs from CMS
+      devTools: isDev, // Only enable dev tools in development mode
     },
   });
 
@@ -860,7 +861,7 @@ function createMainWindow() {
   // Enable F12 shortcut to toggle dev tools
   // Enable Ctrl+R shortcut to reload in dev environment
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.key === 'F12') {
+    if (input.key === 'F12' && isDev) {
       mainWindow.webContents.toggleDevTools();
     }
     // Ctrl+R to reload in dev environment
@@ -924,7 +925,7 @@ function createAppMenu() {
           },
         },
         { type: 'separator' },
-        {
+        ...(isDev ? [{
           label: '開発者ツール',
           accelerator: 'F12',
           click: () => {
@@ -933,7 +934,7 @@ function createAppMenu() {
               mainWindow.webContents.toggleDevTools();
             }
           },
-        },
+        }] : []),
       ],
     },
     {
