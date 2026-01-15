@@ -809,9 +809,9 @@ function createMainWindow() {
     height: 1080,
     fullscreen: true,
     // --- 追加・変更箇所 ここから ---
-    kiosk: true,        // ユーザー操作によるウィンドウ切り替えを制限
-    alwaysOnTop: true,  // 常に手前に表示
-    resizable: false,   // リサイズ不可（TeamViewer等のタブ干渉対策）
+    kiosk: !isDev,        // ユーザー操作によるウィンドウ切り替えを制限（Devモードでは無効）
+    alwaysOnTop: !isDev,  // 常に手前に表示（Devモードでは無効）
+    resizable: isDev,   // リサイズ不可（Devモードでは許可）
     // --- 追加・変更箇所 ここまで ---
     autoHideMenuBar: true,
     webPreferences: {
@@ -828,7 +828,9 @@ function createMainWindow() {
   // --- 以下を追加 ---
 
   // 1. 最前面レベルを 'screen-saver' (通常より優先度高) に設定
-  mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  if (!isDev) {
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  }
 
   // 2. フォーカスが外れた場合（TeamViewer操作やAlt+Tabなど）の即時復帰
   mainWindow.on('blur', () => {
@@ -921,6 +923,10 @@ function createAppMenu() {
             logger.info('Unified settings screen menu clicked');
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send('open-settings');
+              // メニューから開いた時点でもフラグを立てる（念のため）
+              // 実際にはレンダラーからの settings:opened イベントで管理するが、
+              // メニュー操作直後の挙動を安定させるためにここでも解除しておくと良い
+              mainWindow.setAlwaysOnTop(false);
             }
           },
         },

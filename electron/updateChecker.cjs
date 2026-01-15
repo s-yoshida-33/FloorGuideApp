@@ -15,6 +15,10 @@ function initAutoUpdater(opts) {
   getPatchWindow = opts.getPatchWindow;
   createMainWindow = opts.createMainWindow;
 
+  // Skip code signature verification since we don't have a valid certificate yet
+  // This allows auto-update to work with unsigned/self-signed builds
+  autoUpdater.verifyUpdateCodeSignature = false;
+
   // Automatically download updates when available
   autoUpdater.autoDownload = true;
   // We call quitAndInstall manually
