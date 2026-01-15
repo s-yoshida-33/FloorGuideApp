@@ -1,4 +1,4 @@
-git# Logs
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -32,3 +32,6 @@ out/
 *.msi
 *.deb
 *.dmg
+
+# Temporary files
+tmp/

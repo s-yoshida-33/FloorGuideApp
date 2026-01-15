@@ -124,10 +124,10 @@ try {
   const defaultsPath = path.join(__dirname, 'default-settings.json');
   if (fs.existsSync(defaultsPath)) {
     bundledDefaults = JSON.parse(fs.readFileSync(defaultsPath, 'utf-8'));
-    console.log('Loaded bundled default settings from default-settings.json');
+    logger.info('Loaded bundled default settings from default-settings.json');
   }
 } catch (e) {
-  console.warn('Failed to load bundled default settings', e);
+  logger.warn('Failed to load bundled default settings', { error: e?.message || String(e) });
 }
 
 const INITIAL_LOCATION_ICON_SETTINGS = bundledDefaults.locationIcons || DEFAULT_LOCATION_ICON_SETTINGS;
