@@ -71,6 +71,8 @@ interface ElectronAPI {
   manualUpdateCheck: () => void;
   oneClickUpdate: () => void;
   quitApp: () => void;
+  notifySettingsOpened: () => void;
+  notifySettingsClosed: () => void;
 }
 
 export type StatusState = 'checking' | 'available' | 'none' | 'downloaded' | 'error';

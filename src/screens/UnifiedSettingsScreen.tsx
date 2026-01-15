@@ -77,7 +77,10 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     let unsubscribe: (() => void) | undefined;
 
     if (window.electronAPI?.onOpenSettings) {
-      unsubscribe = window.electronAPI.onOpenSettings(() => {
+      unsubscribe = window.electronAPI.        onOpenSettings(() => {
+        if (window.electronAPI?.notifySettingsOpened) {
+          window.electronAPI.notifySettingsOpened();
+        }
         setVisible(true);
         setActiveTab("floor");
         setFloor(initialFloor);
@@ -112,6 +115,9 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   }, [visible, initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialShopSettings]);
 
   const handleClose = () => {
+    if (window.electronAPI?.notifySettingsClosed) {
+      window.electronAPI.notifySettingsClosed();
+    }
     setVisible(false);
     setErrors({});
   };

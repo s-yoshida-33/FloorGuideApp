@@ -28,6 +28,12 @@ contextBridge.exposeInMainWorld('appInfo', {
 });
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  notifySettingsOpened() {
+    ipcRenderer.send('settings:opened');
+  },
+  notifySettingsClosed() {
+    ipcRenderer.send('settings:closed');
+  },
   getBridgeBaseUrl() {
     return ipcRenderer.invoke('get-bridge-base-url');
   },
