@@ -346,12 +346,16 @@ const ShopList: React.FC<ShopListProps> = ({
                       const maxItems = shopConfig?.genreMemoMaxItems;
                       
                       let displayMemo = s.genreMemo;
-                      if (displayMemo && maxItems !== undefined && maxItems >= 0) {
+                      if (displayMemo) {
                         const parts = displayMemo.split(/[、,，・/／\s　|｜]+/);
-                        // Filter out empty strings first, then slice
-                        const nonEmptyParts = parts.filter((p) => p.trim().length > 0);
-                        const sliced = nonEmptyParts.slice(0, maxItems);
-                        displayMemo = sliced.join("・");
+                        // Trim parts and filter out empty strings
+                        const nonEmptyParts = parts.map(p => p.trim()).filter(p => p.length > 0);
+                        
+                        const partsToDisplay = (maxItems !== undefined && maxItems >= 0)
+                          ? nonEmptyParts.slice(0, maxItems)
+                          : nonEmptyParts;
+
+                        displayMemo = partsToDisplay.join("・");
                       }
 
                       const rowClassNames = [
@@ -455,12 +459,16 @@ const ShopList: React.FC<ShopListProps> = ({
           const maxItems = shopConfig?.genreMemoMaxItems;
           
           let displayMemo = s.genreMemo;
-          if (displayMemo && maxItems !== undefined && maxItems >= 0) {
+          if (displayMemo) {
             const parts = displayMemo.split(/[、,，・/／\s　|｜]+/);
-            // Filter out empty strings first, then slice
-            const nonEmptyParts = parts.filter((p) => p.trim().length > 0);
-            const sliced = nonEmptyParts.slice(0, maxItems);
-            displayMemo = sliced.join("・");
+            // Trim parts and filter out empty strings
+            const nonEmptyParts = parts.map(p => p.trim()).filter(p => p.length > 0);
+            
+            const partsToDisplay = (maxItems !== undefined && maxItems >= 0)
+              ? nonEmptyParts.slice(0, maxItems)
+              : nonEmptyParts;
+
+            displayMemo = partsToDisplay.join("・");
           }
 
           return (

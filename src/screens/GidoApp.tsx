@@ -226,36 +226,11 @@ const GidoApp: React.FC<GidoAppProps> = ({
 
   // Shop data loading
   const loadShops = useCallback(async (providedShops?: Shop[]) => {
-    try {
-      let data: Shop[];
+    // Case 1: Updated data from SSE event
+    if (providedShops && providedShops.length > 0) {
+      logInfo("shopList", "Using shops from SSE event", { count: providedShops.length });
       
-      if (providedShops && providedShops.length > 0) {
-        // Case 1: Updated data from SSE event
-        data = providedShops;
-        logInfo("shopList", "Using shops from SSE event", { count: data.length });
-        
-        // Update cache when we receive fresh data from server
-        saveShopCache(data);
-      } else {
-        // Case 2: No data provided (startup or manual refresh)
-        // Try to load from cache first
-        const cached = loadShopCache();
-        
-        if (cached && cached.length > 0) {
-            data = cached;
-            logInfo("shopList", "Using cached shop data", { count: data.length });
-        } else {
-            // Case 3: No cache available, fetch from REST API as fallback
-            // (Only happens if cache is empty, e.g. first launch)
-            logInfo("shopList", "No cache found, fetching from API");
-            data = await fetchShops();
-            if (data.length > 0) {
-                saveShopCache(data);
-            }
-        }
-      }
-
-      const cleaned = data.map((s) => ({
+      const cleaned = providedShops.map((s) => ({
         ...s,
         // Remove furigana / kana in brackets from name
         name: s.name ? s.name.replace(/【.*?】/g, "").trim() : "",
@@ -263,28 +238,66 @@ const GidoApp: React.FC<GidoAppProps> = ({
 
       setShops(cleaned);
       setError(null);
+      
+      // Update cache when we receive fresh data from server
+      saveShopCache(providedShops);
+      return;
+    }
 
-      logInfo("shopList", "Shop data synced", {
-        count: cleaned.length,
-      });
-    } catch (e: any) {
-      console.error(e);
+    // Case 2: No data provided (startup or manual refresh)
+    // Implement Stale-While-Revalidate strategy
+    let hasShownCache = false;
 
-      // If error occurs (e.g. fetch failed), try to load from cache as fallback
+    // 1. Try to load from cache first for immediate feedback
+    try {
       const cached = loadShopCache();
       if (cached && cached.length > 0) {
-          logInfo("shopList", "Error occurred, falling back to cache", { error: e.message });
-          setShops(cached);
-          setError(null);
-          return;
+        const cleaned = cached.map((s) => ({
+          ...s,
+          name: s.name ? s.name.replace(/【.*?】/g, "").trim() : "",
+        }));
+        setShops(cleaned);
+        setError(null);
+        hasShownCache = true;
+        logInfo("shopList", "Displaying cached shop data", { count: cached.length });
       }
+    } catch (e) {
+      logError("shopList", "Failed to load shop cache", { error: String(e) });
+    }
 
+    // 2. Always fetch from API to ensure data is up-to-date
+    try {
+      logInfo("shopList", "Fetching fresh data from API...");
+      const apiData = await fetchShops();
+      
+      // Update state and cache with fresh data
+      if (apiData) {
+        const cleaned = apiData.map((s) => ({
+          ...s,
+          name: s.name ? s.name.replace(/【.*?】/g, "").trim() : "",
+        }));
+
+        setShops(cleaned);
+        setError(null);
+        saveShopCache(apiData);
+        
+        logInfo("shopList", "Shop data synced from API", {
+          count: cleaned.length,
+        });
+      }
+    } catch (e: any) {
       const message = e?.message ?? "failed to load";
-      setError(message);
-
-      logError("shopList", "Failed to load shop list", {
+      logError("shopList", "Failed to fetch shops from API", {
         error: message,
       });
+
+      // Only show error if we haven't shown cached data
+      if (!hasShownCache) {
+        setError(message);
+        setShops([]); // Clear any potentially partial state
+      } else {
+        logInfo("shopList", "Keeping cached data due to API failure");
+      }
     }
   }, []);
 

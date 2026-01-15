@@ -94,7 +94,14 @@ export async function fetchShopsFromBridge(): Promise<Shop[]> {
   logInfo("shopList", "Requesting shops from Bridge API", { url });
 
   try {
-    const res = await fetch(url, { method: "GET" });
+    const res = await fetch(url, { 
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache"
+      }
+    });
 
     if (!res.ok) {
       logWarn("shopList", "Bridge API returned non-200 response", {
