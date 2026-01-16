@@ -12,7 +12,7 @@ import { GenreSettingsTab } from "../components/GenreSettingsTab";
 import { ShopSettingsTab } from "../components/ShopSettingsTab";
 import iconSvg from "../assets/icon.svg";
 import type { ImageSettings } from "../types/imageSettings";
-import type { GenreMappings } from "../types/genreSettings";
+import type { GenreMappings, GenreMemoSettings } from "../types/genreSettings";
 import type { ShopSettings } from "../types/shopSettings";
 
 type TabType = "floor" | "layout" | "location" | "image" | "genre" | "shop";
@@ -28,6 +28,8 @@ interface UnifiedSettingsScreenProps {
   onSaveImageSettings: (settings: ImageSettings) => Promise<void> | void;
   genreMappings: GenreMappings;
   onSaveGenreMappings: (mappings: GenreMappings) => Promise<void> | void;
+  genreMemoSettings: GenreMemoSettings;
+  onSaveGenreMemoSettings: (settings: GenreMemoSettings) => Promise<void> | void;
   shopSettings: ShopSettings;
   onSaveShopSettings: (settings: ShopSettings) => Promise<void> | void;
 }
@@ -43,6 +45,8 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   onSaveImageSettings,
   genreMappings: initialGenreMappings,
   onSaveGenreMappings,
+  genreMemoSettings: initialGenreMemoSettings,
+  onSaveGenreMemoSettings,
   shopSettings: initialShopSettings,
   onSaveShopSettings,
 }) => {
@@ -58,6 +62,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     useState<LocationIconSettings>(initialLocationIconSettings);
   const [imageSettings, setImageSettings] = useState<ImageSettings>(initialImageSettings);
   const [genreMappings, setGenreMappings] = useState<GenreMappings>(initialGenreMappings);
+  const [genreMemoSettings, setGenreMemoSettings] = useState<GenreMemoSettings>(initialGenreMemoSettings);
   const [shopSettings, setShopSettings] = useState<ShopSettings>(initialShopSettings);
 
   // Transform wrapper ref for programmatic control
@@ -88,6 +93,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         setLocationIconSettings(initialLocationIconSettings);
         setImageSettings(initialImageSettings);
         setGenreMappings(initialGenreMappings);
+        setGenreMemoSettings(initialGenreMemoSettings);
         setShopSettings(initialShopSettings);
         setErrors({});
         // Reset transform when opening settings
@@ -100,7 +106,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialShopSettings]);
+  }, [initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings]);
 
   // Sync with external changes when screen is closed
   useEffect(() => {
@@ -110,9 +116,10 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
       setLocationIconSettings(initialLocationIconSettings);
       setImageSettings(initialImageSettings);
       setGenreMappings(initialGenreMappings);
+      setGenreMemoSettings(initialGenreMemoSettings);
       setShopSettings(initialShopSettings);
     }
-  }, [visible, initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialShopSettings]);
+  }, [visible, initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings]);
 
   const handleClose = () => {
     if (window.electronAPI?.notifySettingsClosed) {
@@ -129,6 +136,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setLocationIconSettings(initialLocationIconSettings);
     setImageSettings(initialImageSettings);
     setGenreMappings(initialGenreMappings);
+    setGenreMemoSettings(initialGenreMemoSettings);
     setShopSettings(initialShopSettings);
     setErrors({});
     // Reset transform
@@ -199,6 +207,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         onSaveLocationIconSettings(locationIconSettings),
         onSaveImageSettings(imageSettings),
         onSaveGenreMappings(genreMappings),
+        onSaveGenreMemoSettings(genreMemoSettings),
         onSaveShopSettings(shopSettings),
       ]);
       handleClose();
@@ -438,6 +447,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
                 previewFloorLayout={floorLayout}
                 imageSettings={imageSettings}
                 genreMappings={genreMappings}
+                genreMemoSettings={genreMemoSettings}
                 shopSettings={shopSettings}
               />
             </TransformComponent>
@@ -557,6 +567,8 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               <GenreSettingsTab
                 genreMappings={genreMappings}
                 onChangeGenreMappings={setGenreMappings}
+                genreMemoSettings={genreMemoSettings}
+                onChangeGenreMemoSettings={setGenreMemoSettings}
               />
             )}
             {activeTab === "shop" && (

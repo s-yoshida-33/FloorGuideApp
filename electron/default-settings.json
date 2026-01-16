@@ -2,16 +2,16 @@
   "locationIcons": {
     "speechBubble": {
       "enabled": true,
-      "xPercent": 14.6,
-      "yPercent": 52,
-      "size": 90,
+      "xPercent": 61.8,
+      "yPercent": 48.4,
+      "size": 110,
       "rotation": 0,
       "shadow": {
         "enabled": true,
         "offsetX": 4,
         "offsetY": 4,
-        "blur": 4,
-        "opacity": 0.5
+        "blur": 2,
+        "opacity": 0.3
       },
       "animation": {
         "enabled": true,
@@ -28,16 +28,16 @@
     },
     "location": {
       "enabled": true,
-      "xPercent": 15.2,
-      "yPercent": 57.2,
-      "size": 50,
+      "xPercent": 62.4,
+      "yPercent": 54.6,
+      "size": 70,
       "rotation": 90,
       "shadow": {
         "enabled": true,
         "offsetX": 4,
         "offsetY": 4,
-        "blur": 4,
-        "opacity": 0.5
+        "blur": 2,
+        "opacity": 0.3
       },
       "animation": {
         "enabled": true,
@@ -49,10 +49,6 @@
         "rippleColor": "#E63B93"
       }
     }
-  },
-  "portRanges": {
-    "bridge": { "min": 8090, "max": 8099 },
-    "cms": { "min": 8080, "max": 8089 }
   },
   "floorLayout": {
     "1F": {

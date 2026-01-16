@@ -5,7 +5,17 @@ export interface GenreDisplayConfig {
   rowBackgroundColor: string; // rgba(...) or hex
 }
 
+export interface GenreMemoSettings {
+  maxDisplayItems: number;
+  excludedKeywords: string[];
+}
+
 export type GenreMappings = Record<string, GenreDisplayConfig>;
+
+export const DEFAULT_GENRE_MEMO_SETTINGS: GenreMemoSettings = {
+  maxDisplayItems: 3,
+  excludedKeywords: [],
+};
 
 export const DEFAULT_GENRE_MAPPINGS: GenreMappings = {
   "ファッション": {

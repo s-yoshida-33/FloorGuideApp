@@ -10,8 +10,8 @@ import {
 import type { LocationIconSettings } from "./types/locationIcon";
 import type { ImageSettings } from "./types/imageSettings";
 import { DEFAULT_IMAGE_SETTINGS } from "./types/imageSettings";
-import { DEFAULT_GENRE_MAPPINGS } from "./types/genreSettings";
-import type { GenreMappings } from "./types/genreSettings";
+import { DEFAULT_GENRE_MAPPINGS, DEFAULT_GENRE_MEMO_SETTINGS } from "./types/genreSettings";
+import type { GenreMappings, GenreMemoSettings } from "./types/genreSettings";
 import type { ShopSettings } from "./types/shopSettings";
 import { sseClient } from "./api/sseClient";
 import type { SseConnectionStatus } from "./api/sseClient";
@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const [floorLayout, setFloorLayout] = useState<FloorLayout>(DEFAULT_FLOOR_LAYOUT);
   const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_IMAGE_SETTINGS);
   const [genreMappings, setGenreMappings] = useState<GenreMappings>(DEFAULT_GENRE_MAPPINGS);
+  const [genreMemoSettings, setGenreMemoSettings] = useState<GenreMemoSettings>(DEFAULT_GENRE_MEMO_SETTINGS);
   const [shopSettings, setShopSettings] = useState<ShopSettings>({});
 
   // DEBUG STATE
@@ -257,6 +258,14 @@ const App: React.FC = () => {
         }
       }
 
+      // Load genre memo settings
+      if (api.getGenreMemoSettings) {
+        const saved = await api.getGenreMemoSettings();
+        if (saved) {
+          setGenreMemoSettings(saved);
+        }
+      }
+
       // Load shop settings
       if (api.getShopSettings) {
         try {
@@ -315,6 +324,12 @@ const App: React.FC = () => {
       if (api.onGenreMappingsUpdated) {
         api.onGenreMappingsUpdated((updated) => {
           setGenreMappings(updated);
+        });
+      }
+
+      if (api.onGenreMemoSettingsUpdated) {
+        api.onGenreMemoSettingsUpdated((updated) => {
+            setGenreMemoSettings(updated);
         });
       }
 
@@ -395,6 +410,20 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.error("Failed to save genre mappings", e);
+    }
+  };
+
+  const handleSaveGenreMemoSettings = async (settings: GenreMemoSettings) => {
+    const api = window.electronAPI;
+    if (!api) return;
+
+    try {
+      const saved = await api.saveGenreMemoSettings(settings);
+      if (saved) {
+        setGenreMemoSettings(saved);
+      }
+    } catch (e) {
+      console.error("Failed to save genre memo settings", e);
     }
   };
 
@@ -498,6 +527,7 @@ const App: React.FC = () => {
                     floorLayout,
                     imageSettings,
                     genreMappings,
+                    genreMemoSettings,
                     shopSettings
                 }, null, 2)}
             </pre>
@@ -572,6 +602,7 @@ const App: React.FC = () => {
         locationIconSettings={locationSettings} 
         imageSettings={imageSettings} 
         genreMappings={genreMappings}
+        genreMemoSettings={genreMemoSettings}
         shopSettings={shopSettings}
       />
       <UnifiedSettingsScreen
@@ -585,6 +616,8 @@ const App: React.FC = () => {
         onSaveImageSettings={handleSaveImageSettings}
         genreMappings={genreMappings}
         onSaveGenreMappings={handleSaveGenreMappings}
+        genreMemoSettings={genreMemoSettings}
+        onSaveGenreMemoSettings={handleSaveGenreMemoSettings}
         shopSettings={shopSettings}
         onSaveShopSettings={handleSaveShopSettings}
       />

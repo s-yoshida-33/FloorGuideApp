@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Reorder, useDragControls } from "framer-motion";
-import type { GenreMappings, GenreDisplayConfig } from "../types/genreSettings";
+import type { GenreMappings, GenreDisplayConfig, GenreMemoSettings } from "../types/genreSettings";
 import { DEFAULT_GENRE_CONFIG } from "../types/genreSettings";
 
 interface GenreSettingsTabProps {
   genreMappings: GenreMappings;
   onChangeGenreMappings: (mappings: GenreMappings) => void;
+  genreMemoSettings?: GenreMemoSettings;
+  onChangeGenreMemoSettings?: (settings: GenreMemoSettings) => void;
 }
 
 // Helper to convert unknown color string to hex for input[type=color]
@@ -205,9 +207,12 @@ const DraggableItem: React.FC<{
 export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
   genreMappings,
   onChangeGenreMappings,
+  genreMemoSettings,
+  onChangeGenreMemoSettings,
 }) => {
   const [newGenre, setNewGenre] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [keywordInput, setKeywordInput] = useState("");
 
   // Maintain local order state for Reorder component
   // Initialize from genreMappings keys
@@ -289,6 +294,29 @@ export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
     setEditingKey(newGenre);
   };
 
+  const handleAddKeyword = () => {
+    if (!genreMemoSettings || !onChangeGenreMemoSettings) return;
+    if (!keywordInput.trim()) return;
+    if (genreMemoSettings.excludedKeywords.includes(keywordInput.trim())) {
+        setKeywordInput("");
+        return;
+    }
+    
+    onChangeGenreMemoSettings({
+        ...genreMemoSettings,
+        excludedKeywords: [...genreMemoSettings.excludedKeywords, keywordInput.trim()]
+    });
+    setKeywordInput("");
+  };
+
+  const handleDeleteKeyword = (keyword: string) => {
+    if (!genreMemoSettings || !onChangeGenreMemoSettings) return;
+    onChangeGenreMemoSettings({
+        ...genreMemoSettings,
+        excludedKeywords: genreMemoSettings.excludedKeywords.filter(k => k !== keyword)
+    });
+  };
+
   return (
     <div style={{ color: "#ffffff", display: "flex", flexDirection: "column", gap: 24 }}>
       
@@ -349,7 +377,110 @@ export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
           </button>
         </div>
       </div>
+
+      {genreMemoSettings && onChangeGenreMemoSettings && (
+        <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)", paddingTop: 20 }}>
+            <h4 style={{ margin: "0 0 16px 0", fontSize: 14 }}>ジャンルメモ設定</h4>
+            
+            <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 11, marginBottom: 8, opacity: 0.7 }}>
+                    最大表示件数 (0で制限なし)
+                </label>
+                <input
+                    type="number"
+                    min={0}
+                    value={genreMemoSettings.maxDisplayItems}
+                    onChange={(e) => onChangeGenreMemoSettings({
+                        ...genreMemoSettings,
+                        maxDisplayItems: parseInt(e.target.value) || 0
+                    })}
+                    style={{
+                        padding: "8px",
+                        backgroundColor: "rgba(255, 255, 255, 0.1)",
+                        border: "1px solid rgba(255, 255, 255, 0.2)",
+                        borderRadius: 4,
+                        color: "#ffffff",
+                        fontSize: 14,
+                        width: 100
+                    }}
+                />
+            </div>
+
+            <div>
+                <label style={{ display: "block", fontSize: 11, marginBottom: 8, opacity: 0.7 }}>
+                    除外キーワード
+                </label>
+                
+                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                    <input
+                        type="text"
+                        value={keywordInput}
+                        onChange={(e) => setKeywordInput(e.target.value)}
+                        placeholder="除外する単語"
+                        style={{
+                            flex: 1,
+                            padding: "8px",
+                            backgroundColor: "rgba(255, 255, 255, 0.1)",
+                            border: "1px solid rgba(255, 255, 255, 0.2)",
+                            borderRadius: 4,
+                            color: "#ffffff",
+                            fontSize: 14
+                        }}
+                    />
+                    <button
+                        onClick={handleAddKeyword}
+                        disabled={!keywordInput}
+                        style={{
+                            padding: "8px 16px",
+                            backgroundColor: "#007aff",
+                            border: "none",
+                            borderRadius: 4,
+                            color: "#ffffff",
+                            cursor: !keywordInput ? "not-allowed" : "pointer",
+                            opacity: !keywordInput ? 0.5 : 1,
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        追加
+                    </button>
+                </div>
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {genreMemoSettings.excludedKeywords.map((keyword, index) => (
+                        <div key={index} style={{
+                            display: "flex",
+                            alignItems: "center",
+                            backgroundColor: "rgba(255, 255, 255, 0.1)",
+                            borderRadius: 4,
+                            padding: "4px 8px",
+                            fontSize: 13
+                        }}>
+                            <span>{keyword}</span>
+                            <button
+                                onClick={() => handleDeleteKeyword(keyword)}
+                                style={{
+                                    marginLeft: 8,
+                                    background: "none",
+                                    border: "none",
+                                    color: "#ff4444",
+                                    cursor: "pointer",
+                                    padding: 0,
+                                    fontSize: 16,
+                                    lineHeight: 1
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+                    ))}
+                    {genreMemoSettings.excludedKeywords.length === 0 && (
+                        <span style={{ opacity: 0.5, fontSize: 13 }}>除外キーワードはありません</span>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
+
     </div>
   );
 };
-

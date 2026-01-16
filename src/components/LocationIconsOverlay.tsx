@@ -121,13 +121,13 @@ export const LocationIconsOverlay: React.FC<Props> = ({ settings }) => {
   const speechBubbleWrapperStyle = {
     ...buildWrapperStyle(speechBubble),
     ...buildShadowStyle(speechBubble.shadow),
-    zIndex: 5,
+    zIndex: 20,
   };
 
   const locationWrapperStyle = {
     ...buildWrapperStyle(location),
     ...buildShadowStyle(location.shadow),
-    zIndex: 6,
+    zIndex: 10,
   };
 
   // 波紋アニメーション用のスタイルとコンテンツを生成
