@@ -9,7 +9,7 @@ import {
 } from "../config";
 import "../styles/ShopList.css";
 import { logError, logDebug } from "../logs/logging";
-import { DEFAULT_GENRE_MAPPINGS, type GenreMappings, DEFAULT_GENRE_CONFIG } from "../types/genreSettings";
+import { DEFAULT_GENRE_MAPPINGS, type GenreMappings, DEFAULT_GENRE_CONFIG, type GenreMemoSettings, DEFAULT_GENRE_MEMO_SETTINGS } from "../types/genreSettings";
 import type { ShopSettings } from "../types/shopSettings";
 
 type ColumnPadding = {
@@ -27,6 +27,7 @@ interface ShopListProps {
   perColumnRows?: number[]; // Column-by-column row overrides
   perColumnPadding?: ColumnPadding[]; // Column-by-column padding
   genreMappings?: GenreMappings;
+  genreMemoSettings?: GenreMemoSettings;
   shopSettings?: ShopSettings;
 }
 
@@ -95,6 +96,7 @@ const ShopList: React.FC<ShopListProps> = ({
   perColumnRows,
   perColumnPadding,
   genreMappings = DEFAULT_GENRE_MAPPINGS,
+  genreMemoSettings = DEFAULT_GENRE_MEMO_SETTINGS,
   shopSettings,
 }) => {
   const normalizedFloor = normalizeFloor(floor);
@@ -343,15 +345,18 @@ const ShopList: React.FC<ShopListProps> = ({
                     {section.shops.map((s, idx) => {
                       const shopConfig =
                         s.shopId && shopSettings && typeof shopSettings === 'object' ? shopSettings[s.shopId] : undefined;
-                      const maxItems = shopConfig?.genreMemoMaxItems;
+                      const maxItems = shopConfig?.genreMemoMaxItems ?? genreMemoSettings?.maxDisplayItems;
                       
                       let displayMemo = s.genreMemo;
                       if (displayMemo) {
                         const parts = displayMemo.split(/[、,，・/／\s　|｜]+/);
-                        // Trim parts and filter out empty strings
-                        const nonEmptyParts = parts.map(p => p.trim()).filter(p => p.length > 0);
+                        // Trim parts and filter out empty strings and excluded keywords
+                        const excludedKeywords = genreMemoSettings?.excludedKeywords || [];
+                        const nonEmptyParts = parts
+                            .map(p => p.trim())
+                            .filter(p => p.length > 0 && !excludedKeywords.includes(p));
                         
-                        const partsToDisplay = (maxItems !== undefined && maxItems >= 0)
+                        const partsToDisplay = (maxItems !== undefined && maxItems > 0)
                           ? nonEmptyParts.slice(0, maxItems)
                           : nonEmptyParts;
 
@@ -456,15 +461,18 @@ const ShopList: React.FC<ShopListProps> = ({
           // const config = genreMappings[s.genre] || DEFAULT_GENRE_CONFIG;
           const shopConfig =
             s.shopId && shopSettings && typeof shopSettings === 'object' ? shopSettings[s.shopId] : undefined;
-          const maxItems = shopConfig?.genreMemoMaxItems;
+          const maxItems = shopConfig?.genreMemoMaxItems ?? genreMemoSettings?.maxDisplayItems;
           
           let displayMemo = s.genreMemo;
           if (displayMemo) {
             const parts = displayMemo.split(/[、,，・/／\s　|｜]+/);
-            // Trim parts and filter out empty strings
-            const nonEmptyParts = parts.map(p => p.trim()).filter(p => p.length > 0);
+            // Trim parts and filter out empty strings and excluded keywords
+            const excludedKeywords = genreMemoSettings?.excludedKeywords || [];
+            const nonEmptyParts = parts
+                .map(p => p.trim())
+                .filter(p => p.length > 0 && !excludedKeywords.includes(p));
             
-            const partsToDisplay = (maxItems !== undefined && maxItems >= 0)
+            const partsToDisplay = (maxItems !== undefined && maxItems > 0)
               ? nonEmptyParts.slice(0, maxItems)
               : nonEmptyParts;
 
