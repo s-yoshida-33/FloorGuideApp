@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { sseClient } from "../api/sseClient";
 import { extractShopsFromResponse, normalizeBridgeShops } from "../api/bridgeClient";
 import type { Shop } from "../types/shop";
-import { logInfo, logError, logDebug } from "../logs/logging";
+import { logInfo, logError } from "../logs/logging";
 
 export function useBridgeEvents(onUpdate: (shops?: Shop[]) => void) {
   useEffect(() => {
