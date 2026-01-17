@@ -90,8 +90,9 @@ export function normalizeBridgeShops(rawList: BridgeShop[]): Shop[] {
 export async function fetchShopsFromBridge(): Promise<Shop[]> {
   const baseUrl = await getApiBaseUrl();
   const url = `${baseUrl}/api/shops`;
+  const startTime = Date.now();
 
-  logInfo("shopList", "Requesting shops from Bridge API", { url });
+  logInfo("DATA_SYNC", "Requesting shops from Bridge API", { url });
 
   try {
     const res = await fetch(url, { 
@@ -104,9 +105,10 @@ export async function fetchShopsFromBridge(): Promise<Shop[]> {
     });
 
     if (!res.ok) {
-      logWarn("shopList", "Bridge API returned non-200 response", {
+      logWarn("DATA_SYNC", "Bridge API sync failed", {
         status: res.status,
         statusText: res.statusText,
+        durationMs: Date.now() - startTime
       });
       throw new Error(`Bridge API error: HTTP ${res.status}`);
     }
@@ -114,24 +116,28 @@ export async function fetchShopsFromBridge(): Promise<Shop[]> {
     const json = await res.json();
     const rawList = extractShopsFromResponse(json);
     
-    if (rawList.length === 0 && !Array.isArray(json)) {
-       logInfo("shopList", "Bridge API response did not contain an array", {
+    // Warn if 0 items found
+    if (rawList.length === 0) {
+       logWarn("DATA_SYNC", "Bridge API returned 0 items", {
         receivedKeys: Object.keys(json),
+        durationMs: Date.now() - startTime
       });
     }
 
     const shops = normalizeBridgeShops(rawList);
 
-    logInfo("shopList", "Shops fetched & normalized", {
+    logInfo("DATA_SYNC", "Shop data synced successfully", {
       count: shops.length,
+      durationMs: Date.now() - startTime,
       defaultFloor: APP_CONFIG.floor,
     });
 
     return shops;
   } catch (error: any) {
-    logError("shopList", "Failed to fetch shops from Bridge API", {
+    logError("DATA_SYNC", "Failed to fetch shops from Bridge API", {
       error: error?.message,
       url,
+      durationMs: Date.now() - startTime
     });
     throw error;
   }

@@ -30,7 +30,7 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   // No asset case
   if (!asset) {
     if (!isLoading) {
-      logWarn('video', 'No video asset available for VerticalVideoSlot');
+      logWarn('CMS_DELIVERY', 'No active content scheduled', { component: 'VerticalVideoSlot' });
     }
 
     return (
@@ -73,15 +73,17 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
           objectFit: 'cover',
         }}
         onLoad={() => {
-          logInfo('image', 'Image loaded in VerticalVideoSlot', {
+          logInfo('CMS_DELIVERY', 'Content image loaded', {
             assetId: asset.id,
             src: asset.src,
+            type: 'IMAGE'
           });
         }}
         onError={() => {
-          logError('image', 'Image element error (VerticalVideoSlot)', {
+          logError('CMS_DELIVERY', 'Content image load failed', {
             assetId: asset.id,
             src: asset.src,
+            reason: 'LOAD_ERROR'
           });
         }}
       />
@@ -105,25 +107,27 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
         objectFit: 'cover',
       }}
       onLoadedData={() => {
-        logInfo('video', 'Video loaded in VerticalVideoSlot', {
+        logInfo('CMS_DELIVERY', 'Content video ready', {
           assetId: asset.id,
           src: asset.src,
+          type: 'VIDEO'
         });
       }}
       onPlay={() => {
-        logInfo('video', 'Video playback started', {
+        logInfo('CMS_DELIVERY', 'Video playback started', {
           assetId: asset.id,
         });
       }}
       onEnded={() => {
-        logInfo('video', 'Video playback ended (will loop)', {
+        logInfo('CMS_DELIVERY', 'Video playback ended (will loop)', {
           assetId: asset.id,
         });
       }}
       onError={() => {
-        logError('video', 'Video element error (VerticalVideoSlot)', {
+        logError('CMS_DELIVERY', 'Content video load failed', {
           assetId: asset.id,
           src: asset.src,
+          error: videoRef.current?.error?.message
         });
         // Try to reload on error
         if (videoRef.current) {
