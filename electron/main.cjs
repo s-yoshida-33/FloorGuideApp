@@ -15,6 +15,15 @@ const {
 } = require('./updateChecker.cjs');
 const logger = require('./logger.cjs');
 
+// Configure logger immediately to ensure logs go to gido.log
+// app.getPath('userData') is available before app is ready in modern Electron versions
+try {
+  logger.configureLogger();
+} catch (e) {
+  // If it fails (e.g. older Electron), we'll try again in app.whenReady
+  console.error('Failed to configure logger early:', e);
+}
+
 const isDev = !app.isPackaged;
 let patchWindow = null;
 let mainWindow = null;
@@ -1516,7 +1525,9 @@ process.on('unhandledRejection', (reason) => {
  * App ready event.
  */
 app.whenReady().then(() => {
+  // Ensure logger is configured (idempotent if already done)
   logger.configureLogger();
+  
   logger.info('Application starting', {
     env: process.env.NODE_ENV || 'production',
     isDev,
