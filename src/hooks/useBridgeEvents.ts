@@ -12,8 +12,8 @@ export function useBridgeEvents(onUpdate: (shops?: Shop[]) => void) {
     const unsubscribeShops = sseClient.on('shops', (data) => {
         try {
             const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-            logDebug("BridgeEvents", "Shops event received", { 
-                hasData: !!parsed 
+            logInfo("DATA_SYNC", "Realtime update received (shops)", { 
+                dataSize: JSON.stringify(parsed).length 
             });
             
             // Extract and normalize directly from event data
@@ -22,7 +22,7 @@ export function useBridgeEvents(onUpdate: (shops?: Shop[]) => void) {
             
             onUpdate(shops);
         } catch (err) {
-            logError("BridgeEvents", "Error parsing shops event", { error: err });
+            logError("DATA_SYNC", "Error parsing shops event", { error: err });
             // Fallback to refetch if parsing fails
             onUpdate();
         }
@@ -32,14 +32,14 @@ export function useBridgeEvents(onUpdate: (shops?: Shop[]) => void) {
         try {
             const parsed = typeof data === 'string' ? JSON.parse(data) : data;
             // Use debug level to avoid flooding logs with frequent updates
-            logDebug("BridgeEvents", "Update received", parsed);
+            logInfo("CMS_DELIVERY", "Timeline update signal received", parsed);
             // Legacy update event might not contain data, or we just treat it as a signal to refetch
             // if it doesn't have the expected structure.
             // If 'update' event also carries data in the future, we can parse it too.
             // For now, assume 'shops' event carries the data, and 'update' is a signal.
             onUpdate();
         } catch (err) {
-            logError("BridgeEvents", "Error parsing update event", { error: err });
+            logError("CMS_DELIVERY", "Error parsing update event", { error: err });
             onUpdate();
         }
     });
@@ -47,9 +47,9 @@ export function useBridgeEvents(onUpdate: (shops?: Shop[]) => void) {
     const unsubscribeConnected = sseClient.on('connected', (data) => {
          try {
             const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-            logInfo("BridgeEvents", "Connected", parsed);
+            logInfo("DATA_SYNC", "SSE Connection Established", parsed);
           } catch (err) {
-            logInfo("BridgeEvents", "Connected (parse error)", { data });
+            logInfo("DATA_SYNC", "SSE Connected (parse error)", { data });
           }
     });
     

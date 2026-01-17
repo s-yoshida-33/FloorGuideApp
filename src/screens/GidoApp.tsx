@@ -96,6 +96,35 @@ const GidoApp: React.FC<GidoAppProps> = ({
 
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // ---------------------------------------------------------
+  // 1. 起動ログ (SYS_INIT)
+  // ---------------------------------------------------------
+  useEffect(() => {
+    logInfo("SYS_INIT", "Gido Signage App Monitor Started", {
+      floor: APP_CONFIG.floor,
+      platform: window.navigator.userAgent
+    });
+  }, []);
+
+  // ---------------------------------------------------------
+  // 2. ハートビート (Heartbeat) - 1時間に1回生存報告
+  // ---------------------------------------------------------
+  useEffect(() => {
+    const heartbeat = () => {
+      // @ts-ignore process might be available via Electron or node integration
+      const uptime = (typeof process !== 'undefined' && process.uptime) ? process.uptime() : 'N/A';
+      
+      logInfo("SYS_INIT", "System Heartbeat - App is running", {
+        uptime,
+        shopCount: shops.length,
+        currentFloor: floor
+      });
+    };
+    
+    const interval = setInterval(heartbeat, 60 * 60 * 1000); // 1 hour
+    return () => clearInterval(interval);
+  }, [shops.length, floor]);
+
   // References for visibility check
   const floorMapRef = useRef<HTMLImageElement>(null);
   const openTimeImageRef = useRef<HTMLImageElement>(null);
@@ -112,7 +141,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
       if (floorMapRef.current) {
         const { naturalWidth, complete } = floorMapRef.current;
         if (!complete || naturalWidth === 0) {
-          logError("monitor", "Floor map image not visible/loaded", { floor });
+          logError("ASSET_CHECK", "Floor map broken image detected", { floor, src: floorMap });
           needsReload = true;
         }
       }
@@ -121,13 +150,13 @@ const GidoApp: React.FC<GidoAppProps> = ({
       if (openTimeImageRef.current) {
         const { naturalWidth, complete } = openTimeImageRef.current;
         if (!complete || naturalWidth === 0) {
-          logError("monitor", "Open time image not visible/loaded");
+          logError("ASSET_CHECK", "Open time broken image detected");
           needsReload = true;
         }
       }
 
       if (needsReload) {
-        logInfo("monitor", "Image visibility check failed, forcing reload");
+        logInfo("ASSET_CHECK", "Triggering auto-reload due to asset failure");
         setRefreshKey(prev => prev + 1);
       } else {
         // logInfo("monitor", "Image visibility check passed");
@@ -354,15 +383,16 @@ const GidoApp: React.FC<GidoAppProps> = ({
               objectFit: "contain",
             }}
             onLoad={() => {
-              logInfo("map", "Floor map image loaded", {
+              logInfo("ASSET_CHECK", "Floor map rendered", {
                 floor,
                 src: floorMap,
               });
             }}
             onError={(event) => {
-              logError("map", "Failed to load floor map image", {
+              logError("ASSET_CHECK", "Floor map load failed", {
                 floor,
                 src: floorMap,
+                reason: "FILE_NOT_FOUND_OR_CORRUPT"
               });
               (event.target as HTMLImageElement).style.visibility = "hidden";
             }}
@@ -473,12 +503,12 @@ const GidoApp: React.FC<GidoAppProps> = ({
               padding: "1.4em",
             }}
             onLoad={() => {
-              logInfo("openTime", "Open-time image loaded", {
+              logInfo("ASSET_CHECK", "Open-time image loaded", {
                 src: imageSettings?.openTimeImage || openTimeImage,
               });
             }}
             onError={(event) => {
-              logError("openTime", "Failed to load open-time image", {
+              logError("ASSET_CHECK", "Failed to load open-time image", {
                 src: imageSettings?.openTimeImage || openTimeImage,
               });
               (event.target as HTMLImageElement).style.visibility = "hidden";
