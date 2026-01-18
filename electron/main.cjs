@@ -511,22 +511,24 @@ async function findAvailablePortInRange(minPort, maxPort, path = '/', host = '12
       
       // Try a quick HTTP request to see if the service is available
       const available = await new Promise((resolve) => {
-        const req = http.get(url, { timeout: 2000 }, (res) => {
-          // Check if status code is in success range (200-299)
+        // Timeout shortened for SSE endpoints as they might keep connection open
+        const req = http.get(url, { timeout: 1500 }, (res) => {
+          // 200 OK means the service is up. 
+          // For SSE endpoint, we might get 200 and kept open, so we destroy immediately.
           if (res.statusCode >= 200 && res.statusCode < 300) {
-            req.destroy();
+            req.destroy(); // Important: Close connection immediately
             logger.info('Port responded successfully', { port, host, statusCode: res.statusCode, url });
-            resolve(true); // Service is responding with success
+            resolve(true); 
           } else {
             req.destroy();
             logger.debug('Port responded with non-success status', { port, host, statusCode: res.statusCode, url });
-            resolve(false); // Service is responding but with error status
+            resolve(false); 
           }
         });
 
         req.on('error', (err) => {
           logger.debug('Port connection error', { port, host, error: err.code, url });
-          resolve(false); // Service is not responding
+          resolve(false); 
         });
 
         req.on('timeout', () => {
@@ -535,7 +537,7 @@ async function findAvailablePortInRange(minPort, maxPort, path = '/', host = '12
           resolve(false);
         });
 
-        req.setTimeout(2000);
+        req.setTimeout(1500);
       });
 
       if (available) {
@@ -558,8 +560,11 @@ async function findAvailablePortInRange(minPort, maxPort, path = '/', host = '12
 async function getBridgeBaseUrl() {
   const settings = loadSettings();
   const portRange = settings.portRanges?.bridge;
+  // Use /api/events for detection as /api/shops might not be reliable for probing
+  const probePath = '/api/events'; 
+
   if (portRange && portRange.min && portRange.max) {
-    const port = await findAvailablePortInRange(portRange.min, portRange.max, '/api/shops', 'localhost');
+    const port = await findAvailablePortInRange(portRange.min, portRange.max, probePath, 'localhost');
     if (port) {
       return `http://localhost:${port}`;
     }
@@ -575,13 +580,15 @@ async function getBridgeBaseUrl() {
 async function getCmsBaseUrl() {
   const settings = loadSettings();
   const portRange = settings.portRanges?.cms;
+  // Updated: Probe /api/events instead of legacy /current-timeline
+  const probePath = '/api/events';
 
   logger.debug('Getting CMS base URL', { portRange });
   if (portRange && portRange.min && portRange.max) {
     // Try both localhost and 127.0.0.1 to handle different network configurations
     const hosts = ['localhost', '127.0.0.1'];
     for (const host of hosts) {
-      const port = await findAvailablePortInRange(portRange.min, portRange.max, '/current-timeline', host);
+      const port = await findAvailablePortInRange(portRange.min, portRange.max, probePath, host);
       if (port) {
         const baseUrl = `http://${host}:${port}`;
         logger.info('CMS base URL determined', { baseUrl, port, portRange, host });
@@ -593,43 +600,33 @@ async function getCmsBaseUrl() {
     logger.debug('CMS port range not configured, using fallback');
   }
 
-  // Fallback to default (8080 or 8081 depending on legacy config, here using 8080 to match detection range)
-  // Gido originally used 8081, but Gido-Touch uses 8080-8089. We will fallback to 8080.
-  // Try both localhost and 127.0.0.1 for fallback
+  // Fallback check
   const fallbackHosts = ['localhost', '127.0.0.1'];
   const fallbackPort = 8080;
   
   for (const host of fallbackHosts) {
     try {
-      const testUrl = `http://${host}:${fallbackPort}/current-timeline`;
+      const testUrl = `http://${host}:${fallbackPort}${probePath}`;
       const available = await new Promise((resolve) => {
-        const req = http.get(testUrl, { timeout: 2000 }, (res) => {
+        const req = http.get(testUrl, { timeout: 1500 }, (res) => {
           req.destroy();
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(true);
-          } else {
-            resolve(false);
-          }
+          if (res.statusCode >= 200 && res.statusCode < 300) resolve(true);
+          else resolve(false);
         });
         req.on('error', () => resolve(false));
-        req.on('timeout', () => {
-          req.destroy();
-          resolve(false);
-        });
-        req.setTimeout(2000);
+        req.on('timeout', () => { req.destroy(); resolve(false); });
+        req.setTimeout(1500);
       });
-      
       if (available) {
         const fallbackUrl = `http://${host}:${fallbackPort}`;
         logger.info('Using CMS fallback URL (verified)', { fallbackUrl, host });
         return fallbackUrl;
       }
     } catch (error) {
-      logger.debug('Fallback host test failed', { host, error: error?.message });
+        // ignore
     }
   }
   
-  // If all fallback attempts failed, still return localhost:8080 as last resort
   const fallbackUrl = 'http://localhost:8080';
   logger.warn('Using CMS fallback URL (unverified)', { fallbackUrl });
   return fallbackUrl;
