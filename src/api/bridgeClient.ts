@@ -110,7 +110,7 @@ export async function fetchShopsFromBridge(): Promise<Shop[]> {
         statusText: res.statusText,
         durationMs: Date.now() - startTime
       });
-      throw new Error(`Bridge API error: HTTP ${res.status}`);
+      throw new Error(`Bridge API error: HTTP ${res.status} - Check if Bridge app is running and port ${baseUrl} is correct.`);
     }
 
     const json = await res.json();
@@ -137,7 +137,8 @@ export async function fetchShopsFromBridge(): Promise<Shop[]> {
     logError("DATA_SYNC", "Failed to fetch shops from Bridge API", {
       error: error?.message,
       url,
-      durationMs: Date.now() - startTime
+      durationMs: Date.now() - startTime,
+      hint: "Ensure BridgeWebPopper is running and the port range (default: 8090-8099) is accessible."
     });
     throw error;
   }
