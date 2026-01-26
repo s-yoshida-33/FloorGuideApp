@@ -149,7 +149,18 @@ const App: React.FC = () => {
       setSseStatus(data.status);
       addDebug(`SSE Status: ${data.status}`, 'INFO');
     });
-    return () => unsubscribeStatus();
+
+    const unsubscribeUpdate = sseClient.on('update', () => {
+      addDebug('SSE Update received, triggering video optimization', 'INFO');
+      if (window.electronAPI?.notifyScheduleUpdated) {
+        window.electronAPI.notifyScheduleUpdated();
+      }
+    });
+
+    return () => {
+      unsubscribeStatus();
+      unsubscribeUpdate();
+    };
   }, []);
 
   // Drag, Resize, Shortcut Handlers

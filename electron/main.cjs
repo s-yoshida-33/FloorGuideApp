@@ -18,6 +18,9 @@ const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 
 // 【追加1】 ハードウェアアクセラレーションを無効化（GPUプロセスのクラッシュによるホワイトアウトを防止）
 app.disableHardwareAcceleration();
+// 以下を追加
+app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
+app.commandLine.appendSwitch('disable-zero-copy');
 
 // 【追加2】 GPUプロセスなどがクラッシュした場合にアプリを自動再起動する
 app.on('child-process-gone', (event, details) => {
@@ -1540,6 +1543,12 @@ ipcMain.on('menu:quit', () => {
   app.quit();
 });
 
+// Schedule update notification from renderer
+ipcMain.on('wsp:schedule-updated', () => {
+  logger.info('Schedule update detected via IPC, triggering optimization...');
+  runVideoOptimization();
+});
+
 /**
  * Global error handlers for main process.
  */
@@ -1564,7 +1573,13 @@ app.whenReady().then(() => {
   logger.configureLogger();
 
   // 動画最適化処理をバックグラウンドで開始
-  runVideoOptimization();
+  // runVideoOptimization();
+  
+  // 10分ごとに定期チェックを実行 (600000ms = 10分)
+  // setInterval(() => {
+  //   logger.info('Running periodic video optimization check...');
+  //   runVideoOptimization();
+  // }, 600000);
   
   logger.info('Application starting', {
     env: process.env.NODE_ENV || 'production',
