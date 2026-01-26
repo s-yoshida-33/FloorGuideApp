@@ -1546,7 +1546,7 @@ ipcMain.on('menu:quit', () => {
 // Schedule update notification from renderer
 ipcMain.on('wsp:schedule-updated', () => {
   logger.info('Schedule update detected via IPC, triggering optimization...');
-  runVideoOptimization();
+  // runVideoOptimization();
 });
 
 /**
