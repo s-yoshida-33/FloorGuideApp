@@ -14,6 +14,7 @@ const {
   getLatestVersionInfo,
 } = require('./updateChecker.cjs');
 const logger = require('./logger.cjs');
+const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 
 // 【追加1】 ハードウェアアクセラレーションを無効化（GPUプロセスのクラッシュによるホワイトアウトを防止）
 app.disableHardwareAcceleration();
@@ -805,6 +806,22 @@ function toFileUrl(winPath) {
   }
 }
 
+// CMSアセットディレクトリ (最適化対象)
+const CMS_ASSETS_DIR = 'C:\\SignageData\\assets';
+
+// 最適化処理を実行する関数
+async function runVideoOptimization() {
+  if (fs.existsSync(CMS_ASSETS_DIR)) {
+    logger.info(`Starting CMS assets optimization in ${CMS_ASSETS_DIR}`);
+    // 非同期で実行し、アプリの起動をブロックしないようにする
+    optimizeAllVideosInDirectory(CMS_ASSETS_DIR)
+      .then(() => logger.info('CMS assets optimization finished'))
+      .catch(err => logger.error('CMS assets optimization failed', { error: err.message }));
+  } else {
+    logger.info('CMS assets directory not found, skipping optimization');
+  }
+}
+
 /**
  * Create the small startup patch window.
  * This window appears first and shows update progress.
@@ -1545,6 +1562,9 @@ process.on('unhandledRejection', (reason) => {
 app.whenReady().then(() => {
   // Ensure logger is configured (idempotent if already done)
   logger.configureLogger();
+
+  // 動画最適化処理をバックグラウンドで開始
+  runVideoOptimization();
   
   logger.info('Application starting', {
     env: process.env.NODE_ENV || 'production',
