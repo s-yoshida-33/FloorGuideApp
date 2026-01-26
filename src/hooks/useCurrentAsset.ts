@@ -71,12 +71,13 @@ export function useCurrentAsset(
   const retryTimeoutRef = useRef<number | undefined>(undefined);
   const isMountedRef = useRef<boolean>(true);
   const lastStatusRef = useRef<AssetStatus>(null);
+  const lastAssetIdRef = useRef<string | undefined>(undefined);
 
   const handleAssetUpdate = useCallback((next: CurrentAsset | null) => {
     if (!isMountedRef.current) return;
 
     if (next) {
-      const assetChanged = asset?.id !== next.id;
+      const assetChanged = lastAssetIdRef.current !== next.id;
       if (lastStatusRef.current !== 'ok') {
         logInfo('video', 'Received current video asset via SSE', {
           assetId: next.id,
@@ -85,7 +86,7 @@ export function useCurrentAsset(
         });
       } else if (assetChanged) {
         logInfo('video', 'Asset changed via SSE', {
-          oldAssetId: asset?.id,
+          oldAssetId: lastAssetIdRef.current,
           newAssetId: next.id,
         });
       }
@@ -98,9 +99,10 @@ export function useCurrentAsset(
       lastStatusRef.current = 'noAsset';
     }
 
+    lastAssetIdRef.current = next?.id;
     setAsset(next);
     setIsLoading(false);
-  }, [asset?.id]);
+  }, []);
 
   const connectSSE = useCallback(async () => {
     try {
