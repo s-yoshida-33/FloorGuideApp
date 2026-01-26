@@ -110,26 +110,29 @@ async function optimizeAllVideosInDirectory(dirPath) {
   const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv'];
   const filesToProcess = [];
 
-  // 1. ファイル収集
-  function scan(dir) {
-    if (!fs.existsSync(dir)) return;
-    const files = fs.readdirSync(dir);
-    for (const file of files) {
-      const fullPath = path.join(dir, file);
-      try {
-        const stat = fs.statSync(fullPath);
-        if (stat.isDirectory()) {
-            scan(fullPath);
-        } else if (videoExtensions.includes(path.extname(fullPath).toLowerCase())) {
-            filesToProcess.push(fullPath);
+  // 1. ファイル収集 (非同期・ノンブロッキング)
+  async function scan(dir) {
+    try {
+      // fs.promises を使用して非同期に読み込み
+      // withFileTypes: true で dirent オブジェクトを取得し、別途 stat を呼ぶオーバーヘッドを削減
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        
+        if (entry.isDirectory()) {
+          // 再帰呼び出しも await する
+          await scan(fullPath);
+        } else if (entry.isFile() && videoExtensions.includes(path.extname(fullPath).toLowerCase())) {
+          filesToProcess.push(fullPath);
         }
-      } catch (e) {
-          // アクセス権エラーなどは無視
       }
+    } catch (e) {
+      // ディレクトリが存在しない、アクセス権エラーなどは無視して続行
     }
   }
   
-  scan(dirPath);
+  await scan(dirPath);
   if (filesToProcess.length > 0) {
     logger.info(`Found ${filesToProcess.length} videos to optimize in ${dirPath}`);
   }
