@@ -79,6 +79,7 @@ interface ElectronAPI {
   quitApp: () => void;
   notifySettingsOpened: () => void;
   notifySettingsClosed: () => void;
+  notifyScheduleUpdated?: () => void;
 }
 
 export type StatusState = 'checking' | 'available' | 'none' | 'downloaded' | 'error';

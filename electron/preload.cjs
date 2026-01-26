@@ -184,6 +184,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   quitApp() {
     ipcRenderer.send('menu:quit');
   },
+  notifyScheduleUpdated() {
+    ipcRenderer.send('wsp:schedule-updated');
+  },
 });
 
 contextBridge.exposeInMainWorld('wspApi', {
