@@ -16,6 +16,46 @@ import type { ShopSettings } from "./types/shopSettings";
 import { sseClient } from "./api/sseClient";
 import type { SseConnectionStatus } from "./api/sseClient";
 
+// 【追加1】 エラー境界コンポーネントの定義
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Electronのロガーへエラーを送信（gido.logに記録される）
+    if ((window as any).logger) {
+      (window as any).logger.error("React ErrorBoundary caught an error", {
+        error: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack,
+        scope: "RENDERER_FATAL"
+      });
+    } else {
+      console.error("React ErrorBoundary:", error, errorInfo);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // エラー発生時のフォールバック表示（真っ白ではなくエラーメッセージを出す）
+      return (
+        <div style={{ padding: 40, color: 'white', background: '#333', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <h1 style={{ fontSize: '2em', marginBottom: '1em' }}>System Error</h1>
+          <p>予期せぬエラーが発生しました。自動的に復旧しない場合は再起動してください。</p>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 type FloorId = "1F" | "2F" | "3F" | "4F";
 
 type ColumnPadding = {
@@ -442,7 +482,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <>
+    <ErrorBoundary>
       {isDebugVisible && (
       <div style={{
         position: 'fixed',
@@ -622,7 +662,7 @@ const App: React.FC = () => {
         onSaveShopSettings={handleSaveShopSettings}
       />
       <VersionInfoScreen onClose={() => {}} />
-    </>
+    </ErrorBoundary>
   );
 };
 

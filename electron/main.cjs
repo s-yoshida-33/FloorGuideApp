@@ -15,6 +15,27 @@ const {
 } = require('./updateChecker.cjs');
 const logger = require('./logger.cjs');
 
+// 【追加1】 ハードウェアアクセラレーションを無効化（GPUプロセスのクラッシュによるホワイトアウトを防止）
+app.disableHardwareAcceleration();
+
+// 【追加2】 GPUプロセスなどがクラッシュした場合にアプリを自動再起動する
+app.on('child-process-gone', (event, details) => {
+  const message = `Child process gone: type=${details.type}, reason=${details.reason}, exitCode=${details.exitCode}`;
+  console.error(message);
+  
+  // ロガーがロード済みならログにも残す
+  try {
+    logger.fatal(message, { ...details, scope: 'SYSTEM' });
+  } catch (e) { /* ignore */ }
+
+  // GPUまたはレンダラープロセスがクラッシュした場合は再起動
+  if (details.type === 'GPU' || details.type === 'Renderer') {
+    console.log('Relaunching app due to critical process crash...');
+    app.relaunch();
+    app.exit(0);
+  }
+});
+
 // Configure logger immediately to ensure logs go to gido.log
 // app.getPath('userData') is available before app is ready in modern Electron versions
 try {
