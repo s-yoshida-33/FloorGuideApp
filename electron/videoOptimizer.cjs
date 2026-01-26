@@ -1,0 +1,167 @@
+const fs = require('fs');
+const path = require('path');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+const ffprobePath = require('ffprobe-static');
+const logger = require('./logger.cjs');
+
+// Electron本番環境(asar)でのバイナリパス問題を回避するための設定
+let binaryPath = ffmpegPath;
+if (binaryPath.includes('app.asar')) {
+  binaryPath = binaryPath.replace('app.asar', 'app.asar.unpacked');
+}
+ffmpeg.setFfmpegPath(binaryPath);
+
+let probePath = ffprobePath.path;
+if (probePath.includes('app.asar')) {
+  probePath = probePath.replace('app.asar', 'app.asar.unpacked');
+}
+ffmpeg.setFfprobePath(probePath);
+
+const OPTIMIZED_SIGNATURE = 'gido-optimized-baseline'; // 最適化済み判定用タグ
+const TIMEOUT_MS = 300000; // 5分
+
+/**
+ * ファイルが書き込み可能か（ロックされていないか）チェック
+ */
+function isFileLocked(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r+');
+    fs.closeSync(fd);
+    return false;
+  } catch (error) {
+    if (error.code === 'EBUSY' || error.code === 'EPERM' || error.code === 'EACCES') {
+      return true;
+    }
+    return true;
+  }
+}
+
+/**
+ * 動画が既に最適化済みかメタデータでチェック
+ */
+function isAlreadyOptimized(filePath) {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) return resolve(false);
+      const tags = metadata.format.tags || {};
+      if (tags.comment === OPTIMIZED_SIGNATURE) {
+        return resolve(true);
+      }
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * 動画の最適化実行処理
+ * Baselineプロファイル、1080pリサイズ、ビットレート制限で軽量化
+ */
+function optimizeVideo(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    logger.info(`Starting video optimization: ${path.basename(inputPath)}`);
+    
+    const command = ffmpeg(inputPath)
+      .outputOptions([
+        '-vf scale=1080:-2,fps=30', // 横幅1080pxにリサイズ(縦比率維持), 30fps
+        '-c:v libx264',             // H.264
+        '-profile:v baseline',      // Baselineプロファイル (デコード負荷軽減の肝)
+        '-level 3.1',
+        '-b:v 2000k',               // ビットレート制限
+        '-maxrate 2500k',
+        '-bufsize 5000k',
+        '-c:a aac',
+        '-b:a 128k',
+        '-movflags +faststart',     // Web再生最適化
+        '-metadata', `comment=${OPTIMIZED_SIGNATURE}` // 完了フラグ付与
+      ]);
+
+    const timeout = setTimeout(() => {
+        logger.error(`Optimization timed out for ${path.basename(inputPath)}`);
+        command.kill('SIGKILL');
+        reject(new Error('Optimization timed out'));
+    }, TIMEOUT_MS);
+
+    command
+      .save(outputPath)
+      .on('end', () => {
+        clearTimeout(timeout);
+        logger.info(`Optimization completed: ${path.basename(inputPath)}`);
+        resolve();
+      })
+      .on('error', (err) => {
+        clearTimeout(timeout);
+        if (!err.message.includes('SIGKILL')) {
+            logger.error(`Optimization failed: ${path.basename(inputPath)}`, { error: err.message });
+            reject(err);
+        }
+      });
+  });
+}
+
+/**
+ * ディレクトリ内の全動画ファイルを再帰的に検索して最適化
+ */
+async function optimizeAllVideosInDirectory(dirPath) {
+  const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv'];
+  const filesToProcess = [];
+
+  // 1. ファイル収集
+  function scan(dir) {
+    if (!fs.existsSync(dir)) return;
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+      const fullPath = path.join(dir, file);
+      try {
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+            scan(fullPath);
+        } else if (videoExtensions.includes(path.extname(fullPath).toLowerCase())) {
+            filesToProcess.push(fullPath);
+        }
+      } catch (e) {
+          // アクセス権エラーなどは無視
+      }
+    }
+  }
+  
+  scan(dirPath);
+  if (filesToProcess.length > 0) {
+    logger.info(`Found ${filesToProcess.length} videos to optimize in ${dirPath}`);
+  }
+
+  // 2. 順次処理
+  for (const inputPath of filesToProcess) {
+    const filename = path.basename(inputPath);
+    const tempPath = inputPath + '.temp.mp4';
+
+    if (isFileLocked(inputPath)) {
+      logger.warn(`Skipping optimization for locked file: ${filename}`);
+      continue;
+    }
+
+    const optimized = await isAlreadyOptimized(inputPath);
+    if (optimized) {
+       continue;
+    }
+
+    try {
+      await optimizeVideo(inputPath, tempPath);
+      
+      // 元ファイルを置き換え
+      if (isFileLocked(inputPath)) {
+         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+         continue;
+      }
+      if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+      fs.renameSync(tempPath, inputPath);
+      
+    } catch (error) {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    }
+  }
+}
+
+module.exports = {
+  optimizeAllVideosInDirectory
+};
