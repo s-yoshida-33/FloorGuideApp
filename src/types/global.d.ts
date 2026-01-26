@@ -82,7 +82,7 @@ interface ElectronAPI {
   notifyScheduleUpdated?: () => void;
 }
 
-export type StatusState = 'checking' | 'available' | 'none' | 'downloaded' | 'error';
+export type StatusState = 'checking' | 'available' | 'none' | 'downloaded' | 'error' | 'optimizing';
 
 export interface UpdaterAPI {
   onStatus: (cb: (data: { state: StatusState; message: string }) => void) => void;

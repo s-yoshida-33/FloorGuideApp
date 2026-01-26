@@ -54,6 +54,10 @@ export function PatchScreen() {
       if (data.state === 'error') {
         // エラー時は詳細を表示せず、簡易メッセージにする
         setStatusMessage('アップデートの確認に失敗しました。\nそのまま起動します。');
+      } else if (data.state === 'optimizing') {
+        setStatusMessage(data.message);
+        // 待機モードには入らない
+        setIsWaiting(false);
       } else {
         setStatusMessage(data.message);
       }
@@ -148,6 +152,8 @@ export function PatchScreen() {
         return '最新バージョンです';
       case 'error':
         return 'アップデートエラー';
+      case 'optimizing':
+        return 'メディア最適化中';
       default:
         return 'アップデート状態';
     }

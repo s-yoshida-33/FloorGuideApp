@@ -1540,8 +1540,21 @@ ipcMain.on('menu:check-updates', () => {
 });
 
 // Startup update check ready (from PatchScreen)
-ipcMain.on('updater:check-for-updates-ready', () => {
-  logger.info('Renderer ready for updates, starting initial check');
+ipcMain.on('updater:check-for-updates-ready', async () => {
+  logger.info('Renderer ready. Starting pre-flight video optimization...');
+
+  // パッチ画面が表示されている間に最適化を実行し、完了を待機する
+  // これにより、アプリ稼働中（動画再生中）の負荷をゼロにする
+  if (patchWindow && !patchWindow.isDestroyed()) {
+    patchWindow.webContents.send('update-status', {
+      state: 'optimizing',
+      message: 'メディアファイルを最適化しています...\nこれには数分かかる場合があります。'
+    });
+  }
+
+  await runVideoOptimization();
+
+  logger.info('Optimization finished. Proceeding to update check.');
   checkForUpdates(false);
 });
 
@@ -1595,14 +1608,14 @@ app.whenReady().then(() => {
   // Ensure logger is configured (idempotent if already done)
   logger.configureLogger();
 
-  // 動画最適化処理をバックグラウンドで開始
-  runVideoOptimization();
+  // 【修正】アプリ稼働中の最適化処理を無効化（起動時のプレフライトチェックのみにするため）
+  // runVideoOptimization();
   
-  // 10分ごとに定期チェックを実行 (600000ms = 10分)
-  setInterval(() => {
-    logger.info('Running periodic video optimization check...');
-    runVideoOptimization();
-  }, 600000);
+  // 10分ごとの定期実行も停止
+  // setInterval(() => {
+  //   logger.info('Running periodic video optimization check...');
+  //   runVideoOptimization();
+  // }, 600000);
   
   logger.info('Application starting', {
     env: process.env.NODE_ENV || 'production',
