@@ -105,6 +105,17 @@ logger.onLog((entry) => {
   // but we keep a safety check here or for other potential sources
   if (entry.level === 'debug') return;
 
+  // 最適化関連のログはIPC通信（レンダラーへの送信）をスキップする
+  // 理由: 大量のファイルスキャン・変換時にIPC負荷がスパイクするのを防ぐため
+  const msg = entry.message || '';
+  if (
+    msg.includes('Optimization') || 
+    msg.includes('optimization') || 
+    msg.includes('CMS assets')
+  ) {
+    return;
+  }
+
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('debug:log', entry);
   }
