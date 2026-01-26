@@ -812,14 +812,26 @@ function toFileUrl(winPath) {
 // CMSアセットディレクトリ (最適化対象)
 const CMS_ASSETS_DIR = 'C:\\SignageData\\assets';
 
+// 二重実行防止フラグ
+let isOptimizationRunning = false;
+
 // 最適化処理を実行する関数
 async function runVideoOptimization() {
+  if (isOptimizationRunning) {
+    logger.info('Video optimization is already running, skipping this request.');
+    return;
+  }
+
   if (fs.existsSync(CMS_ASSETS_DIR)) {
+    isOptimizationRunning = true;
     logger.info(`Starting CMS assets optimization in ${CMS_ASSETS_DIR}`);
     // 非同期で実行し、アプリの起動をブロックしないようにする
     optimizeAllVideosInDirectory(CMS_ASSETS_DIR)
       .then(() => logger.info('CMS assets optimization finished'))
-      .catch(err => logger.error('CMS assets optimization failed', { error: err.message }));
+      .catch(err => logger.error('CMS assets optimization failed', { error: err.message }))
+      .finally(() => {
+        isOptimizationRunning = false;
+      });
   } else {
     logger.info('CMS assets directory not found, skipping optimization');
   }
@@ -1546,7 +1558,7 @@ ipcMain.on('menu:quit', () => {
 // Schedule update notification from renderer
 ipcMain.on('wsp:schedule-updated', () => {
   logger.info('Schedule update detected via IPC, triggering optimization...');
-  // runVideoOptimization();
+  runVideoOptimization();
 });
 
 /**
@@ -1573,13 +1585,13 @@ app.whenReady().then(() => {
   logger.configureLogger();
 
   // 動画最適化処理をバックグラウンドで開始
-  // runVideoOptimization();
+  runVideoOptimization();
   
   // 10分ごとに定期チェックを実行 (600000ms = 10分)
-  // setInterval(() => {
-  //   logger.info('Running periodic video optimization check...');
-  //   runVideoOptimization();
-  // }, 600000);
+  setInterval(() => {
+    logger.info('Running periodic video optimization check...');
+    runVideoOptimization();
+  }, 600000);
   
   logger.info('Application starting', {
     env: process.env.NODE_ENV || 'production',
