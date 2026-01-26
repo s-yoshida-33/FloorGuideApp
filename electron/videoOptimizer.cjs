@@ -63,6 +63,10 @@ function optimizeVideo(inputPath, outputPath) {
     
     const command = ffmpeg(inputPath)
       .outputOptions([
+        // --- 負荷軽減のための追加設定 ---
+        '-threads 1',       // CPUコア使用数を1つに制限
+        '-preset veryfast', // 圧縮処理を軽量化（画質への影響小、負荷減大）
+
         '-vf scale=1080:-2,fps=30', // 横幅1080pxにリサイズ(縦比率維持), 30fps
         '-c:v libx264',             // H.264
         '-profile:v baseline',      // Baselineプロファイル (デコード負荷軽減の肝)
