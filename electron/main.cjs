@@ -285,28 +285,37 @@ function loadSettings() {
       genreMappings: (() => {
         // Deep merge genre mappings with migration logic
         const stored = parsed.genreMappings || {};
-        const result = { ...base.genreMappings };
+        // Use empty object to preserve order from stored settings
+        const result = {};
         
+        // 1. Add/merge stored mappings (preserving stored order)
         Object.keys(stored).forEach(key => {
           const val = stored[key];
+          // Use base config if available (for defaults), otherwise generic default
+          const baseConfig = base.genreMappings[key] || DEFAULT_GENRE_CONFIG;
+
           if (typeof val === 'string') {
             // Migration: convert string (labelEn only) to object with defaults
             result[key] = {
-              ...DEFAULT_GENRE_CONFIG,
+              ...baseConfig,
               labelEn: val,
-              // Try to preserve existing color if it matches a default key, otherwise use default white
-              ...(DEFAULT_GENRE_MAPPINGS[key] || {}),
-              // Ensure labelEn is the stored string
-              labelEn: val, 
             };
           } else if (val && typeof val === 'object') {
             // Merge object
             result[key] = {
-              ...(result[key] || DEFAULT_GENRE_CONFIG),
+              ...baseConfig,
               ...val,
             };
           }
         });
+
+        // 2. Add remaining default mappings that weren't in stored settings
+        Object.keys(base.genreMappings).forEach(key => {
+          if (!result[key]) {
+            result[key] = base.genreMappings[key];
+          }
+        });
+
         return result;
       })(),
       genreMemoSettings: (() => {
@@ -826,8 +835,18 @@ const CMS_ASSETS_DIR = 'C:\\SignageData\\assets';
 // 二重実行防止フラグ
 let isOptimizationRunning = false;
 
+// アイドル監視用変数
+let lastActivityTime = Date.now();
+const IDLE_THRESHOLD = 5 * 60 * 1000; // 5分間アイドル
+
+// アクティビティリセット関数
+function resetActivityTimer() {
+  lastActivityTime = Date.now();
+}
+
 // 最適化処理を実行する関数
 async function runVideoOptimization() {
+  // 後方互換性のため残すが、基本的には runVideoOptimizationIfIdle を使用する
   if (isOptimizationRunning) {
     logger.info('Video optimization is already running, skipping this request.');
     return;
@@ -842,9 +861,40 @@ async function runVideoOptimization() {
       .catch(err => logger.error('CMS assets optimization failed', { error: err.message }))
       .finally(() => {
         isOptimizationRunning = false;
+        resetActivityTimer();
       });
   } else {
     logger.info('CMS assets directory not found, skipping optimization');
+  }
+}
+
+// アイドル時のみ最適化実行
+async function runVideoOptimizationIfIdle() {
+  const idleTime = Date.now() - lastActivityTime;
+  
+  if (idleTime < IDLE_THRESHOLD) {
+    logger.debug('System is active, skipping optimization', { idleTimeMs: idleTime });
+    return;
+  }
+  
+  if (isOptimizationRunning) {
+    logger.info('Optimization already running');
+    return;
+  }
+  
+  if (fs.existsSync(CMS_ASSETS_DIR)) {
+    isOptimizationRunning = true;
+    logger.info('Starting idle-time optimization');
+    
+    try {
+      await optimizeAllVideosInDirectory(CMS_ASSETS_DIR);
+      logger.info('Idle-time optimization completed');
+    } catch (err) {
+      logger.error('Idle-time optimization failed', { error: err.message });
+    } finally {
+      isOptimizationRunning = false;
+      resetActivityTimer(); // 処理完了直後もアクティブ扱いにして連続実行を防ぐ
+    }
   }
 }
 
@@ -972,7 +1022,11 @@ function createMainWindow() {
 
   mainWindow.loadURL(rendererBaseUrl);
 
-  // Send current floor setting after renderer has finished loading
+  // アクティビティ監視: メインウィンドウでの操作やロード、メディア再生を検知してタイマーリセット
+  mainWindow.webContents.on('did-start-loading', resetActivityTimer);
+  mainWindow.webContents.on('media-started-playing', resetActivityTimer);
+  mainWindow.webContents.on('before-input-event', resetActivityTimer); // キーボード入力
+  mainWindow.webContents.on('cursor-changed', resetActivityTimer); // マウスカーソル移動（一部）
   const settings = loadSettings();
   mainWindow.webContents.on('did-finish-load', () => {
     logger.info('Main window finished loading, broadcasting settings', {
@@ -1541,20 +1595,8 @@ ipcMain.on('menu:check-updates', () => {
 
 // Startup update check ready (from PatchScreen)
 ipcMain.on('updater:check-for-updates-ready', async () => {
-  logger.info('Renderer ready. Starting pre-flight video optimization...');
-
-  // パッチ画面が表示されている間に最適化を実行し、完了を待機する
-  // これにより、アプリ稼働中（動画再生中）の負荷をゼロにする
-  if (patchWindow && !patchWindow.isDestroyed()) {
-    patchWindow.webContents.send('update-status', {
-      state: 'optimizing',
-      message: 'メディアファイルを最適化しています...\nこれには数分かかる場合があります。'
-    });
-  }
-
-  await runVideoOptimization();
-
-  logger.info('Optimization finished. Proceeding to update check.');
+  logger.info('Renderer ready. Skipping startup optimization to prioritize launch speed.');
+  // 起動時の最適化は行わず、アイドル時に任せる
   checkForUpdates(false);
 });
 
@@ -1581,8 +1623,8 @@ ipcMain.on('menu:quit', () => {
 
 // Schedule update notification from renderer
 ipcMain.on('wsp:schedule-updated', () => {
-  logger.info('Schedule update detected via IPC, triggering optimization...');
-  runVideoOptimization();
+  logger.info('Schedule updated, optimization will run during next idle period');
+  // 即座に実行せず、次のアイドル期間まで待つ
 });
 
 /**
@@ -1608,14 +1650,12 @@ app.whenReady().then(() => {
   // Ensure logger is configured (idempotent if already done)
   logger.configureLogger();
 
-  // 【修正】アプリ稼働中の最適化処理を無効化（起動時のプレフライトチェックのみにするため）
-  // runVideoOptimization();
+  // 起動時の最適化を完全に排除し、定期チェックのみ
   
-  // 10分ごとの定期実行も停止
-  // setInterval(() => {
-  //   logger.info('Running periodic video optimization check...');
-  //   runVideoOptimization();
-  // }, 600000);
+  // 30分ごとにアイドル状態をチェックして最適化を実行
+  setInterval(() => {
+    runVideoOptimizationIfIdle();
+  }, 30 * 60 * 1000);
   
   logger.info('Application starting', {
     env: process.env.NODE_ENV || 'production',

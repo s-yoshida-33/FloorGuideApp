@@ -2,6 +2,7 @@
 import React from 'react';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
 import { logInfo, logWarn, logError } from '../logs/logging';
+import { OptimizedVideo } from './OptimizedVideo';
 
 interface VerticalVideoSlotProps {
   muted?: boolean;
@@ -92,7 +93,7 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
 
   // Render as video (default)
   return (
-    <video
+    <OptimizedVideo
       ref={videoRef}
       key={mediaKey}
       src={asset.src}
