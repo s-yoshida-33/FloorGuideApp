@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { CurrentAsset } from '../types/wsp';
 import { getCmsBaseUrl } from '../repositories/wspRepository'; // fetchCurrentAsset を削除
-import { logInfo, logWarn, logError, logDebug } from '../logs/logging';
+import { logWarn, logError, logDebug } from '../logs/logging';
 
 interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
@@ -79,13 +79,13 @@ export function useCurrentAsset(
     if (next) {
       const assetChanged = lastAssetIdRef.current !== next.id;
       if (lastStatusRef.current !== 'ok') {
-        logInfo('video', 'Received current video asset via SSE', {
+        logDebug('video', 'Received current video asset via SSE', {
           assetId: next.id,
           src: next.src,
           name: next.name,
         });
       } else if (assetChanged) {
-        logInfo('video', 'Asset changed via SSE', {
+        logDebug('video', 'Asset changed via SSE', {
           oldAssetId: lastAssetIdRef.current,
           newAssetId: next.id,
         });
@@ -114,13 +114,13 @@ export function useCurrentAsset(
       }
 
       const url = `${baseUrl}/api/events`;
-      logInfo('video', 'Connecting to SSE', { url });
+      logDebug('video', 'Connecting to SSE', { url });
 
       const es = new EventSource(url);
       eventSourceRef.current = es;
 
       es.onopen = () => {
-        logInfo('video', 'SSE connection established');
+        logDebug('video', 'SSE connection established');
       };
 
       es.onerror = (e) => {
@@ -141,7 +141,7 @@ export function useCurrentAsset(
       es.addEventListener('connected', (e: MessageEvent) => {
         try {
           const data = JSON.parse(e.data);
-          logInfo('video', 'SSE: connected event', data);
+          logDebug('video', 'SSE: connected event', data);
           
           // Try to extract initial asset from connected event if available
           if (data.current_timeline) {

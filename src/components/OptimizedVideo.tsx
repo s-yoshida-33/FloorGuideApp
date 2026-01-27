@@ -24,16 +24,6 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
     
     // CPU負荷軽減のための設定
     video.preload = 'metadata';
-    
-    // 再生品質の調整（Chromiumの実験的機能）
-    if ('requestVideoFrameCallback' in video) {
-      const callback = () => {
-        if (!video.paused) {
-          (video as any).requestVideoFrameCallback(callback);
-        }
-      };
-      (video as any).requestVideoFrameCallback(callback);
-    }
   }, [src]);
   
   return (
