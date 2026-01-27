@@ -92,6 +92,13 @@ export interface UpdaterAPI {
     total: number;
     speed: number;
   }) => void) => void;
+  onOptimizationProgress?: (cb: (data: {
+    current: number;
+    total: number;
+    percent: number;
+    message?: string;
+    filename?: string;
+  }) => void) => void;
   startupWaitCompleted: () => void;
   checkForUpdatesReady: () => void;
 }
