@@ -20,7 +20,7 @@ if (probePath.includes('app.asar')) {
 }
 ffmpeg.setFfprobePath(probePath);
 
-const OPTIMIZED_SIGNATURE = 'gido-optimized-baseline'; // 最適化済み判定用タグ
+const OPTIMIZED_SIGNATURE = 'gido-optimized-high-v1'; // 高画質化 (再処理を強制)
 const TIMEOUT_MS = 300000; // 5分
 
 /**
@@ -90,21 +90,21 @@ function optimizeVideo(inputPath, outputPath) {
     
     const command = ffmpeg(inputPath)
       .outputOptions([
-        // --- 負荷軽減のための追加設定 ---
+        // 高画質化設定
         '-threads 1',       // CPUコア使用数を1つに制限
-        '-preset ultrafast', // veryfast → ultrafast に変更（圧縮効率より速度優先）
+        '-preset ultrafast', 
 
-        // より積極的な解像度・フレームレート削減
-        '-vf scale=1280:-2,fps=24', // 1080p(1920px) → 720p(1280px), 30fps → 24fps
+        // リサイズなし(1080p維持)、30fps
+        '-vf scale=-1:-1,fps=30',
         
         '-c:v libx264',             // H.264
-        '-profile:v baseline',      // Baselineプロファイル (デコード負荷軽減の肝)
-        '-level 3.0',               // 3.1 → 3.0 でさらに軽量化
+        '-profile:v main',          // Mainプロファイル (画質向上)
+        '-level 4.0',               // Level 4.0
         
-        // ビットレートをさらに削減
-        '-b:v 1500k',               // 2000k → 1500k
-        '-maxrate 1800k',           // 2500k → 1800k
-        '-bufsize 3600k',           // 5000k → 3600k
+        // ビットレートを緩和
+        '-b:v 4000k',               // 1500k → 4000k
+        '-maxrate 5000k',           // 1800k → 5000k
+        '-bufsize 8000k',           // 3600k → 8000k
         
         // 音声も軽量化
         '-c:a aac',
@@ -148,9 +148,10 @@ function optimizeVideo(inputPath, outputPath) {
 
 /**
  * ディレクトリ内の全動画ファイルを再帰的に検索して最適化
+ * onProgress: (current, total, filename) => void
  */
-async function optimizeAllVideosInDirectory(dirPath) {
-  const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv'];
+async function optimizeAllVideosInDirectory(dirPath, onProgress) {
+  const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.ogg'];
   const filesToProcess = [];
 
   // 1. ファイル収集 (非同期・ノンブロッキング)
@@ -176,14 +177,26 @@ async function optimizeAllVideosInDirectory(dirPath) {
   }
   
   await scan(dirPath);
-  if (filesToProcess.length > 0) {
-    logger.info(`Found ${filesToProcess.length} videos to optimize in ${dirPath}`);
+  const totalFiles = filesToProcess.length;
+
+  if (totalFiles > 0) {
+    logger.info(`Found ${totalFiles} videos to optimize in ${dirPath}`);
+    // 初期進捗送信
+    if (onProgress) onProgress(0, totalFiles, 'Starting...');
+  } else {
+    logger.info(`No video files found in ${dirPath}`);
+    if (onProgress) onProgress(0, 0, 'No videos found');
+    return;
   }
 
   // 2. 順次処理
-  for (const inputPath of filesToProcess) {
+  for (let i = 0; i < totalFiles; i++) {
+    const inputPath = filesToProcess[i];
     const filename = path.basename(inputPath);
     const tempPath = inputPath + '.temp.mp4';
+
+    // 進捗通知: 開始
+    if (onProgress) onProgress(i + 1, totalFiles, filename);
 
     if (isFileLocked(inputPath)) {
       logger.warn(`Skipping optimization for locked file: ${filename}`);
@@ -192,6 +205,7 @@ async function optimizeAllVideosInDirectory(dirPath) {
 
     const optimized = await isAlreadyOptimized(inputPath);
     if (optimized) {
+       logger.debug(`Already optimized (v2), skipping: ${filename}`);
        continue;
     }
 
@@ -210,6 +224,9 @@ async function optimizeAllVideosInDirectory(dirPath) {
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     }
   }
+  
+  // 完了通知
+  if (onProgress) onProgress(totalFiles, totalFiles, 'Completed');
 }
 
 module.exports = {

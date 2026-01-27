@@ -10,6 +10,7 @@ export function PatchScreen() {
   const [total, setTotal] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
+  const [optProgress, setOptProgress] = useState<{current: number, total: number, message: string} | null>(null);
 
   // 待機用ステート
   const [isWaiting, setIsWaiting] = useState(false);
@@ -47,6 +48,19 @@ export function PatchScreen() {
     }
 
     if (!window.updater) return;
+
+    if (window.updater.onOptimizationProgress) {
+      window.updater.onOptimizationProgress((data: any) => {
+        setStatusState('optimizing');
+        setOptProgress({
+          current: data.current,
+          total: data.total,
+          message: data.filename || data.message
+        });
+        setStatusMessage(data.message || '最適化中...');
+        setIsWaiting(false);
+      });
+    }
 
     window.updater.onStatus((data) => {
       setStatusState(data.state);
@@ -170,8 +184,12 @@ export function PatchScreen() {
   };
 
   // UI描画用変数
-  // 待機中は待機進捗、ダウンロード中はダウンロード進捗を表示
-  const displayPercent = isWaiting ? waitProgress : (percent ?? 0);
+  // 待機中は待機進捗、最適化中は最適化進捗、それ以外はダウンロード進捗を表示
+  const displayPercent = isWaiting 
+    ? waitProgress 
+    : (statusState === 'optimizing' && optProgress?.total && optProgress.total > 0
+        ? (optProgress.current / optProgress.total) * 100 
+        : (percent ?? 0));
 
   return (
     <div
@@ -309,11 +327,38 @@ export function PatchScreen() {
           </div>
 
           <div style={{ fontSize: 12, textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>
-            {isWaiting ? `${countdown}s` : (percent != null ? `${percent.toFixed(1)}%` : '待機中…')}
+            {isWaiting 
+              ? `${countdown}s` 
+              : (statusState === 'optimizing' && optProgress
+                  ? `${Math.round(displayPercent)}% (${optProgress.current}/${optProgress.total})`
+                  : (percent != null ? `${percent.toFixed(1)}%` : '待機中…'))
+            }
           </div>
 
           {/* Numeric Info */}
           {!isWaiting && (
+            statusState === 'optimizing' && optProgress ? (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  rowGap: 8,
+                  columnGap: 16,
+                  fontSize: 11,
+                  paddingTop: 8,
+                  borderTop: '1px solid #1a1a1a',
+                }}
+              >
+                <div style={{ color: '#888888' }}>Processed</div>
+                <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{optProgress.current} / {optProgress.total}</div>
+
+                <div style={{ color: '#888888' }}>Current File</div>
+                <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{optProgress.message}</div>
+
+                <div style={{ color: '#888888' }}>State</div>
+                <div style={{ textAlign: 'right', color: '#00ff88', fontWeight: 600, textTransform: 'uppercase' }}>OPTIMIZING</div>
+              </div>
+            ) : (
             <div
               style={{
                 display: 'grid',
@@ -337,6 +382,7 @@ export function PatchScreen() {
               <div style={{ color: '#888888' }}>State</div>
               <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600, textTransform: 'uppercase' }}>{statusState}</div>
             </div>
+            )
           )}
         </div>
 

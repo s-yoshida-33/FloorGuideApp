@@ -16,11 +16,14 @@ const {
 const logger = require('./logger.cjs');
 const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 
-// 【追加1】 ハードウェアアクセラレーションを無効化（GPUプロセスのクラッシュによるホワイトアウトを防止）
-app.disableHardwareAcceleration();
+// 【修正】ハードウェアアクセラレーションを有効化
+// app.disableHardwareAcceleration();
 // 以下を追加
-app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
-app.commandLine.appendSwitch('disable-zero-copy');
+// app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
+// app.commandLine.appendSwitch('disable-zero-copy');
+
+// GPUプロセスの不具合回避を無効化（安全策として残すが、状況に応じて削除検討）
+app.commandLine.appendSwitch('disable-gpu-driver-bug-workarounds');
 
 // 【追加2】 GPUプロセスなどがクラッシュした場合にアプリを自動再起動する
 app.on('child-process-gone', (event, details) => {
@@ -835,68 +838,40 @@ const CMS_ASSETS_DIR = 'C:\\SignageData\\assets';
 // 二重実行防止フラグ
 let isOptimizationRunning = false;
 
-// アイドル監視用変数
-let lastActivityTime = Date.now();
-const IDLE_THRESHOLD = 5 * 60 * 1000; // 5分間アイドル
+// 起動時の最適化処理（進捗表示付き）
+async function runVideoOptimizationWithProgress() {
+  if (isOptimizationRunning) return;
+  
+  if (!fs.existsSync(CMS_ASSETS_DIR)) {
+      logger.info('CMS assets directory not found, skipping startup optimization');
+      return;
+  }
 
-// アクティビティリセット関数
-function resetActivityTimer() {
-  lastActivityTime = Date.now();
+  isOptimizationRunning = true;
+  logger.info('Starting startup optimization with progress UI');
+
+  try {
+    // UIへの通知用ヘルパー
+    const sendProgress = (current, total, message) => {
+        if (patchWindow && !patchWindow.isDestroyed()) {
+            patchWindow.webContents.send('optimization-progress', {
+                current,
+                total,
+                message,
+                percent: total > 0 ? (current / total) * 100 : 0
+            });
+        }
+    };
+
+    await optimizeAllVideosInDirectory(CMS_ASSETS_DIR, sendProgress);
+    logger.info('Startup optimization completed');
+  } catch (err) {
+    logger.error('Startup optimization failed', { error: err.message });
+  } finally {
+    isOptimizationRunning = false;
+  }
 }
 
-// 最適化処理を実行する関数
-async function runVideoOptimization() {
-  // 後方互換性のため残すが、基本的には runVideoOptimizationIfIdle を使用する
-  if (isOptimizationRunning) {
-    logger.info('Video optimization is already running, skipping this request.');
-    return;
-  }
-
-  if (fs.existsSync(CMS_ASSETS_DIR)) {
-    isOptimizationRunning = true;
-    logger.info(`Starting CMS assets optimization in ${CMS_ASSETS_DIR}`);
-    // 非同期で実行し、アプリの起動をブロックしないようにする
-    optimizeAllVideosInDirectory(CMS_ASSETS_DIR)
-      .then(() => logger.info('CMS assets optimization finished'))
-      .catch(err => logger.error('CMS assets optimization failed', { error: err.message }))
-      .finally(() => {
-        isOptimizationRunning = false;
-        resetActivityTimer();
-      });
-  } else {
-    logger.info('CMS assets directory not found, skipping optimization');
-  }
-}
-
-// アイドル時のみ最適化実行
-async function runVideoOptimizationIfIdle() {
-  const idleTime = Date.now() - lastActivityTime;
-  
-  if (idleTime < IDLE_THRESHOLD) {
-    logger.debug('System is active, skipping optimization', { idleTimeMs: idleTime });
-    return;
-  }
-  
-  if (isOptimizationRunning) {
-    logger.info('Optimization already running');
-    return;
-  }
-  
-  if (fs.existsSync(CMS_ASSETS_DIR)) {
-    isOptimizationRunning = true;
-    logger.info('Starting idle-time optimization');
-    
-    try {
-      await optimizeAllVideosInDirectory(CMS_ASSETS_DIR);
-      logger.info('Idle-time optimization completed');
-    } catch (err) {
-      logger.error('Idle-time optimization failed', { error: err.message });
-    } finally {
-      isOptimizationRunning = false;
-      resetActivityTimer(); // 処理完了直後もアクティブ扱いにして連続実行を防ぐ
-    }
-  }
-}
 
 /**
  * Create the small startup patch window.
@@ -1022,11 +997,11 @@ function createMainWindow() {
 
   mainWindow.loadURL(rendererBaseUrl);
 
-  // アクティビティ監視: メインウィンドウでの操作やロード、メディア再生を検知してタイマーリセット
-  mainWindow.webContents.on('did-start-loading', resetActivityTimer);
-  mainWindow.webContents.on('media-started-playing', resetActivityTimer);
-  mainWindow.webContents.on('before-input-event', resetActivityTimer); // キーボード入力
-  mainWindow.webContents.on('cursor-changed', resetActivityTimer); // マウスカーソル移動（一部）
+  // アクティビティ監視: メインウィンドウでの操作やロード、メディア再生を検知してタイマーリセット（廃止）
+  // mainWindow.webContents.on('did-start-loading', resetActivityTimer);
+  // mainWindow.webContents.on('media-started-playing', resetActivityTimer);
+  // mainWindow.webContents.on('before-input-event', resetActivityTimer);
+  // mainWindow.webContents.on('cursor-changed', resetActivityTimer);
   const settings = loadSettings();
   mainWindow.webContents.on('did-finish-load', () => {
     logger.info('Main window finished loading, broadcasting settings', {
@@ -1595,8 +1570,14 @@ ipcMain.on('menu:check-updates', () => {
 
 // Startup update check ready (from PatchScreen)
 ipcMain.on('updater:check-for-updates-ready', async () => {
-  logger.info('Renderer ready. Skipping startup optimization to prioritize launch speed.');
-  // 起動時の最適化は行わず、アイドル時に任せる
+  logger.info('Renderer ready. Starting startup video optimization...');
+  
+  // 1. 最適化実行 (ブロッキング、進捗通知あり)
+  await runVideoOptimizationWithProgress();
+  
+  logger.info('Optimization phase done. Proceeding to update check.');
+  
+  // 2. アップデートチェック
   checkForUpdates(false);
 });
 
@@ -1623,8 +1604,8 @@ ipcMain.on('menu:quit', () => {
 
 // Schedule update notification from renderer
 ipcMain.on('wsp:schedule-updated', () => {
-  logger.info('Schedule updated, optimization will run during next idle period');
-  // 即座に実行せず、次のアイドル期間まで待つ
+  logger.info('Schedule updated.');
+  // 将来的な拡張: 必要に応じて次回起動時などに最適化フラグを立てる等
 });
 
 /**
@@ -1650,12 +1631,8 @@ app.whenReady().then(() => {
   // Ensure logger is configured (idempotent if already done)
   logger.configureLogger();
 
-  // 起動時の最適化を完全に排除し、定期チェックのみ
-  
-  // 30分ごとにアイドル状態をチェックして最適化を実行
-  setInterval(() => {
-    runVideoOptimizationIfIdle();
-  }, 30 * 60 * 1000);
+  // 起動時の最適化を PatchWindow で進捗表示しながら実行するように変更したため
+  // ここでの定期実行は廃止
   
   logger.info('Application starting', {
     env: process.env.NODE_ENV || 'production',
