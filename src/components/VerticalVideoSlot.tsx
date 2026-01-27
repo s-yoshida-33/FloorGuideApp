@@ -1,7 +1,7 @@
 // src/components/VerticalVideoSlot.tsx
 import React from 'react';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
-import { logInfo, logWarn, logError } from '../logs/logging';
+import { logWarn, logError, logDebug } from '../logs/logging';
 import { OptimizedVideo } from './OptimizedVideo';
 
 interface VerticalVideoSlotProps {
@@ -56,15 +56,12 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   const isImage = asset.mediaType === 'image' || 
     (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
 
-  // Use both id and src in key to ensure remount when either changes
-  const mediaKey = `${asset.id}-${asset.src}`;
-
   if (isImage) {
     // Render as image
     return (
       <img
         ref={imgRef}
-        key={mediaKey}
+        key={`img-${asset.id}`} // Remount on image change is cheap and safer
         src={asset.src}
         alt={asset.name || 'Media'}
         style={{
@@ -74,7 +71,7 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
           objectFit: 'cover',
         }}
         onLoad={() => {
-          logInfo('CMS_DELIVERY', 'Content image loaded', {
+          logDebug('CMS_DELIVERY', 'Content image loaded', {
             assetId: asset.id,
             src: asset.src,
             type: 'IMAGE'
@@ -95,7 +92,10 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   return (
     <OptimizedVideo
       ref={videoRef}
-      key={mediaKey}
+      // Don't use key based on asset ID to prevent unmounting/remounting the video element.
+      // This allows the video element to be reused, reducing CPU spikes during switching.
+      // The src prop update is handled by the video element itself.
+      key="video-player" 
       src={asset.src}
       autoPlay
       loop={true}
@@ -108,19 +108,19 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
         objectFit: 'cover',
       }}
       onLoadedData={() => {
-        logInfo('CMS_DELIVERY', 'Content video ready', {
+        logDebug('CMS_DELIVERY', 'Content video ready', {
           assetId: asset.id,
           src: asset.src,
           type: 'VIDEO'
         });
       }}
       onPlay={() => {
-        logInfo('CMS_DELIVERY', 'Video playback started', {
+        logDebug('CMS_DELIVERY', 'Video playback started', {
           assetId: asset.id,
         });
       }}
       onEnded={() => {
-        logInfo('CMS_DELIVERY', 'Video playback ended (will loop)', {
+        logDebug('CMS_DELIVERY', 'Video playback ended (will loop)', {
           assetId: asset.id,
         });
       }}

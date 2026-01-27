@@ -988,7 +988,7 @@ function createMainWindow() {
     }, 100);
   });
 
-  // 3. 定期監視 (Watchdog) - 2秒ごとに最前面を強制
+  // 3. 定期監視 (Watchdog) - 10秒ごとに最前面を強制
   // 何らかの理由で背面に回ってしまった場合の自動復帰用
   const focusWatchdog = setInterval(() => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1004,7 +1004,7 @@ function createMainWindow() {
       // ウィンドウが破棄されていたら監視終了
       clearInterval(focusWatchdog);
     }
-  }, 2000);
+  }, 10000);
 
   // Enable F12 shortcut to toggle dev tools
   // Enable Ctrl+R shortcut to reload in dev environment
