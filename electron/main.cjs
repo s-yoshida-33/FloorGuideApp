@@ -244,15 +244,15 @@ function loadSettings() {
       },
       openTimeImage: '',
     },
-    // Port ranges for auto-detection (Bridge: 8090-8099, CMS: 8080-8089)
+    // Port ranges for auto-detection (Bridge: 8090, CMS: 8080)
     portRanges: {
       bridge: {
         min: 8090,
-        max: 8099,
+        max: 8090,
       },
       cms: {
         min: 8080,
-        max: 8089,
+        max: 8080,
       },
     },
     shopSettings: {},
@@ -355,18 +355,38 @@ function loadSettings() {
             openTimeImage: parsed.imageSettings.openTimeImage || base.imageSettings.openTimeImage,
           }
         : base.imageSettings,
-      portRanges: parsed.portRanges
-        ? {
+      portRanges: (() => {
+        // Migration logic for port ranges
+        // If settings exist but have wide ranges, force overwrite with fixed ports (8090/8080)
+        // This migration ensures all clients eventually converge to the optimized single-port check
+        const stored = parsed.portRanges;
+        const defaults = base.portRanges;
+        
+        if (!stored) return defaults;
+
+        // Check if migration is needed (if ranges are wider than 0, i.e. min != max)
+        const bridgeNeedsFix = stored.bridge && (stored.bridge.max > stored.bridge.min || stored.bridge.max !== defaults.bridge.max);
+        const cmsNeedsFix = stored.cms && (stored.cms.max > stored.cms.min || stored.cms.max !== defaults.cms.max);
+
+        if (bridgeNeedsFix || cmsNeedsFix) {
+          logger.info('Migrating port ranges to fixed single ports', { 
+            old: stored, 
+            new: defaults 
+          });
+          return defaults;
+        }
+
+        return {
             bridge: {
-              min: typeof parsed.portRanges.bridge?.min === 'number' ? parsed.portRanges.bridge.min : base.portRanges.bridge.min,
-              max: typeof parsed.portRanges.bridge?.max === 'number' ? parsed.portRanges.bridge.max : base.portRanges.bridge.max,
+              min: typeof stored.bridge?.min === 'number' ? stored.bridge.min : defaults.bridge.min,
+              max: typeof stored.bridge?.max === 'number' ? stored.bridge.max : defaults.bridge.max,
             },
             cms: {
-              min: typeof parsed.portRanges.cms?.min === 'number' ? parsed.portRanges.cms.min : base.portRanges.cms.min,
-              max: typeof parsed.portRanges.cms?.max === 'number' ? parsed.portRanges.cms.max : base.portRanges.cms.max,
+              min: typeof stored.cms?.min === 'number' ? stored.cms.min : defaults.cms.min,
+              max: typeof stored.cms?.max === 'number' ? stored.cms.max : defaults.cms.max,
             },
-          }
-        : base.portRanges,
+        };
+      })(),
       shopSettings: parsed.shopSettings || base.shopSettings,
     };
 
@@ -381,7 +401,7 @@ function loadSettings() {
       error: null
     };
 
-    logger.info('Settings loaded', {
+    logger.debug('Settings loaded', {
       floor: merged.floor,
       hasAnimation: !!merged.locationIcons.speechBubble.animation,
       animationEnabled: merged.locationIcons.speechBubble.animation?.enabled,
@@ -683,6 +703,8 @@ async function getCmsBaseUrl() {
 // Cache for base URLs to avoid repeated port detection
 let cachedBridgeBaseUrl = null;
 let cachedCmsBaseUrl = null;
+let bridgeDiscoveryPromise = null;
+let cmsDiscoveryPromise = null;
 let lastPortCheckTime = 0;
 const PORT_CHECK_INTERVAL = 30000; // Check every 30 seconds
 
@@ -691,11 +713,31 @@ const PORT_CHECK_INTERVAL = 30000; // Check every 30 seconds
  */
 async function getCachedBridgeBaseUrl() {
   const now = Date.now();
-  if (!cachedBridgeBaseUrl || (now - lastPortCheckTime) > PORT_CHECK_INTERVAL) {
-    cachedBridgeBaseUrl = await getBridgeBaseUrl();
-    lastPortCheckTime = now;
+  
+  // Return cached value if valid
+  if (cachedBridgeBaseUrl && (now - lastPortCheckTime) <= PORT_CHECK_INTERVAL) {
+    return cachedBridgeBaseUrl;
   }
-  return cachedBridgeBaseUrl;
+
+  // If discovery is already in progress, return the existing promise
+  if (bridgeDiscoveryPromise) {
+    logger.debug('Waiting for existing Bridge discovery promise');
+    return bridgeDiscoveryPromise;
+  }
+
+  // Start new discovery
+  bridgeDiscoveryPromise = (async () => {
+    try {
+      const url = await getBridgeBaseUrl();
+      cachedBridgeBaseUrl = url;
+      lastPortCheckTime = Date.now();
+      return url;
+    } finally {
+      bridgeDiscoveryPromise = null;
+    }
+  })();
+
+  return bridgeDiscoveryPromise;
 }
 
 /**
@@ -703,19 +745,38 @@ async function getCachedBridgeBaseUrl() {
  */
 async function getCachedCmsBaseUrl() {
   const now = Date.now();
-  if (!cachedCmsBaseUrl || (now - lastPortCheckTime) > PORT_CHECK_INTERVAL) {
-    logger.info('Refreshing CMS base URL cache', { 
-      cached: cachedCmsBaseUrl, 
-      lastCheck: lastPortCheckTime,
-      interval: PORT_CHECK_INTERVAL 
-    });
-    cachedCmsBaseUrl = await getCmsBaseUrl();
-    lastPortCheckTime = now;
-    logger.info('CMS base URL cache updated', { baseUrl: cachedCmsBaseUrl });
-  } else {
+  
+  // Return cached value if valid
+  if (cachedCmsBaseUrl && (now - lastPortCheckTime) <= PORT_CHECK_INTERVAL) {
     logger.debug('Using cached CMS base URL', { baseUrl: cachedCmsBaseUrl });
+    return cachedCmsBaseUrl;
   }
-  return cachedCmsBaseUrl;
+
+  // If discovery is already in progress, return the existing promise
+  if (cmsDiscoveryPromise) {
+    logger.debug('Waiting for existing CMS discovery promise');
+    return cmsDiscoveryPromise;
+  }
+
+  // Start new discovery
+  cmsDiscoveryPromise = (async () => {
+    try {
+      logger.info('Refreshing CMS base URL cache', { 
+        cached: cachedCmsBaseUrl, 
+        lastCheck: lastPortCheckTime,
+        interval: PORT_CHECK_INTERVAL 
+      });
+      const url = await getCmsBaseUrl();
+      cachedCmsBaseUrl = url;
+      lastPortCheckTime = Date.now();
+      logger.info('CMS base URL cache updated', { baseUrl: url });
+      return url;
+    } finally {
+      cmsDiscoveryPromise = null;
+    }
+  })();
+
+  return cmsDiscoveryPromise;
 }
 
 /**
@@ -724,6 +785,7 @@ async function getCachedCmsBaseUrl() {
 function clearCmsBaseUrlCache() {
   cachedCmsBaseUrl = null;
   lastPortCheckTime = 0;
+  // Note: We don't clear ongoing promises to avoid interrupting active checks
   logger.info('CMS base URL cache cleared');
 }
 
