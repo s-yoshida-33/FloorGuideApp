@@ -383,9 +383,12 @@ const GidoApp: React.FC<GidoAppProps> = ({
               objectFit: "contain",
             }}
             onLoad={() => {
+              const srcLog = floorMap.startsWith('data:') 
+                ? '(Base64 data truncated)' 
+                : floorMap;
               logInfo("ASSET_CHECK", "Floor map rendered", {
                 floor,
-                src: floorMap,
+                src: srcLog,
               });
             }}
             onError={(event) => {
@@ -503,8 +506,12 @@ const GidoApp: React.FC<GidoAppProps> = ({
               padding: "1.4em",
             }}
             onLoad={() => {
+              const src = imageSettings?.openTimeImage || openTimeImage;
+              const srcLog = src.startsWith('data:') 
+                ? '(Base64 data truncated)' 
+                : src;
               logInfo("ASSET_CHECK", "Open-time image loaded", {
-                src: imageSettings?.openTimeImage || openTimeImage,
+                src: srcLog,
               });
             }}
             onError={(event) => {
