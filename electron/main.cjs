@@ -23,7 +23,7 @@ const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 // app.commandLine.appendSwitch('disable-zero-copy');
 
 // GPUプロセスの不具合回避を無効化（安全策として残すが、状況に応じて削除検討）
-app.commandLine.appendSwitch('disable-gpu-driver-bug-workarounds');
+// app.commandLine.appendSwitch('disable-gpu-driver-bug-workarounds');
 
 // 【追加2】 GPUプロセスなどがクラッシュした場合にアプリを自動再起動する
 app.on('child-process-gone', (event, details) => {
@@ -1314,9 +1314,9 @@ ipcMain.handle('get-image-settings', () => {
   for (const floor of ['1F', '2F', '3F', '4F']) {
     const filePath = imageSettings.floorMaps?.[floor];
     if (filePath && filePath.startsWith('file://')) {
-      const localPath = filePath.replace('file://', '');
-      const dataUrl = readSvgFileAsDataUrl(localPath);
-      result.floorMaps[floor] = dataUrl || '';
+      // Return file path directly instead of converting to base64
+      // This reduces memory usage significantly
+      result.floorMaps[floor] = filePath;
     } else if (filePath && filePath.startsWith('data:')) {
       // Already a data URL
       result.floorMaps[floor] = filePath;
@@ -1328,9 +1328,8 @@ ipcMain.handle('get-image-settings', () => {
   // Convert open time image path to data URL
   const openTimePath = imageSettings.openTimeImage;
   if (openTimePath && openTimePath.startsWith('file://')) {
-    const localPath = openTimePath.replace('file://', '');
-    const dataUrl = readSvgFileAsDataUrl(localPath);
-    result.openTimeImage = dataUrl || '';
+    // Return file path directly instead of converting to base64
+    result.openTimeImage = openTimePath;
   } else if (openTimePath && openTimePath.startsWith('data:')) {
     result.openTimeImage = openTimePath;
   } else {
