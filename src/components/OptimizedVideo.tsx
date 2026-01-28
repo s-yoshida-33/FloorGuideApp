@@ -18,6 +18,7 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
     }
   }, [ref]);
 
+  // srcが変わった時の処理（属性設定のみ）
   useEffect(() => {
     const video = innerRef.current;
     if (!video) return;
@@ -25,6 +26,24 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
     // CPU負荷軽減のための設定
     video.preload = 'metadata';
   }, [src]);
+
+  // マウント/アンマウント時の処理（クリーンアップのみ）
+  useEffect(() => {
+    const video = innerRef.current;
+    if (!video) return;
+
+    // クリーンアップ処理: コンポーネントが完全に破棄される時だけ実行する
+    // ※srcの変更時には実行されないように依存配列を空にする
+    return () => {
+      try {
+        video.pause();
+        video.removeAttribute('src');
+        video.load(); // 読み込みをリセットして完全に停止させる
+      } catch (e) {
+        console.warn('Video cleanup failed:', e);
+      }
+    };
+  }, []);
   
   return (
     <video
