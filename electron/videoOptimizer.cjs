@@ -20,7 +20,7 @@ if (probePath.includes('app.asar')) {
 }
 ffmpeg.setFfprobePath(probePath);
 
-const OPTIMIZED_SIGNATURE = 'gido-optimized-high-v1'; // 高画質化 (再処理を強制)
+const OPTIMIZED_SIGNATURE = 'gido-optimized-high-v2'; // 高画質化 (再処理を強制)
 const TIMEOUT_MS = 300000; // 5分
 
 /**
@@ -98,13 +98,13 @@ function optimizeVideo(inputPath, outputPath) {
         '-vf scale=-1:-1,fps=30',
         
         '-c:v libx264',             // H.264
-        '-profile:v main',          // Mainプロファイル (画質向上)
-        '-level 4.0',               // Level 4.0
+        '-profile:v high',          // Highプロファイル (圧縮効率・画質向上)
+        '-level 4.1',               // Level 4.1 (1080p/30fps High Profileに適合)
         
         // ビットレートを緩和
-        '-b:v 4000k',               // 1500k → 4000k
-        '-maxrate 5000k',           // 1800k → 5000k
-        '-bufsize 8000k',           // 3600k → 8000k
+        '-b:v 8000k',               // 4000k → 8000k
+        '-maxrate 10000k',          // 5000k → 10000k
+        '-bufsize 16000k',          // 8000k → 16000k
         
         // 音声も軽量化
         '-c:a aac',
