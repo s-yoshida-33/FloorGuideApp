@@ -1676,12 +1676,14 @@ process.on('uncaughtException', (error) => {
   logger.fatal('Uncaught exception in main process', {
     error: error?.message,
     stack: error?.stack,
+    scope: 'SYSTEM',
   });
 });
 
 process.on('unhandledRejection', (reason) => {
   logger.fatal('Unhandled promise rejection in main process', {
     reason: String(reason),
+    scope: 'SYSTEM',
   });
 });
 
