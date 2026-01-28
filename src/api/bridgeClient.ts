@@ -2,7 +2,7 @@
 import { getApiBaseUrl, APP_CONFIG } from "../config";
 import type { BridgeShop, Shop, FloorId } from "../types/shop";
 
-import { logInfo, logWarn, logError } from "../logs/logging";
+import { logInfo, logWarn, logError, logDebug } from "../logs/logging";
 
 // Normalize floor id string (you can extend this if needed)
 function normalizeFloorId(value: string): FloorId {
@@ -92,7 +92,7 @@ export async function fetchShopsFromBridge(): Promise<Shop[]> {
   const url = `${baseUrl}/api/shops`;
   const startTime = Date.now();
 
-  logInfo("DATA_SYNC", "Requesting shops from Bridge API", { url });
+  logDebug("DATA_SYNC", "Requesting shops from Bridge API", { url });
 
   try {
     const res = await fetch(url, { 

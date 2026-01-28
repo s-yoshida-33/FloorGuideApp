@@ -38,7 +38,15 @@ function configureLogger() {
  * Scopes that should generate alerts.
  * Only these scopes will be monitored for transitions.
  */
-const alertScopes = new Set(['map', 'shopList', 'video', 'openTime']);
+const alertScopes = new Set([
+  'map',
+  'shopList',
+  'video',
+  'SYSTEM',
+  'DATA_SYNC',
+  'CMS_DELIVERY',
+  'ASSET_CHECK'
+]);
 
 /**
  * Keeps the last known alert state for each scope or (scope + floor).
