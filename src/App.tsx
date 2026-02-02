@@ -90,6 +90,7 @@ const App: React.FC = () => {
   const [floor, setFloor] = useState<FloorId>("1F");
   const [floorLayout, setFloorLayout] = useState<FloorLayout>(DEFAULT_FLOOR_LAYOUT);
   const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_IMAGE_SETTINGS);
+  const [imageUpdateTs, setImageUpdateTs] = useState(Date.now());
   const [genreMappings, setGenreMappings] = useState<GenreMappings>(DEFAULT_GENRE_MAPPINGS);
   const [genreMemoSettings, setGenreMemoSettings] = useState<GenreMemoSettings>(DEFAULT_GENRE_MEMO_SETTINGS);
   const [shopSettings, setShopSettings] = useState<ShopSettings>({});
@@ -369,6 +370,7 @@ const App: React.FC = () => {
       if (api.onImageSettingsUpdated) {
         api.onImageSettingsUpdated((updated) => {
           setImageSettings(updated);
+          setImageUpdateTs(Date.now());
         });
       }
 
@@ -443,7 +445,23 @@ const App: React.FC = () => {
     try {
       const saved = await api.saveImageSettings(settings);
       if (saved) {
+        // Base64 Guard to prevent memory crashes
+        const hasBase64 = 
+          Object.values(saved.floorMaps).some(v => v && v.startsWith('data:')) ||
+          (saved.openTimeImage && saved.openTimeImage.startsWith('data:'));
+
+        if (hasBase64) {
+          console.error("Critical: Received Base64 image data. Rejecting state update.");
+          const cleanSettings = await api.getImageSettings();
+          if (cleanSettings) {
+             setImageSettings(cleanSettings);
+             setImageUpdateTs(Date.now());
+          }
+          return;
+        }
+
         setImageSettings(saved);
+        setImageUpdateTs(Date.now());
       }
     } catch (e) {
       console.error("Failed to save image settings", e);
@@ -491,6 +509,23 @@ const App: React.FC = () => {
       console.error("Failed to save shop settings", e);
     }
   };
+
+  const displayImageSettings = React.useMemo(() => {
+    const processed = { ...imageSettings, floorMaps: { ...imageSettings.floorMaps } };
+    
+    // Add timestamp to force reload
+    (Object.keys(processed.floorMaps) as Array<keyof typeof processed.floorMaps>).forEach(key => {
+      if (processed.floorMaps[key] && processed.floorMaps[key].startsWith('file://')) {
+        processed.floorMaps[key] = `${processed.floorMaps[key]}?v=${imageUpdateTs}`;
+      }
+    });
+
+    if (processed.openTimeImage && processed.openTimeImage.startsWith('file://')) {
+      processed.openTimeImage = `${processed.openTimeImage}?v=${imageUpdateTs}`;
+    }
+
+    return processed;
+  }, [imageSettings, imageUpdateTs]);
 
   return (
     <ErrorBoundary>
@@ -651,7 +686,7 @@ const App: React.FC = () => {
 
       <GidoApp
         locationIconSettings={locationSettings} 
-        imageSettings={imageSettings} 
+        imageSettings={displayImageSettings} 
         genreMappings={genreMappings}
         genreMemoSettings={genreMemoSettings}
         shopSettings={shopSettings}
