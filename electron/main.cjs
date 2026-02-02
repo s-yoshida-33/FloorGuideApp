@@ -1631,12 +1631,10 @@ ipcMain.on('menu:check-updates', () => {
 
 // Startup update check ready (from PatchScreen)
 ipcMain.on('updater:check-for-updates-ready', async () => {
-  logger.info('Renderer ready. Starting startup video optimization...');
+  logger.info('Renderer ready. Skipping startup video optimization (Disabled by user request).');
   
-  // 1. 最適化実行 (ブロッキング、進捗通知あり)
-  await runVideoOptimizationWithProgress();
-  
-  logger.info('Optimization phase done. Proceeding to update check.');
+  // 1. 最適化実行 (ブロッキング、進捗通知あり) - 廃止
+  // await runVideoOptimizationWithProgress();
   
   // 2. アップデートチェック
   checkForUpdates(false);
