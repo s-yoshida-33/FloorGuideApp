@@ -1416,7 +1416,7 @@ ipcMain.handle('save-image-settings', async (_event, imageSettings) => {
       if (dataUrl && dataUrl.startsWith('data:')) {
         const filename = `floor-${floor}-map.svg`;
         const filePath = saveSvgFile(dataUrl, filename);
-        savedSettings.floorMaps[floor] = `file://${filePath}`;
+        savedSettings.floorMaps[floor] = toFileUrl(filePath);
       } else if (dataUrl) {
         // Already a file path, keep it
         savedSettings.floorMaps[floor] = dataUrl;
@@ -1430,7 +1430,7 @@ ipcMain.handle('save-image-settings', async (_event, imageSettings) => {
     if (openTimeDataUrl && openTimeDataUrl.startsWith('data:')) {
       const filename = 'open-time.svg';
       const filePath = saveSvgFile(openTimeDataUrl, filename);
-      savedSettings.openTimeImage = `file://${filePath}`;
+      savedSettings.openTimeImage = toFileUrl(filePath);
     } else if (openTimeDataUrl) {
       savedSettings.openTimeImage = openTimeDataUrl;
     } else {
