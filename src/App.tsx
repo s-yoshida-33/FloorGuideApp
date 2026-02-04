@@ -152,7 +152,7 @@ const App: React.FC = () => {
     });
 
     const unsubscribeUpdate = sseClient.on('update', () => {
-      addDebug('SSE Update received, triggering video optimization', 'INFO');
+      addDebug('SSE Update received', 'INFO');
       if (window.electronAPI?.notifyScheduleUpdated) {
         window.electronAPI.notifyScheduleUpdated();
       }

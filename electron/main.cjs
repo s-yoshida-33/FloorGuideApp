@@ -16,11 +16,9 @@ const {
 const logger = require('./logger.cjs');
 const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 
-// 【修正】ハードウェアアクセラレーションを無効化
-app.disableHardwareAcceleration();
-// 以下を追加
-app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
-app.commandLine.appendSwitch('disable-zero-copy');
+// 【修正】ハードウェアアクセラレーションを有効化 (デフォルト)
+// 以前の無効化コードを削除しました
+
 
 // GPUプロセスの不具合回避を無効化（安全策として残すが、状況に応じて削除検討）
 // app.commandLine.appendSwitch('disable-gpu-driver-bug-workarounds');
@@ -1279,9 +1277,7 @@ ipcMain.handle('get-latest-version-info', async () => {
 });
 
 ipcMain.handle('get-bridge-base-url', async () => {
-  logger.debug('IPC get-bridge-base-url');
-  const url = await getCachedBridgeBaseUrl();
-  return url;
+  return '';
 });
 
 /**

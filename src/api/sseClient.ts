@@ -1,118 +1,105 @@
-import { getApiBaseUrl } from "../config";
+import { getApiBaseUrl } from '../config';
 
-export type SseConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+// Define connection status type
+export type SseConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
+// Event emitter implementation
 type Listener = (data: any) => void;
 
 class SseClient {
-  private _status: SseConnectionStatus = 'disconnected';
+  public status: SseConnectionStatus = 'disconnected';
   private eventSource: EventSource | null = null;
-  private listeners: Map<string, Listener[]> = new Map();
-  private reconnectTimeout: number | null = null;
+  private listeners: Record<string, Listener[]> = {};
+  private reconnectTimer: number | undefined;
 
-  public get status(): SseConnectionStatus {
-    return this._status;
-  }
+  async connect() {
+    if (this.eventSource && this.eventSource.readyState !== 2) return;
 
-  private setStatus(status: SseConnectionStatus) {
-    if (this._status !== status) {
-      this._status = status;
-      this.notifyListeners('status_change', { status });
-    }
-  }
+    this.updateStatus('connecting');
 
-  public on(event: string, callback: Listener) {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, []);
-    }
-    this.listeners.get(event)?.push(callback);
-    return () => this.off(event, callback);
-  }
-
-  public off(event: string, callback: Listener) {
-    const callbacks = this.listeners.get(event);
-    if (callbacks) {
-      this.listeners.set(event, callbacks.filter(cb => cb !== callback));
-    }
-  }
-
-  private notifyListeners(event: string, data: any) {
-    const callbacks = this.listeners.get(event);
-    if (callbacks) {
-      callbacks.forEach(cb => cb(data));
-    }
-  }
-
-  public async connect() {
-    if (this._status === 'connected' || this._status === 'connecting') return;
-
-    this.setStatus('connecting');
     try {
       const baseUrl = await getApiBaseUrl();
+      // Bridge SSE endpoint
       const url = `${baseUrl}/api/events`;
-
-      if (this.eventSource) {
-        this.eventSource.close();
-      }
-
+      
+      console.log('[SseClient] Connecting to:', url);
+      
       this.eventSource = new EventSource(url);
-
+      
       this.eventSource.onopen = () => {
-        this.setStatus('connected');
+        console.log('[SseClient] Connected');
+        this.updateStatus('connected');
+        this.emit('connected', {});
       };
 
-      this.eventSource.onerror = (_error) => {
-        this.setStatus('error');
+      this.eventSource.onerror = (err) => {
+        if (this.status !== 'error') {
+            this.updateStatus('error');
+        }
         this.eventSource?.close();
-        this.eventSource = null;
-        
-        // Auto-reconnect
-        if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-        this.reconnectTimeout = window.setTimeout(() => {
-            this.connect();
-        }, 5000);
+        this.scheduleReconnect();
       };
 
-      // Generic message handler if needed, or specific event listeners
-      this.eventSource.addEventListener('message', (e) => {
-          this.notifyListeners('message', e.data);
-      });
-      
-      // Bridge specific events
-      this.eventSource.addEventListener('update', (e) => {
-          this.notifyListeners('update', e.data);
+      // Listen for 'shops' event (Shop list update)
+      this.eventSource.addEventListener('shops', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          this.emit('shops', data);
+        } catch (err) {
+          console.error('[SseClient] Failed to parse shops event', err);
+        }
       });
 
-      this.eventSource.addEventListener('shops', (e) => {
-          this.notifyListeners('shops', e.data);
-      });
-      
-      this.eventSource.addEventListener('connected', (e) => {
-          this.notifyListeners('connected', e.data);
+      // Listen for 'update' event (Generic update signal)
+      this.eventSource.addEventListener('update', (e: MessageEvent) => {
+        try {
+          const data = e.data ? JSON.parse(e.data) : {};
+          this.emit('update', data);
+        } catch (err) {
+            this.emit('update', {});
+        }
       });
 
     } catch (e) {
-      this.setStatus('error');
-      // Auto-reconnect
-      if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = window.setTimeout(() => {
-          this.connect();
-      }, 5000);
+      console.error('[SseClient] Connection failed', e);
+      this.updateStatus('error');
+      this.scheduleReconnect();
     }
   }
 
-  public disconnect() {
-    if (this.reconnectTimeout) {
-        clearTimeout(this.reconnectTimeout);
-        this.reconnectTimeout = null;
+  private scheduleReconnect() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = window.setTimeout(() => this.connect(), 5000);
+  }
+
+  private updateStatus(status: SseConnectionStatus) {
+    this.status = status;
+    this.emit('status_change', { status });
+  }
+
+  on(event: string, callback: Listener) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+    
+    return () => {
+      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    };
+  }
+
+  private emit(event: string, data: any) {
+    if (this.listeners[event]) {
+      this.listeners[event].forEach(cb => cb(data));
     }
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
-    }
-    this.setStatus('disconnected');
+  }
+  
+  disconnect() {
+      if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+      if (this.eventSource) {
+          this.eventSource.close();
+          this.eventSource = null;
+      }
+      this.updateStatus('disconnected');
   }
 }
 
 export const sseClient = new SseClient();
-
