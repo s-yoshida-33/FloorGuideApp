@@ -28,12 +28,15 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
     }
   }, [asset?.id, asset?.src]);
 
-  // No asset case
-  if (!asset) {
-    if (!isLoading) {
+  // Report missing asset once
+  React.useEffect(() => {
+    if (!asset && !isLoading) {
       logWarn('CMS_DELIVERY', 'No active content scheduled', { component: 'VerticalVideoSlot' });
     }
+  }, [asset, isLoading]);
 
+  // No asset case
+  if (!asset) {
     return (
       <div
         style={{
