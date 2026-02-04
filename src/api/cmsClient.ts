@@ -1,5 +1,5 @@
 import { APP_CONFIG } from '../config';
-import { logError, logInfo } from '../logs/logging';
+import { logError } from '../logs/logging';
 
 export interface CmsSchedule {
   id: string;
@@ -62,7 +62,7 @@ class CmsClient {
       }
       return {} as T;
     } catch (error) {
-      logError('api', `Request failed: ${path}`, error as Error);
+      logError('api', `Request failed: ${path}`, { error });
       throw error;
     }
   }

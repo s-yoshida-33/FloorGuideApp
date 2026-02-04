@@ -10,7 +10,7 @@ interface UseCurrentAssetResult {
 }
 
 export function useCurrentAsset(
-  retryIntervalMs: number = 3000,
+  _retryIntervalMs: number = 3000,
 ): UseCurrentAssetResult {
   const [asset, setAsset] = useState<CurrentAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -37,24 +37,24 @@ export function useCurrentAsset(
           if (item.media && item.media.url) {
              setAsset(prev => {
                // Avoid unnecessary updates if ID hasn't changed
-               if (prev?.id === item.media?.id) return prev;
+               if (prev?.id === item.media!.id) return prev;
                
-               logInfo('video', `Updating asset from CMS: ${item.media?.filename}`);
+               logInfo('video', `Updating asset from CMS: ${item.media!.filename}`);
                return {
-                 id: item.media.id,
-                 src: item.media.url, // Use remote URL directly
+                 id: item.media!.id,
+                 src: item.media!.url, // Use remote URL directly
                  duration: item.duration,
                  width: 1920, // TODO: Get from media metadata
                  height: 1080,
-                 name: item.media.filename,
+                 name: item.media!.filename,
                  startTime: new Date().toISOString(),
                  // Calculate simplified end time based on duration
                  endTime: new Date(Date.now() + item.duration * 1000).toISOString(),
-                 mediaType: item.media.media_type || 'video', // Default to video if missing
+                 mediaType: item.media!.media_type || 'video', // Default to video if missing
                };
              });
           } else {
-            logWarn('video', 'Program item found but missing media URL', item);
+            logWarn('video', 'Program item found but missing media URL', { item });
           }
         } else {
           logWarn('video', 'Schedule found but no program items available');
@@ -67,7 +67,7 @@ export function useCurrentAsset(
       setIsLoading(false);
     } catch (error) {
       if (isMountedRef.current) {
-        logError('video', 'Failed to fetch CMS status', error as Error);
+        logError('video', 'Failed to fetch CMS status', { error });
       }
     }
   }, []);

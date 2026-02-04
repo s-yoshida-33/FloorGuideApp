@@ -32,7 +32,7 @@ class SseClient {
         this.emit('connected', {});
       };
 
-      this.eventSource.onerror = (err) => {
+      this.eventSource.onerror = () => {
         if (this.status !== 'error') {
             this.updateStatus('error');
         }
