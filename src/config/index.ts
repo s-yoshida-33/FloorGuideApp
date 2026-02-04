@@ -9,6 +9,15 @@ export const APP_CONFIG = {
   // Default floor for this screen (this screen is dedicated to one floor)
   floor: "3F",
 
+  // CMS API configuration
+  cmsApiBaseUrl: "http://wonder-publi-xowzkwvv4lvq-286238464.ap-northeast-1.elb.amazonaws.com/api",
+  cmsAuth: {
+    username: "admin",
+    password: "password",
+  },
+  defaultDeviceCode: "test-device-01", // TODO: Should be loaded from settings
+  pollingIntervalMs: 10000, // 10 seconds for checking schedule updates
+
   // Layout configuration (4K display assumed)
   listHeightVh: (800 / 2160) * 100, // ≒ 37vh
   maxColumns: 3,
