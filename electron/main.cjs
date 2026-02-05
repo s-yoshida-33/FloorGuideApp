@@ -15,6 +15,7 @@ const {
 } = require('./updateChecker.cjs');
 const logger = require('./logger.cjs');
 const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
+const { generateDeviceCode } = require('./deviceUtils.cjs');
 
 // 【修正】ハードウェアアクセラレーションを有効化 (デフォルト)
 // 以前の無効化コードを削除しました
@@ -229,6 +230,7 @@ let lastLoadSettingsDebug = {
 function loadSettings() {
   const base = {
     floor: '1F',
+    deviceCode: null, // Will be generated if missing
     locationIcons: INITIAL_LOCATION_ICON_SETTINGS,
     floorLayout: INITIAL_FLOOR_LAYOUT,
     genreMappings: INITIAL_GENRE_MAPPINGS,
@@ -283,6 +285,7 @@ function loadSettings() {
 
     const merged = {
       floor: typeof parsed.floor === 'string' ? parsed.floor : base.floor,
+      deviceCode: typeof parsed.deviceCode === 'string' ? parsed.deviceCode : base.deviceCode,
       genreMappings: (() => {
         // Deep merge genre mappings with migration logic
         const stored = parsed.genreMappings || {};
@@ -387,6 +390,19 @@ function loadSettings() {
       })(),
       shopSettings: parsed.shopSettings || base.shopSettings,
     };
+
+    // Auto-generate device code if missing
+    if (!merged.deviceCode) {
+      merged.deviceCode = generateDeviceCode();
+      logger.info('Generated new device code', { deviceCode: merged.deviceCode });
+      
+      // Persist the new code immediately
+      try {
+        fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2), 'utf-8');
+      } catch (e) {
+        logger.error('Failed to save generated device code', { error: e.message });
+      }
+    }
 
     // DEBUG: Record internal state
     lastLoadSettingsDebug = {
@@ -1171,6 +1187,18 @@ ipcMain.handle('settings:get-floor', () => {
   const settings = loadSettings();
   logger.debug('IPC settings:get-floor', { floor: settings.floor });
   return settings.floor;
+});
+
+ipcMain.handle('settings:get-device-code', () => {
+  const settings = loadSettings();
+  logger.debug('IPC settings:get-device-code', { deviceCode: settings.deviceCode });
+  return settings.deviceCode;
+});
+
+ipcMain.handle('settings:save-device-code', (_event, deviceCode) => {
+  logger.info('IPC settings:save-device-code', { deviceCode });
+  const settings = saveSettings({ deviceCode });
+  return settings.deviceCode;
 });
 
 ipcMain.handle('settings:get-floor-layout', () => {

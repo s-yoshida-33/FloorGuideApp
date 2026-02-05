@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getBridgeBaseUrl() {
     return ipcRenderer.invoke('get-bridge-base-url');
   },
+  getDeviceCode() {
+    return ipcRenderer.invoke('settings:get-device-code');
+  },
+  saveDeviceCode(code) {
+    return ipcRenderer.invoke('settings:save-device-code', code);
+  },
   getFloor() {
     return ipcRenderer.invoke('settings:get-floor');
   },

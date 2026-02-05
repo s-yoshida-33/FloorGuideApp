@@ -36,6 +36,15 @@ export interface DeviceStatus {
   download_bandwidth_limit?: number;
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = 'ApiError';
+  }
+}
+
 class CmsClient {
   private getAuthHeader(): string {
     const { username, password } = APP_CONFIG.cmsAuth;
@@ -53,7 +62,7 @@ class CmsClient {
     try {
       const response = await fetch(url, { ...options, headers });
       if (!response.ok) {
-        throw new Error(`CMS API Error: ${response.status} ${response.statusText}`);
+        throw new ApiError(`CMS API Error: ${response.status} ${response.statusText}`, response.status);
       }
       
       const contentType = response.headers.get('content-type');
@@ -72,8 +81,37 @@ class CmsClient {
       // Response wrapper: { data: DeviceStatus }
       const response = await this.request<{ data: DeviceStatus }>(`/devices/${deviceCode}/status`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // If 404, throw to caller so they can handle invalid code
+      if (error.status === 404) {
+        throw error;
+      }
       // Logged in request method
+      return null;
+    }
+  }
+
+  async generateDeviceCode(): Promise<string | null> {
+    try {
+      // POST /generate-device-code
+      const response = await this.request<{ data: any }>('/generate-device-code', {
+        method: 'POST',
+      });
+      
+      // Handle various response formats
+      if (response && response.data) {
+        if (typeof response.data === 'string') {
+           return response.data;
+        }
+        if (typeof response.data.code === 'string') {
+           return response.data.code;
+        }
+      }
+      
+      logError('api', 'Unknown response format for generateDeviceCode', { response });
+      return null;
+    } catch (error) {
+      logError('api', 'Failed to generate device code', { error });
       return null;
     }
   }

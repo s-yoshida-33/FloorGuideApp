@@ -9,7 +9,7 @@ interface VerticalVideoSlotProps {
 }
 
 const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) => {
-  const { asset, isLoading } = useCurrentAsset();
+  const { asset, isLoading, deviceCode } = useCurrentAsset();
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const prevAssetIdRef = React.useRef<string | null>(null);
@@ -31,9 +31,9 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   // Report missing asset once
   React.useEffect(() => {
     if (!asset && !isLoading) {
-      logWarn('CMS_DELIVERY', 'No active content scheduled', { component: 'VerticalVideoSlot' });
+      logWarn('CMS_DELIVERY', 'No active content scheduled', { component: 'VerticalVideoSlot', deviceCode });
     }
-  }, [asset, isLoading]);
+  }, [asset, isLoading, deviceCode]);
 
   // No asset case
   if (!asset) {
@@ -49,7 +49,7 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
           fontSize: 12,
         }}
       >
-        {isLoading ? 'Loading…' : 'No conected.'}
+        {isLoading ? 'Loading…' : 'No connected.'}
       </div>
     );
   }

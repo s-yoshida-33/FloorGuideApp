@@ -7,6 +7,7 @@ import { APP_CONFIG } from '../config';
 interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
   isLoading: boolean;
+  deviceCode: string | null;
 }
 
 export function useCurrentAsset(
@@ -14,16 +15,73 @@ export function useCurrentAsset(
 ): UseCurrentAssetResult {
   const [asset, setAsset] = useState<CurrentAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [deviceCode, setDeviceCode] = useState<string | null>(null);
   const isMountedRef = useRef<boolean>(true);
   
   // Polling function to get status from CMS
   const fetchStatus = useCallback(async () => {
     try {
-      // Use default device code for now
-      // TODO: Load device code from persistent settings
-      const deviceCode = APP_CONFIG.defaultDeviceCode; 
+      // Get device code from settings via IPC (provided by preload script)
+      let currentDeviceCode: string | null = null;
       
-      const status = await cmsClient.getDeviceStatus(deviceCode);
+      try {
+        if ((window as any).electronAPI?.getDeviceCode) {
+          const code = await (window as any).electronAPI.getDeviceCode();
+          if (code) currentDeviceCode = code;
+        }
+      } catch (e) {
+        logError('video', 'Failed to get device code from IPC', { error: e });
+      }
+
+      // If no code exists (first launch), generate one via API
+      if (!currentDeviceCode) {
+         const newCode = await cmsClient.generateDeviceCode();
+         if (newCode) {
+            currentDeviceCode = newCode;
+            // Save to settings
+            try {
+              if ((window as any).electronAPI?.saveDeviceCode) {
+                await (window as any).electronAPI.saveDeviceCode(newCode);
+              }
+            } catch (e) {
+               logError('video', 'Failed to save generated device code', { error: e });
+            }
+         } else {
+            // Fallback to config default if generation fails
+            currentDeviceCode = APP_CONFIG.defaultDeviceCode;
+            logWarn('video', 'Failed to generate device code, using default', { code: currentDeviceCode });
+         }
+      }
+
+      if (isMountedRef.current) {
+        setDeviceCode(currentDeviceCode);
+      }
+      
+      let status = null;
+      if (currentDeviceCode) {
+        try {
+          status = await cmsClient.getDeviceStatus(currentDeviceCode);
+        } catch (e: any) {
+          // If device code is invalid (404), clear it to force regeneration
+          if (e.status === 404) {
+             logWarn('video', 'Device code invalidated (404), clearing to regenerate...', { code: currentDeviceCode });
+             
+             // Clear local variable to skip processing
+             currentDeviceCode = null;
+             // Clear state
+             if (isMountedRef.current) setDeviceCode(null);
+             
+             // Clear settings
+             try {
+               if ((window as any).electronAPI?.saveDeviceCode) {
+                 await (window as any).electronAPI.saveDeviceCode(null);
+               }
+             } catch (err) {
+               // ignore
+             }
+          }
+        }
+      }
       
       if (!isMountedRef.current) return;
 
@@ -87,5 +145,5 @@ export function useCurrentAsset(
     };
   }, [fetchStatus]);
 
-  return { asset, isLoading };
+  return { asset, isLoading, deviceCode };
 }
