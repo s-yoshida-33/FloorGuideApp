@@ -38,8 +38,11 @@ app.on('child-process-gone', (event, details) => {
   // GPUまたはレンダラープロセスがクラッシュした場合は再起動
   if (details.type === 'GPU' || details.type === 'Renderer') {
     console.log('Relaunching app due to critical process crash...');
-    app.relaunch();
-    app.exit(0);
+    // ログ書き込み時間を確保するために1秒待機してから再起動
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 1000);
   }
 });
 
@@ -1006,6 +1009,19 @@ function createMainWindow() {
       webSecurity: false, // Required to load local file:// URLs from CMS
       devTools: isDev, // Only enable dev tools in development mode
     },
+  });
+
+  // レンダラープロセスのクラッシュ監視（ウィンドウ単位）
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    const message = `Renderer process gone (Main Window): reason=${details.reason}, exitCode=${details.exitCode}`;
+    logger.fatal(message, { ...details, scope: 'SYSTEM' });
+  });
+
+  // 応答なし（フリーズ・ホワイトアウト）の監視
+  mainWindow.on('unresponsive', () => {
+    const message = 'Main window became unresponsive (Potential Freeze/Whiteout)';
+    console.error(message);
+    logger.error(message, { scope: 'SYSTEM' });
   });
 
   // --- 以下を追加 ---
