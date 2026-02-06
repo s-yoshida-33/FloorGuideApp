@@ -16,10 +16,17 @@ const {
 const logger = require('./logger.cjs');
 const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 
-// 【修正】ハードウェアアクセラレーションを無効化
-app.disableHardwareAcceleration();
-// 以下を追加
-app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
+// 【修正】ハードウェアアクセラレーションを有効に戻す（Unityとの競合回避のため、設定で制御する）
+// app.disableHardwareAcceleration();
+
+// 【対策1】描画バックエンドをOpenGLに変更して、Unity(D3D11)との競合を避ける
+app.commandLine.appendSwitch('use-angle', 'gl');
+
+// 【対策2】GPUラスタライズのみ無効化する（CompositingのみGPUを使用）
+app.commandLine.appendSwitch('disable-gpu-rasterization');
+
+// ビデオデコードのハードウェア支援はひとまず有効に戻して様子見（必要に応じて再有効化）
+// app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
 app.commandLine.appendSwitch('disable-zero-copy');
 
 // GPUプロセスの不具合回避を無効化（安全策として残すが、状況に応じて削除検討）
