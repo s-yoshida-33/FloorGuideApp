@@ -1,11 +1,7 @@
 // src/types/global.d.ts
 export {};
 
-import type {
-  CurrentAsset,
-  WspCurrentTimelineResponse,
-  WspTimelineResponse,
-} from "./wsp";
+import type { CurrentAsset } from "./CurrentAsset";
 
 import type { LocationIconSettings } from "./locationIcon";
 import type { ImageSettings } from "./imageSettings";
@@ -29,6 +25,12 @@ type FloorLayoutPerFloor = {
 type FloorLayout = Record<string, FloorLayoutPerFloor>;
 
 interface ElectronAPI {
+  getDeviceCode: () => Promise<string | null>;
+  saveDeviceCode: (code: string | null) => Promise<string | null>;
+  getDeviceId: () => Promise<string | null>;
+  saveDeviceId: (id: string) => Promise<string>;
+  restartApp: () => void;
+  shutdownApp: () => void;
   getFloor: () => Promise<string>;
   setFloor: (floor: string) => void;
   onFloorChanged: (cb: (floor: string) => void) => void;
@@ -56,6 +58,7 @@ interface ElectronAPI {
   onOpenFloorLayoutSettings: (cb: () => void) => () => void;
   onOpenFloorSettings: (cb: () => void) => () => void;
   onOpenVersionInfo: (cb: () => void) => () => void;
+  onOpenDeviceCode?: (cb: () => void) => () => void;
   onOpenSettings: (cb: () => void) => () => void;
   getImageSettings: () => Promise<ImageSettings>;
   saveImageSettings: (settings: ImageSettings) => Promise<ImageSettings>;
@@ -112,13 +115,6 @@ export interface AppInfoAPI {
   } | null>;
 }
 
-interface WspApi {
-  getCurrentAsset: () => Promise<CurrentAsset | null>;
-  getCurrentTimeline: () => Promise<WspCurrentTimelineResponse | null>;
-  getTimeline: (hour?: number) => Promise<WspTimelineResponse | null>;
-  getCmsBaseUrl: () => Promise<string>;
-}
-
 interface LoggerApi {
   log: (
     level: string,
@@ -138,7 +134,6 @@ declare global {
     electronAPI?: ElectronAPI;
     updater?: UpdaterAPI;
     appInfo?: AppInfoAPI;
-    wspApi?: WspApi;
     logger?: LoggerApi;
   }
 }

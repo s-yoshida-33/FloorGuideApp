@@ -46,22 +46,77 @@ export class ApiError extends Error {
 }
 
 class CmsClient {
-  private getAuthHeader(): string {
-    const { username, password } = APP_CONFIG.cmsAuth;
-    return 'Basic ' + btoa(`${username}:${password}`);
+  private accessToken: string | null = null;
+  private tokenExpiration: number = 0;
+
+  private async getAccessToken(): Promise<string> {
+    if (this.accessToken && Date.now() < this.tokenExpiration) {
+      return this.accessToken;
+    }
+
+    const { clientId, clientSecret } = APP_CONFIG.cmsAuth;
+    // APP_CONFIG.cmsApiBaseUrl is "https://api-jp.wonder-screen.com/api"
+    // We need "https://api-jp.wonder-screen.com/oauth/token"
+    const baseUrl = APP_CONFIG.cmsApiBaseUrl.replace(/\/api\/?$/, '');
+    const url = `${baseUrl}/oauth/token`;
+
+    const params = new URLSearchParams();
+    params.append('grant_type', 'client_credentials');
+    params.append('client_id', clientId);
+    params.append('client_secret', clientSecret);
+    params.append('scope', 'cms-scope'); // Explicitly requesting cms-scope
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get token: ${response.status}`);
+      }
+
+      const data = await response.json();
+      this.accessToken = data.access_token;
+      // expires_in is in seconds
+      this.tokenExpiration = Date.now() + (data.expires_in * 1000) - 60000; // 1 minute buffer
+      
+      return this.accessToken!;
+    } catch (error) {
+      logError('api', 'Failed to authenticate', { error });
+      throw error;
+    }
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    let token: string;
+    try {
+      token = await this.getAccessToken();
+    } catch (e) {
+      // If we can't get a token, we can't make the request
+      throw new ApiError('Authentication failed', 401);
+    }
+
     const url = `${APP_CONFIG.cmsApiBaseUrl}${path}`;
     const headers = {
-      'Authorization': this.getAuthHeader(),
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       ...options.headers,
     } as HeadersInit;
 
     try {
       const response = await fetch(url, { ...options, headers });
+      
       if (!response.ok) {
+        // If 401 Unauthorized, token might be expired despite our check.
+        // In a more robust implementation, we would retry once after refreshing token.
+        if (response.status === 401) {
+            this.accessToken = null;
+            logError('api', 'Token rejected (401), clearing token cache.');
+        }
         throw new ApiError(`CMS API Error: ${response.status} ${response.statusText}`, response.status);
       }
       
@@ -91,7 +146,7 @@ class CmsClient {
     }
   }
 
-  async generateDeviceCode(): Promise<string | null> {
+  async generateDeviceCode(): Promise<{ code: string; verifyExpiredAt: string } | null> {
     try {
       // POST /generate-device-code
       const response = await this.request<{ data: any }>('/generate-device-code', {
@@ -100,11 +155,15 @@ class CmsClient {
       
       // Handle various response formats
       if (response && response.data) {
-        if (typeof response.data === 'string') {
-           return response.data;
+        const { code, verifyExpiredAt } = response.data;
+        if (typeof code === 'string' && typeof verifyExpiredAt === 'string') {
+           return { code, verifyExpiredAt };
         }
-        if (typeof response.data.code === 'string') {
-           return response.data.code;
+        // Fallback for older API or different format if needed, but primarily we expect object
+        if (typeof response.data === 'string') {
+            // If API returns just string, we don't have expiration.
+            // But based on demo, it returns object.
+            return { code: response.data, verifyExpiredAt: '' };
         }
       }
       

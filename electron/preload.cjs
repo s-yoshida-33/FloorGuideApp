@@ -43,8 +43,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDeviceCode() {
     return ipcRenderer.invoke('settings:get-device-code');
   },
+  getDeviceCodeDetails() {
+    return ipcRenderer.invoke('settings:get-device-code-details');
+  },
   saveDeviceCode(code) {
     return ipcRenderer.invoke('settings:save-device-code', code);
+  },
+  getDeviceId() {
+    return ipcRenderer.invoke('settings:get-device-id');
+  },
+  saveDeviceId(id) {
+    return ipcRenderer.invoke('settings:save-device-id', id);
   },
   getFloor() {
     return ipcRenderer.invoke('settings:get-floor');
@@ -112,6 +121,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('open-version-info', listener);
     return () => {
       ipcRenderer.removeListener('open-version-info', listener);
+    };
+  },
+  onOpenDeviceCode(callback) {
+    const listener = () => callback();
+    ipcRenderer.on('open-device-code', listener);
+    return () => {
+      ipcRenderer.removeListener('open-device-code', listener);
     };
   },
   onOpenSettings(callback) {
@@ -196,20 +212,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyScheduleUpdated() {
     ipcRenderer.send('wsp:schedule-updated');
   },
-});
-
-contextBridge.exposeInMainWorld('wspApi', {
-  getCurrentAsset() {
-    return ipcRenderer.invoke('wsp:get-current-asset');
+  restartApp() {
+    ipcRenderer.send('app:restart');
   },
-  getCurrentTimeline() {
-    return ipcRenderer.invoke('wsp:get-current-timeline');
-  },
-  getTimeline(hour) {
-    return ipcRenderer.invoke('wsp:get-timeline', { hour });
-  },
-  getCmsBaseUrl() {
-    return ipcRenderer.invoke('cms:get-base-url');
+  shutdownApp() {
+    ipcRenderer.send('app:shutdown');
   },
 });
 

@@ -19,7 +19,6 @@ import VerticalVideoSlot from "../components/VerticalVideoSlot";
 import type { LocationIconSettings } from "../types/locationIcon";
 import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
 import { useCurrentAsset } from "../hooks/useCurrentAsset";
-import { DeviceCodeDisplay } from "../components/DeviceCodeDisplay";
 import type { ImageSettings } from "../types/imageSettings";
 import type { FloorId } from "../types/floorLayout";
 import { DEFAULT_GENRE_MAPPINGS, type GenreMappings, type GenreMemoSettings, DEFAULT_GENRE_MEMO_SETTINGS } from "../types/genreSettings";
@@ -96,7 +95,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
     previewFloorLayout ?? DEFAULT_FLOOR_LAYOUT
   );
 
-  const { asset, isLoading: isAssetLoading, deviceCode } = useCurrentAsset();
+  useCurrentAsset();
   const [refreshKey, setRefreshKey] = useState(0);
 
   // ---------------------------------------------------------
@@ -526,21 +525,6 @@ const GidoApp: React.FC<GidoAppProps> = ({
           />
         </div>
       </div>
-
-      {/* Device Code Overlay */}
-      {!asset && deviceCode && !isAssetLoading && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          zIndex: 9999,
-          background: '#1a1a1a', // Match component background
-        }}>
-          <DeviceCodeDisplay code={deviceCode} />
-        </div>
-      )}
 
     </div>
   );

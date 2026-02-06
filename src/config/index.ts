@@ -10,13 +10,14 @@ export const APP_CONFIG = {
   floor: "3F",
 
   // CMS API configuration
-  cmsApiBaseUrl: "http://wonder-publi-xowzkwvv4lvq-286238464.ap-northeast-1.elb.amazonaws.com/api",
+  cmsApiBaseUrl: "https://api-jp.wonder-screen.com/api",
   cmsAuth: {
-    username: "admin",
-    password: "password",
+    clientId: "2",
+    clientSecret: "WbIQfHTu0xz8gVDpjK9mxzEYhZL6cq1UyUKfSKWP",
   },
+  wsUrl: "wss://api-jp.wonder-screen.com/app/wonder",
   defaultDeviceCode: "test-device-01", // TODO: Should be loaded from settings
-  pollingIntervalMs: 10000, // 10 seconds for checking schedule updates
+  pollingIntervalMs: 30000, // 30 seconds for checking schedule updates
 
   // Layout configuration (4K display assumed)
   listHeightVh: (800 / 2160) * 100, // ≒ 37vh
