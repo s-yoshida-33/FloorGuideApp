@@ -20,7 +20,8 @@ const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 // app.disableHardwareAcceleration();
 
 // 【対策1】描画バックエンドをOpenGLに変更して、Unity(D3D11)との競合を避ける
-app.commandLine.appendSwitch('use-angle', 'gl');
+// app.commandLine.appendSwitch('use-angle', 'gl');
+app.commandLine.appendSwitch('use-angle', 'd3d9');
 
 // 【対策2】GPUラスタライズのみ無効化する（CompositingのみGPUを使用）
 app.commandLine.appendSwitch('disable-gpu-rasterization');
@@ -1035,7 +1036,7 @@ function createMainWindow() {
 
   // 1. 最前面レベルを 'screen-saver' (通常より優先度高) に設定
   if (!isDev) {
-    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    mainWindow.setAlwaysOnTop(true);
   }
 
   // 2. フォーカスが外れた場合（TeamViewer操作やAlt+Tabなど）の即時復帰
@@ -1043,7 +1044,7 @@ function createMainWindow() {
     // OSのウィンドウ切り替え完了を少し待ってから再適用
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+        mainWindow.setAlwaysOnTop(true);
       }
     }, 100);
   });
@@ -1057,7 +1058,7 @@ function createMainWindow() {
         mainWindow.restore();
       }
       // 最前面設定を再適用
-      mainWindow.setAlwaysOnTop(true, 'screen-saver');
+      mainWindow.setAlwaysOnTop(true);
       // 視覚的に最前面へ移動
       mainWindow.moveTop();
     } else {
