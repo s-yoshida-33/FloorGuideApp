@@ -19,12 +19,23 @@ const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 // 【修正】ハードウェアアクセラレーションを有効に戻す（Unityとの競合回避のため、設定で制御する）
 // app.disableHardwareAcceleration();
 
-// 【対策1】描画バックエンドをOpenGLに変更して、Unity(D3D11)との競合を避ける
-// app.commandLine.appendSwitch('use-angle', 'gl');
-app.commandLine.appendSwitch('use-angle', 'd3d9');
+// 【修正】描画バックエンドをD3D11(デフォルト)に戻し、負荷の高い処理のみ制限する
+// D3D9(ANGLE)はエミュレーション層のオーバーヘッドやメモリ管理の不整合リスクがあるため避ける
+app.commandLine.appendSwitch('use-angle', 'd3d11');
 
-// 【対策2】GPUラスタライズのみ無効化する（CompositingのみGPUを使用）
+// 【継続】GPUラスタライズを無効化
 app.commandLine.appendSwitch('disable-gpu-rasterization');
+
+// 【追加1】ソフトウェアラスタライザーも無効化（予期せぬCPUフォールバック防止）
+app.commandLine.appendSwitch('disable-software-rasterizer');
+
+// 【追加2】共有メモリ競合対策
+// 画面合成(Compositing)をGPUから外し、ウィンドウ内の描画のみにGPUを使用させる
+// UnityとのVRAM競合（デスクトップ全体の合成層での衝突）を低減する効果が期待できる
+app.commandLine.appendSwitch('disable-gpu-compositing');
+
+// WindowsのDirectCompositionを無効化（オーバーレイ競合対策）
+app.commandLine.appendSwitch('disable-direct-composition');
 
 // ビデオデコードのハードウェア支援はひとまず有効に戻して様子見（必要に応じて再有効化）
 // app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
@@ -32,6 +43,11 @@ app.commandLine.appendSwitch('disable-zero-copy');
 
 // GPUプロセスの不具合回避を無効化（安全策として残すが、状況に応じて削除検討）
 // app.commandLine.appendSwitch('disable-gpu-driver-bug-workarounds');
+
+// 【追加3】GPUプロセスの「道連れ」防止
+// GPUプロセスがクラッシュしてもドメインをブロックせず、回数制限なしで自動リトライさせる
+app.commandLine.appendSwitch('disable-domain-blocking-for-3d-apis');
+app.commandLine.appendSwitch('disable-gpu-process-crash-limit');
 
 // 【追加2】 GPUプロセスなどがクラッシュした場合にアプリを自動再起動する
 app.on('child-process-gone', (event, details) => {
@@ -43,8 +59,9 @@ app.on('child-process-gone', (event, details) => {
     logger.fatal(message, { ...details, scope: 'SYSTEM' });
   } catch (e) { /* ignore */ }
 
-  // GPUまたはレンダラープロセスがクラッシュした場合は再起動
-  if (details.type === 'GPU' || details.type === 'Renderer') {
+  // レンダラープロセスがクラッシュした場合は再起動
+  // GPUプロセスの復帰は上記スイッチ設定(disable-gpu-process-crash-limit)に任せるため、ここでの再起動は行わない
+  if (details.type === 'Renderer') {
     console.log('Relaunching app due to critical process crash...');
     // ログ書き込み時間を確保するために1秒待機してから再起動
     setTimeout(() => {
@@ -1036,7 +1053,7 @@ function createMainWindow() {
 
   // 1. 最前面レベルを 'screen-saver' (通常より優先度高) に設定
   if (!isDev) {
-    mainWindow.setAlwaysOnTop(true);
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
   }
 
   // 2. フォーカスが外れた場合（TeamViewer操作やAlt+Tabなど）の即時復帰
@@ -1044,7 +1061,7 @@ function createMainWindow() {
     // OSのウィンドウ切り替え完了を少し待ってから再適用
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.setAlwaysOnTop(true);
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
       }
     }, 100);
   });
@@ -1058,7 +1075,7 @@ function createMainWindow() {
         mainWindow.restore();
       }
       // 最前面設定を再適用
-      mainWindow.setAlwaysOnTop(true);
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
       // 視覚的に最前面へ移動
       mainWindow.moveTop();
     } else {
@@ -1339,18 +1356,23 @@ function getImagesDirectory() {
 }
 
 /**
- * Save SVG file from data URL to disk
+ * Save Image file from data URL to disk
  */
-function saveSvgFile(dataUrl, filename) {
+function saveImageFile(dataUrl, filename) {
   try {
-    // Extract base64 data from data URL
-    const base64Data = dataUrl.replace(/^data:image\/svg\+xml;base64,/, '');
+    // Extract base64 data from data URL (supports svg, png, jpeg, webp)
+    const matches = dataUrl.match(/^data:image\/([a-zA-Z+]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+        throw new Error('Invalid data URL format');
+    }
+    
+    const base64Data = matches[2];
     const buffer = Buffer.from(base64Data, 'base64');
     const filePath = path.join(getImagesDirectory(), filename);
     fs.writeFileSync(filePath, buffer);
     return filePath;
   } catch (error) {
-    logger.error('Failed to save SVG file', {
+    logger.error('Failed to save Image file', {
       error: error?.message,
       filename,
     });
@@ -1359,18 +1381,21 @@ function saveSvgFile(dataUrl, filename) {
 }
 
 /**
- * Read SVG file and return as data URL
+ * Read Image file and return as data URL
  */
-function readSvgFileAsDataUrl(filePath) {
+function readImageFileAsDataUrl(filePath) {
   try {
     if (!fs.existsSync(filePath)) {
       return null;
     }
+    const ext = path.extname(filePath).slice(1).toLowerCase(); // e.g. 'webp', 'svg'
+    const mimeType = ext === 'svg' ? 'svg+xml' : ext;
+    
     const buffer = fs.readFileSync(filePath);
     const base64 = buffer.toString('base64');
-    return `data:image/svg+xml;base64,${base64}`;
+    return `data:image/${mimeType};base64,${base64}`;
   } catch (error) {
-    logger.error('Failed to read SVG file', {
+    logger.error('Failed to read Image file', {
       error: error?.message,
       filePath,
     });
@@ -1438,8 +1463,9 @@ ipcMain.handle('save-image-settings', async (_event, imageSettings) => {
     for (const floor of ['1F', '2F', '3F', '4F']) {
       const dataUrl = imageSettings.floorMaps?.[floor] || '';
       if (dataUrl && dataUrl.startsWith('data:')) {
-        const filename = `floor-${floor}-map.svg`;
-        const filePath = saveSvgFile(dataUrl, filename);
+        // Change extension to .webp
+        const filename = `floor-${floor}-map.webp`;
+        const filePath = saveImageFile(dataUrl, filename);
         savedSettings.floorMaps[floor] = toFileUrl(filePath);
       } else if (dataUrl) {
         // Already a file path, keep it
@@ -1452,8 +1478,9 @@ ipcMain.handle('save-image-settings', async (_event, imageSettings) => {
     // Save open time image
     const openTimeDataUrl = imageSettings.openTimeImage || '';
     if (openTimeDataUrl && openTimeDataUrl.startsWith('data:')) {
-      const filename = 'open-time.svg';
-      const filePath = saveSvgFile(openTimeDataUrl, filename);
+      // Change extension to .webp
+      const filename = 'open-time.webp';
+      const filePath = saveImageFile(openTimeDataUrl, filename);
       savedSettings.openTimeImage = toFileUrl(filePath);
     } else if (openTimeDataUrl) {
       savedSettings.openTimeImage = openTimeDataUrl;

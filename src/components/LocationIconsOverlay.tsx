@@ -3,8 +3,8 @@ import React from "react";
 import { motion } from "framer-motion";
 import type { LocationIconSettings, IconPositionConfig, AnimationConfig } from "../types/locationIcon";
 
-import SpeechBubbleSvg from "../assets/SpeechBubble.svg";
-import LocationSvg from "../assets/Location.svg";
+import SpeechBubbleSvg from "../assets/SpeechBubble.webp";
+import LocationSvg from "../assets/Location.webp";
 
 interface Props {
   settings: LocationIconSettings;

@@ -795,13 +795,13 @@ export const LocationSettingsTab: React.FC<LocationSettingsTabProps> = ({
         </div>
 
         <IconConfigSection
-          label="SpeechBubble.svg 設定"
+          label="SpeechBubble 画像設定"
           config={locationIconSettings.speechBubble}
           onChange={(next) => handleIconConfigChange("speechBubble", next)}
           showAnimation={true}
         />
         <IconConfigSection
-          label="Location.svg 設定"
+          label="Location 画像設定"
           config={locationIconSettings.location}
           onChange={(next) => handleIconConfigChange("location", next)}
           showAnimation={true}
