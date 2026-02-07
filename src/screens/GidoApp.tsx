@@ -4,11 +4,11 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import ShopList from "../components/ShopList";
 import type { Shop } from "../types/shop";
 
-import floorMap1F from "../assets/floor-1F-map.svg";
-import floorMap2F from "../assets/floor-2F-map.svg";
-import floorMap3F from "../assets/floor-3F-map.svg";
-import floorMap4F from "../assets/floor-4F-map.svg";
-import openTimeImage from "../assets/open-time.svg";
+import floorMap1F from "../assets/floor-1F-map.webp";
+import floorMap2F from "../assets/floor-2F-map.webp";
+import floorMap3F from "../assets/floor-3F-map.webp";
+import floorMap4F from "../assets/floor-4F-map.webp";
+import openTimeImage from "../assets/open-time.webp";
 
 import { APP_CONFIG, POLLING_INTERVALS } from "../config";
 import { fetchShops } from "../repositories/shopRepository";

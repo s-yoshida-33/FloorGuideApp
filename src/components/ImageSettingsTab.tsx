@@ -21,25 +21,27 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
   const openTimeInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const validateSvgFile = (file: File): Promise<boolean> => {
+  const validateImageFile = (file: File): Promise<boolean> => {
     return new Promise((resolve) => {
-      if (file.type !== "image/svg+xml") {
-        resolve(false);
+      // For SVG, we check content
+      if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          // Basic SVG validation: check if it contains <svg> tag
+          if (content && content.includes("<svg")) {
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        };
+        reader.onerror = () => resolve(false);
+        reader.readAsText(file);
         return;
       }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        // Basic SVG validation: check if it contains <svg> tag
-        if (content && content.includes("<svg")) {
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      };
-      reader.onerror = () => resolve(false);
-      reader.readAsText(file);
+      
+      // For WebP and other images, we rely on the type check done before calling this
+      resolve(true);
     });
   };
 
@@ -53,23 +55,29 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
 
     setErrors({});
 
-    // Validate file type
-    if (file.type !== "image/svg+xml" && !file.name.toLowerCase().endsWith(".svg")) {
+    // Validate file type (WebP, SVG, PNG, JPEG)
+    const allowedTypes = ["image/webp", "image/svg+xml", "image/png", "image/jpeg"];
+    const allowedExts = [".webp", ".svg", ".png", ".jpg", ".jpeg"];
+    
+    const isTypeValid = allowedTypes.includes(file.type);
+    const isExtValid = allowedExts.some(ext => file.name.toLowerCase().endsWith(ext));
+
+    if (!isTypeValid && !isExtValid) {
       const errorKey = type === "floorMap" ? `floorMap-${floorId}` : "openTime";
       setErrors({
         ...errors,
-        [errorKey]: "SVGファイルのみ選択できます",
+        [errorKey]: "対応している画像形式は WebP, SVG, PNG, JPEG です",
       });
       return;
     }
 
-    // Validate SVG content
-    const isValid = await validateSvgFile(file);
+    // Validate content (mainly for SVG)
+    const isValid = await validateImageFile(file);
     if (!isValid) {
       const errorKey = type === "floorMap" ? `floorMap-${floorId}` : "openTime";
       setErrors({
         ...errors,
-        [errorKey]: "無効なSVGファイルです",
+        [errorKey]: "無効な画像ファイルです",
       });
       return;
     }
@@ -171,7 +179,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
         <input
           ref={floorMapInputRef}
           type="file"
-          accept=".svg,image/svg+xml"
+          accept=".webp,.svg,.png,.jpg,.jpeg,image/webp,image/svg+xml,image/png,image/jpeg"
           style={{ display: "none" }}
           onChange={(e) => handleFileSelect(e, "floorMap", floor)}
         />
@@ -254,7 +262,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
         <input
           ref={openTimeInputRef}
           type="file"
-          accept=".svg,image/svg+xml"
+          accept=".webp,.svg,.png,.jpg,.jpeg,image/webp,image/svg+xml,image/png,image/jpeg"
           style={{ display: "none" }}
           onChange={(e) => handleFileSelect(e, "openTime")}
         />
