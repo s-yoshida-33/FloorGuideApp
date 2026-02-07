@@ -14,7 +14,6 @@ const {
   getLatestVersionInfo,
 } = require('./updateChecker.cjs');
 const logger = require('./logger.cjs');
-const { optimizeAllVideosInDirectory } = require('./videoOptimizer.cjs');
 
 // 【修正】ハードウェアアクセラレーションを有効に戻す（Unityとの競合回避のため、設定で制御する）
 // app.disableHardwareAcceleration();
@@ -135,17 +134,6 @@ logger.onLog((entry) => {
   // Debug logs are already filtered out in logger.cjs (notifyListeners)
   // but we keep a safety check here or for other potential sources
   if (entry.level === 'debug') return;
-
-  // 最適化関連のログはIPC通信（レンダラーへの送信）をスキップする
-  // 理由: 大量のファイルスキャン・変換時にIPC負荷がスパイクするのを防ぐため
-  const msg = entry.message || '';
-  if (
-    msg.includes('Optimization') || 
-    msg.includes('optimization') || 
-    msg.includes('CMS assets')
-  ) {
-    return;
-  }
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('debug:log', entry);
@@ -922,47 +910,6 @@ function toFileUrl(winPath) {
   }
 }
 
-// CMSアセットディレクトリ (最適化対象)
-const CMS_ASSETS_DIR = 'C:\\SignageData\\assets';
-
-// 二重実行防止フラグ
-let isOptimizationRunning = false;
-
-// 起動時の最適化処理（進捗表示付き）
-async function runVideoOptimizationWithProgress() {
-  if (isOptimizationRunning) return;
-  
-  if (!fs.existsSync(CMS_ASSETS_DIR)) {
-      logger.info('CMS assets directory not found, skipping startup optimization');
-      return;
-  }
-
-  isOptimizationRunning = true;
-  logger.info('Starting startup optimization with progress UI');
-
-  try {
-    // UIへの通知用ヘルパー
-    const sendProgress = (current, total, message) => {
-        if (patchWindow && !patchWindow.isDestroyed()) {
-            patchWindow.webContents.send('optimization-progress', {
-                current,
-                total,
-                message,
-                percent: total > 0 ? (current / total) * 100 : 0
-            });
-        }
-    };
-
-    await optimizeAllVideosInDirectory(CMS_ASSETS_DIR, sendProgress);
-    logger.info('Startup optimization completed');
-  } catch (err) {
-    logger.error('Startup optimization failed', { error: err.message });
-  } finally {
-    isOptimizationRunning = false;
-  }
-}
-
-
 /**
  * Create the small startup patch window.
  * This window appears first and shows update progress.
@@ -1682,12 +1629,9 @@ ipcMain.on('menu:check-updates', () => {
 
 // Startup update check ready (from PatchScreen)
 ipcMain.on('updater:check-for-updates-ready', async () => {
-  logger.info('Renderer ready. Skipping startup video optimization (Disabled by user request).');
+  logger.info('Renderer ready. Checking for updates...');
   
-  // 1. 最適化実行 (ブロッキング、進捗通知あり) - 廃止
-  // await runVideoOptimizationWithProgress();
-  
-  // 2. アップデートチェック
+  // アップデートチェック
   checkForUpdates(false);
 });
 
