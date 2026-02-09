@@ -1,7 +1,7 @@
 // electron/main.cjs
 // Electron main process entry point (with startup patch window)
 
-const { app, BrowserWindow, Menu, ipcMain, globalShortcut, dialog } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, globalShortcut, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -23,18 +23,18 @@ const logger = require('./logger.cjs');
 app.commandLine.appendSwitch('use-angle', 'd3d11');
 
 // 【継続】GPUラスタライズを無効化
-app.commandLine.appendSwitch('disable-gpu-rasterization');
+// app.commandLine.appendSwitch('disable-gpu-rasterization');
 
 // 【追加1】ソフトウェアラスタライザーも無効化（予期せぬCPUフォールバック防止）
-app.commandLine.appendSwitch('disable-software-rasterizer');
+// app.commandLine.appendSwitch('disable-software-rasterizer');
 
 // 【追加2】共有メモリ競合対策
 // 画面合成(Compositing)をGPUから外し、ウィンドウ内の描画のみにGPUを使用させる
 // UnityとのVRAM競合（デスクトップ全体の合成層での衝突）を低減する効果が期待できる
-app.commandLine.appendSwitch('disable-gpu-compositing');
+// app.commandLine.appendSwitch('disable-gpu-compositing');
 
 // WindowsのDirectCompositionを無効化（オーバーレイ競合対策）
-app.commandLine.appendSwitch('disable-direct-composition');
+// app.commandLine.appendSwitch('disable-direct-composition');
 
 // ビデオデコードのハードウェア支援はひとまず有効に戻して様子見（必要に応じて再有効化）
 // app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
@@ -1760,6 +1760,15 @@ app.whenReady().then(() => {
   // 起動時の最適化を PatchWindow で進捗表示しながら実行するように変更したため
   // ここでの定期実行は廃止
   
+  // カスタムプロトコルの登録 (ローカルファイルへの安全なアクセス)
+  protocol.handle('gido-local', (request) => {
+    const filePath = request.url.replace('gido-local://', '');
+    // デコードして正しいパスにする (スペースや日本語など)
+    const decodedPath = decodeURIComponent(filePath);
+    // file:// プロトコルとして取得して返す
+    return net.fetch('file:///' + decodedPath);
+  });
+
   logger.info('Application starting', {
     env: process.env.NODE_ENV || 'production',
     isDev,

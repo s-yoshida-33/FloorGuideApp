@@ -55,9 +55,13 @@ export function useCurrentAsset(
                             const media = lItem.media;
                             // filenameが存在するものだけを登録
                             if (media && media.id && media.filename) {
+                                // 実際のファイル名は ID + 拡張子
+                                const ext = media.filename.split('.').pop();
+                                const realFilename = `${media.id}.${ext}`;
+                                
                                 newMap.set(media.id, {
                                     id: media.id,
-                                    filename: media.filename,
+                                    filename: realFilename,
                                     mediaType: media.media_type,
                                     name: media.name,
                                     duration: media.duration
@@ -135,6 +139,7 @@ export function useCurrentAsset(
 
           // プロキシ経由ではなくローカルファイルを直接参照する
           // const src = `/file/${filename}`;
+          // const src = `gido-local://C:/SignageData/assets/${filename}`;
           const src = `file:///C:/SignageData/assets/${filename}`;
           
           const newAsset: CurrentAsset = {
