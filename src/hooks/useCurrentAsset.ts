@@ -133,8 +133,9 @@ export function useCurrentAsset(
              return;
           }
 
-          // プロキシ経由でアクセス (/file -> http://localhost:48080/file)
-          const src = `/file/${filename}`;
+          // プロキシ経由ではなくローカルファイルを直接参照する
+          // const src = `/file/${filename}`;
+          const src = `file:///C:/SignageData/assets/${filename}`;
           
           const newAsset: CurrentAsset = {
             id: data.current_media_id,
