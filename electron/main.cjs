@@ -48,27 +48,28 @@ app.commandLine.appendSwitch('disable-zero-copy');
 app.commandLine.appendSwitch('disable-domain-blocking-for-3d-apis');
 app.commandLine.appendSwitch('disable-gpu-process-crash-limit');
 
-// 【追加2】 GPUプロセスなどがクラッシュした場合にアプリを自動再起動する
-app.on('child-process-gone', (event, details) => {
-  const message = `Child process gone: type=${details.type}, reason=${details.reason}, exitCode=${details.exitCode}`;
-  console.error(message);
+  // 【追加2】 GPUプロセスなどがクラッシュした場合にアプリを自動再起動する
+  app.on('child-process-gone', (event, details) => {
+    const message = `Child process gone: type=${details.type}, reason=${details.reason}, exitCode=${details.exitCode}`;
+    console.error(message);
+    
+    // ロガーがロード済みならログにも残す
+    try {
+      logger.fatal(message, { ...details, scope: 'SYSTEM' });
+    } catch (e) { /* ignore */ }
   
-  // ロガーがロード済みならログにも残す
-  try {
-    logger.fatal(message, { ...details, scope: 'SYSTEM' });
-  } catch (e) { /* ignore */ }
-
-  // レンダラープロセスがクラッシュした場合は再起動
-  // GPUプロセスの復帰は上記スイッチ設定(disable-gpu-process-crash-limit)に任せるため、ここでの再起動は行わない
-  if (details.type === 'Renderer') {
-    console.log('Relaunching app due to critical process crash...');
-    // ログ書き込み時間を確保するために1秒待機してから再起動
-    setTimeout(() => {
-      app.relaunch();
-      app.exit(0);
-    }, 1000);
-  }
-});
+    // 【修正】mainWindow.webContents.on('render-process-gone') に詳細な再起動処理を委譲するため、
+    // ここでの Renderer プロセスの再起動は行わない（重複防止）
+    /*
+    if (details.type === 'Renderer') {
+      console.log('Relaunching app due to critical process crash...');
+      setTimeout(() => {
+        app.relaunch();
+        app.exit(0);
+      }, 1000);
+    }
+    */
+  });
 
 // Configure logger immediately to ensure logs go to gido.log
 // app.getPath('userData') is available before app is ready in modern Electron versions
@@ -984,9 +985,29 @@ function createMainWindow() {
   });
 
   // レンダラープロセスのクラッシュ監視（ウィンドウ単位）
+  // メモリ不足(OOM)やクラッシュ時にログを詳細に残し、自動再起動する
   mainWindow.webContents.on('render-process-gone', (event, details) => {
+    const isOOM = details.reason === 'oom'; // メモリ不足(Out of Memory)か判定
     const message = `Renderer process gone (Main Window): reason=${details.reason}, exitCode=${details.exitCode}`;
-    logger.fatal(message, { ...details, scope: 'SYSTEM' });
+    
+    // メモリ不足の場合はより深刻なレベルでログを残す
+    if (isOOM) {
+      logger.fatal('CRITICAL: Memory Exhaustion (OOM) detected in Renderer Process!', { 
+        ...details, 
+        scope: 'SYSTEM' 
+      });
+    } else {
+      logger.fatal(message, { ...details, scope: 'SYSTEM' });
+    }
+
+    // クラッシュ（crashed）またはメモリ不足（oom）の場合、1秒後にアプリを再起動
+    if (details.reason === 'crashed' || details.reason === 'oom') {
+      logger.info('Attempting to relaunch app due to renderer crash...');
+      setTimeout(() => {
+        app.relaunch();
+        app.exit(0);
+      }, 1000);
+    }
   });
 
   // 応答なし（フリーズ・ホワイトアウト）の監視
@@ -1012,6 +1033,37 @@ function createMainWindow() {
       }
     }, 100);
   });
+
+  // メモリ使用状況の定期監視（ウォッチドッグ）の追加
+  // アプリが稼働中にどれくらいメモリを消費しているか、定期的にログへ出力する
+  const memoryWatchdog = setInterval(async () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        // レンダラープロセス（描画側）のメモリ使用量を取得
+        const info = await mainWindow.webContents.getProcessMemoryInfo();
+        // システム全体のメモリ空き状況を取得
+        const systemMem = process.getSystemMemoryInfo();
+
+        logger.info('Periodic Memory Status Report', {
+          scope: 'SYSTEM',
+          rendererMemory: {
+            private: Math.round(info.private / 1024) + 'MB', // 専有メモリ
+            shared: Math.round(info.shared / 1024) + 'MB'    // 共有メモリ
+          },
+          systemMemory: {
+            free: Math.round(systemMem.free / 1024) + 'MB', // システムの空きメモリ
+            total: Math.round(systemMem.total / 1024) + 'MB' // システムの全メモリ
+          }
+        });
+      } catch (e) {
+        // 取得失敗時はログに残す
+        logger.debug('Failed to fetch memory info', { error: e.message });
+      }
+    } else {
+      // ウィンドウが閉じられたらタイマーを停止
+      clearInterval(memoryWatchdog);
+    }
+  }, 60000); // 1分ごとに記録
 
   // 3. 定期監視 (Watchdog) - 10秒ごとに最前面を強制
   // 何らかの理由で背面に回ってしまった場合の自動復帰用
