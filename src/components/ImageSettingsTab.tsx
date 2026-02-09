@@ -56,8 +56,8 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
     setErrors({});
 
     // Validate file type (WebP, SVG, PNG, JPEG)
-    const allowedTypes = ["image/webp", "image/svg+xml", "image/png", "image/jpeg"];
-    const allowedExts = [".webp", ".svg", ".png", ".jpg", ".jpeg"];
+    const allowedTypes = ["image/webp", "image/png", "image/jpeg"];
+    const allowedExts = [".webp", ".png", ".jpg", ".jpeg"];
     
     const isTypeValid = allowedTypes.includes(file.type);
     const isExtValid = allowedExts.some(ext => file.name.toLowerCase().endsWith(ext));
