@@ -62,7 +62,7 @@ import type {
   }
 
   /**
-   * Get CMS base URL (e.g. http://localhost:8080) from main process.
+   * Get CMS base URL (e.g. http://localhost:48080) from main process.
    */
   export async function getCmsBaseUrl(): Promise<string | null> {
     if (!window.wspApi?.getCmsBaseUrl) {

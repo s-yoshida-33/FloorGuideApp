@@ -261,15 +261,15 @@ function loadSettings() {
       },
       openTimeImage: '',
     },
-    // Port ranges for auto-detection (Bridge: 8090, CMS: 8080)
+    // Port ranges for auto-detection (Bridge: 8090, CMS: 48080)
     portRanges: {
       bridge: {
         min: 8090,
         max: 8090,
       },
       cms: {
-        min: 8080,
-        max: 8080,
+        min: 48080,
+        max: 48080,
       },
     },
     shopSettings: {},
@@ -687,7 +687,7 @@ async function getCmsBaseUrl() {
 
   // Fallback check
   const fallbackHosts = ['localhost', '127.0.0.1'];
-  const fallbackPort = 8080;
+  const fallbackPort = 48080;
   
   for (const host of fallbackHosts) {
     try {
@@ -712,7 +712,7 @@ async function getCmsBaseUrl() {
     }
   }
   
-  const fallbackUrl = 'http://localhost:8080';
+  const fallbackUrl = 'http://localhost:48080';
   logger.warn('Using CMS fallback URL (unverified)', { fallbackUrl });
   return fallbackUrl;
 }
