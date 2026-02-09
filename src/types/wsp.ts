@@ -51,7 +51,52 @@ export interface WspMediaAsset {
     retrieved_at: string;
     timelines: WspTimelineItem[];
   }
+
+  export interface WonderFlowItemChangedEvent {
+    event_type: 'item_changed';
+    current_media_id: string;
+    current_media_name: string;
+    current_media_type: 'video' | 'image' | string;
+    next_media_id: string;
+    timeline_count: number;
+    timestamp: string;
+  }
   
+  export interface MediaMapItem {
+    id: string;
+    filename: string;
+    mediaType: string;
+    name: string;
+    duration: number;
+  }
+  
+  export interface WspScheduleJson {
+    data: {
+      schedule: {
+        id: string;
+        events: {
+          items: Array<{
+            programs: {
+              items: Array<{
+                layers: {
+                  items: Array<{
+                    media: {
+                      id: string;
+                      filename: string;
+                      media_type: string;
+                      duration: number;
+                      name: string;
+                    };
+                  }>;
+                };
+              }>;
+            };
+          }>;
+        };
+      };
+    };
+  }
+
   /**
    * Simplified current asset object used by the renderer.
    * This matches the object returned from "wsp:get-current-asset".

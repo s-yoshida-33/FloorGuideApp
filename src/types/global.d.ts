@@ -117,6 +117,7 @@ interface WspApi {
   getCurrentTimeline: () => Promise<WspCurrentTimelineResponse | null>;
   getTimeline: (hour?: number) => Promise<WspTimelineResponse | null>;
   getCmsBaseUrl: () => Promise<string>;
+  getLocalSchedule: () => Promise<import("./wsp").WspScheduleJson | null>;
 }
 
 interface LoggerApi {

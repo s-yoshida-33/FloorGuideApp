@@ -824,6 +824,24 @@ ipcMain.handle('cms:get-base-url', async () => {
   return baseUrl;
 });
 
+const SCHEDULE_PATH = 'C:\\SignageData\\schedule.json';
+
+ipcMain.handle('wsp:get-local-schedule', async () => {
+  try {
+    if (fs.existsSync(SCHEDULE_PATH)) {
+      const data = fs.readFileSync(SCHEDULE_PATH, 'utf-8');
+      const json = JSON.parse(data);
+      logger.info('Local schedule loaded', { path: SCHEDULE_PATH });
+      return json;
+    }
+    logger.warn('Local schedule file not found', { path: SCHEDULE_PATH });
+    return null;
+  } catch (error) {
+    logger.error('Failed to read local schedule', { error: error.message });
+    return null;
+  }
+});
+
 /**
  * Simple HTTP GET helper that retrieves JSON from a given URL.
  */

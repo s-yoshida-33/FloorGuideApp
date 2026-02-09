@@ -205,6 +205,9 @@ contextBridge.exposeInMainWorld('wspApi', {
   getCmsBaseUrl() {
     return ipcRenderer.invoke('cms:get-base-url');
   },
+  getLocalSchedule() {
+    return ipcRenderer.invoke('wsp:get-local-schedule');
+  },
 });
 
 contextBridge.exposeInMainWorld('logger', {

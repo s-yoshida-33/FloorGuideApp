@@ -1,110 +1,90 @@
 // src/hooks/useCurrentAsset.ts
 import { useEffect, useState, useRef, useCallback } from 'react';
-import type { CurrentAsset } from '../types/wsp';
-import { getCmsBaseUrl } from '../repositories/wspRepository'; // fetchCurrentAsset を削除
-import { logWarn, logError, logDebug } from '../logs/logging';
+import type { CurrentAsset, WonderFlowItemChangedEvent, WspScheduleJson, MediaMapItem } from '../types/wsp';
+import { getCmsBaseUrl } from '../repositories/wspRepository';
+import { logWarn, logError, logDebug, logInfo } from '../logs/logging';
 
 interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
   isLoading: boolean;
-}
-
-type AssetStatus = 'ok' | 'noAsset' | 'error' | null;
-
-/**
- * Helper to convert TimelineItem (from SSE/REST) to CurrentAsset
- */
-function mapTimelineToAsset(timelineItem: any): CurrentAsset | null {
-  if (!timelineItem) return null;
-  const data = timelineItem.data || timelineItem;
-  const assets = data.media_assets || timelineItem.media_assets || [];
-  
-  if (!Array.isArray(assets) || assets.length === 0) return null;
-
-  const asset = assets[0];
-  const assetPath = asset.url || asset.localPath || '';
-  
-  // Convert to file URL if local path
-  let src = '';
-  if (assetPath) {
-    if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
-      src = assetPath;
-    } else {
-      const normalized = assetPath.replace(/\\/g, '/');
-      src = `file:///${normalized}`;
-    }
-  }
-
-  const mediaNames = data.media_names || timelineItem.media_names || [];
-  
-  let mediaType = asset.mediaType || asset.type || '';
-   if (!mediaType) {
-      const pathLower = assetPath.toLowerCase();
-      if (pathLower.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/)) {
-          mediaType = 'video';
-      } else if (pathLower.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/)) {
-          mediaType = 'image';
-      }
-  }
-
-  return {
-      id: asset.id,
-      src,
-      duration: asset.duration,
-      width: asset.width,
-      height: asset.height,
-      name: mediaNames[0] || '',
-      startTime: data.start_time || timelineItem.start_time || '',
-      endTime: data.end_time || timelineItem.end_time || '',
-      mediaType,
-      type: asset.type
-  };
+  nextAsset: MediaMapItem | null;
 }
 
 export function useCurrentAsset(
   retryIntervalMs: number = 3000,
 ): UseCurrentAssetResult {
   const [asset, setAsset] = useState<CurrentAsset | null>(null);
+  const [nextAsset, setNextAsset] = useState<MediaMapItem | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
+  // マップのロード状態管理 (null = 未ロード)
+  const [mediaMap, setMediaMap] = useState<Map<string, MediaMapItem> | null>(null);
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<number | undefined>(undefined);
   const isMountedRef = useRef<boolean>(true);
-  const lastStatusRef = useRef<AssetStatus>(null);
-  const lastAssetIdRef = useRef<string | undefined>(undefined);
 
-  const handleAssetUpdate = useCallback((next: CurrentAsset | null) => {
-    if (!isMountedRef.current) return;
+  // 1. スケジュールファイルを読み込んでマップを作成
+  useEffect(() => {
+    const loadSchedule = async () => {
+      try {
+        if (!window.wspApi?.getLocalSchedule) {
+            logWarn('video', 'wspApi.getLocalSchedule not found');
+            setMediaMap(new Map());
+            return;
+        }
+        
+        const json: WspScheduleJson | null = await window.wspApi.getLocalSchedule();
+        if (!json?.data?.schedule?.events?.items) {
+             logWarn('video', 'Invalid schedule json structure or file not found');
+             setMediaMap(new Map());
+             return;
+        }
 
-    if (next) {
-      const assetChanged = lastAssetIdRef.current !== next.id;
-      if (lastStatusRef.current !== 'ok') {
-        logDebug('video', 'Received current video asset via SSE', {
-          assetId: next.id,
-          src: next.src,
-          name: next.name,
-        });
-      } else if (assetChanged) {
-        logDebug('video', 'Asset changed via SSE', {
-          oldAssetId: lastAssetIdRef.current,
-          newAssetId: next.id,
-        });
+        const newMap = new Map<string, MediaMapItem>();
+        
+        // 深いネストを走査して全てのメディア情報を抽出
+        const events = json.data.schedule.events.items || [];
+        for (const ev of events) {
+            // programs はオブジェクトとして定義されている
+            const program = ev.programs;
+            if (program && program.items) {
+                for (const pItem of program.items) {
+                    if (pItem.layers && pItem.layers.items) {
+                        for (const lItem of pItem.layers.items) {
+                            const media = lItem.media;
+                            // filenameが存在するものだけを登録
+                            if (media && media.id && media.filename) {
+                                newMap.set(media.id, {
+                                    id: media.id,
+                                    filename: media.filename,
+                                    mediaType: media.media_type,
+                                    name: media.name,
+                                    duration: media.duration
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        setMediaMap(newMap);
+        logInfo('video', 'Schedule map loaded', { count: newMap.size });
+      } catch (error) {
+        logError('video', 'Failed to load local schedule', { error });
+        setMediaMap(new Map());
       }
-      lastStatusRef.current = 'ok';
-    } else {
-      if (lastStatusRef.current !== 'noAsset') {
-        // Suppress repeated warnings if we are just waiting for the first event
-        // logWarn('video', 'No current video asset available yet');
-      }
-      lastStatusRef.current = 'noAsset';
-    }
+    };
 
-    lastAssetIdRef.current = next?.id;
-    setAsset(next);
-    setIsLoading(false);
+    loadSchedule();
   }, []);
 
+  // 2. SSE接続とイベントハンドリング
   const connectSSE = useCallback(async () => {
+    // マップがロードされるまでは接続しない（イベントが来ても処理できないため）
+    if (!mediaMap) return;
+
     try {
       const baseUrl = await getCmsBaseUrl();
       if (!baseUrl) {
@@ -113,8 +93,12 @@ export function useCurrentAsset(
         return;
       }
 
-      const url = `${baseUrl}/api/events`;
+      const url = `${baseUrl}/api/timeline/stream`;
       logDebug('video', 'Connecting to SSE', { url });
+
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
 
       const es = new EventSource(url);
       eventSourceRef.current = es;
@@ -123,12 +107,12 @@ export function useCurrentAsset(
         logDebug('video', 'SSE connection established');
       };
 
-      es.onerror = (e) => {
-        // Only log error if it's not a normal reconnection attempt or if verbose
-        // es.readyState === 0 means connecting, 1 open, 2 closed
+      es.onerror = (_e) => {
+        // es.readyState === 2 means closed
         if (es.readyState === 2) {
-             logError('video', 'SSE connection closed/error', { state: es.readyState, error: e });
+             // logError('video', 'SSE connection closed/error', { state: es.readyState });
         }
+        logDebug('video', 'SSE connection error/closed', { state: es.readyState });
         es.close();
         eventSourceRef.current = null;
         if (isMountedRef.current) {
@@ -136,52 +120,48 @@ export function useCurrentAsset(
         }
       };
 
-      // Event: connected
-      // NOTE: Assuming the 'connected' event sends the current state payload
-      es.addEventListener('connected', (e: MessageEvent) => {
+      // item_changed イベント処理
+      es.addEventListener('item_changed', (e: MessageEvent) => {
         try {
-          const data = JSON.parse(e.data);
-          logDebug('video', 'SSE: connected event', data);
+          const data = JSON.parse(e.data) as WonderFlowItemChangedEvent;
           
-          // Try to extract initial asset from connected event if available
-          if (data.current_timeline) {
-              const initialAsset = mapTimelineToAsset(data.current_timeline);
-              if (initialAsset) {
-                  handleAssetUpdate(initialAsset);
-              }
+          const currentMediaInfo = mediaMap.get(data.current_media_id);
+          const filename = currentMediaInfo?.filename;
+          
+          if (!filename) {
+             logWarn('video', 'Filename not found in schedule for ID', { id: data.current_media_id });
+             return;
           }
-        } catch (err) {
-          console.error('Failed to parse connected event', err);
-        }
-      });
 
-      // Event: switch (Content switching)
-      es.addEventListener('switch', (e: MessageEvent) => {
-        try {
-          const data = JSON.parse(e.data);
-          const newAsset = mapTimelineToAsset(data.current_timeline);
-          handleAssetUpdate(newAsset);
-        } catch (err) {
-          logError('video', 'Failed to parse switch event', { error: err });
-        }
-      });
+          // プロキシ経由でアクセス (/file -> http://localhost:48080/file)
+          const src = `/file/${filename}`;
+          
+          const newAsset: CurrentAsset = {
+            id: data.current_media_id,
+            src: src,
+            name: data.current_media_name,
+            mediaType: data.current_media_type,
+            duration: currentMediaInfo?.duration || 0,
+            width: 0,
+            height: 0,
+            startTime: data.timestamp,
+            endTime: '',
+          };
 
-      // Event: update (Timeline update)
-      // Since legacy fetch is disabled, we rely on the payload in the event or wait for next switch
-      es.addEventListener('update', (e: MessageEvent) => {
-          logDebug('video', 'SSE: update event received');
-          // If update event carries data, use it. Otherwise we might need to wait or use a different endpoint.
-          // Currently assuming update might trigger a reload in legacy, but here we just log.
-          // If `update` event contains `current_timeline`, use it:
-          try {
-             if (e.data) {
-                 const data = JSON.parse(e.data);
-                 if (data.current_timeline) {
-                     const updatedAsset = mapTimelineToAsset(data.current_timeline);
-                     handleAssetUpdate(updatedAsset);
-                 }
-             }
-          } catch(err) { /* ignore */ }
+          setAsset(newAsset);
+          setIsLoading(false);
+
+          // 次のメディア情報の取得
+          if (data.next_media_id) {
+            const nextInfo = mediaMap.get(data.next_media_id);
+            setNextAsset(nextInfo || null);
+          } else {
+            setNextAsset(null);
+          }
+
+        } catch (err) {
+          logError('video', 'Failed to parse item_changed event', { error: err });
+        }
       });
 
     } catch (error) {
@@ -190,11 +170,14 @@ export function useCurrentAsset(
         retryTimeoutRef.current = window.setTimeout(connectSSE, retryIntervalMs);
       }
     }
-  }, [handleAssetUpdate, retryIntervalMs]);
+  }, [mediaMap, retryIntervalMs]);
 
   useEffect(() => {
     isMountedRef.current = true;
-    connectSSE();
+    
+    if (mediaMap) {
+        connectSSE();
+    }
 
     return () => {
       isMountedRef.current = false;
@@ -206,7 +189,7 @@ export function useCurrentAsset(
         window.clearTimeout(retryTimeoutRef.current);
       }
     };
-  }, [connectSSE]);
+  }, [mediaMap, connectSSE]);
 
-  return { asset, isLoading };
+  return { asset, isLoading, nextAsset };
 }
