@@ -44,6 +44,9 @@ class SpoutReceiverWrapper {
       const isConnected = this.receiver.pollReceiver();
       
       if (!isConnected) {
+        if (Math.random() < 0.01) {
+          logger.info('Spout: No connection (pollReceiver returned false)');
+       }
         return null;
       }
 
@@ -52,11 +55,38 @@ class SpoutReceiverWrapper {
       const width = this.receiver.getReceiverWidth();
       const height = this.receiver.getReceiverHeight();
       
-      if (width === 0 || height === 0) return null;
+      if (width === 0 || height === 0) {
+        if (Math.random() < 0.01) {
+           logger.warn('Spout: Connected but size is 0x0');
+        }
+        return null;
+      }
 
       const buffer = this.receiver.receiveTexture();
-      
-      if (!buffer) return null;
+      if (!buffer) {
+        logger.warn('Spout: Failed to get texture buffer (buffer is null)');
+        return null;
+      }
+
+      if (Math.random() < 0.1) {
+        const centerIdx = Math.floor((height / 2) * width + (width / 2)) * 4;
+
+        if (centerIdx + 3 < buffer.length) {
+          logger.info('Spout Pixel Debug', {
+            width, 
+            height,
+            R: buffer[centerIdx],
+            G: buffer[centerIdx + 1],
+            B: buffer[centerIdx + 2],
+            A: buffer[centerIdx + 3]
+          });
+        } else {
+          logger.error('Spout Buffer Error: Buffer too small', {
+            expected: width * height * 4, 
+            actual: buffer.length
+          });
+        }
+      }
       
       return {
         buffer: buffer,
