@@ -103,7 +103,7 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
             // 裏スロットが「次のアセット」と異なる場合（空、または古いアセット）
             if (currentBack?.id !== nextAsset.id) {
                  // nextAsset用のオブジェクト作成（useCurrentAssetフック内と同様のパス構築）
-                 const nextAssetSrc = `file:///C:/SignageData/assets/${nextAsset.filename}`;
+                 const nextAssetSrc = nextAsset.src || `file:///C:/SignageData/assets/${nextAsset.filename}`;
                  const nextAssetObj: CurrentAsset = {
                     id: nextAsset.id,
                     src: nextAssetSrc,

@@ -57,7 +57,9 @@ export interface WspMediaAsset {
     current_media_id: string;
     current_media_name: string;
     current_media_type: 'video' | 'image' | string;
+    current_media_local_path?: string;
     next_media_id: string;
+    next_media_local_path?: string;
     timeline_count: number;
     timestamp: string;
   }
@@ -68,6 +70,7 @@ export interface WspMediaAsset {
     mediaType: string;
     name: string;
     duration: number;
+    src?: string; // Optional: SSE provided full path
   }
   
   export interface WspScheduleJson {

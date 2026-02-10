@@ -130,18 +130,28 @@ export function useCurrentAsset(
           const data = JSON.parse(e.data) as WonderFlowItemChangedEvent;
           
           const currentMediaInfo = mediaMap.get(data.current_media_id);
-          const filename = currentMediaInfo?.filename;
           
-          if (!filename) {
-             logWarn('video', 'Filename not found in schedule for ID', { id: data.current_media_id });
-             return;
+          let src = '';
+          if (data.current_media_local_path) {
+             const normalized = data.current_media_local_path.replace(/\\/g, '/');
+             src = normalized.startsWith('file://') ? normalized : `file:///${normalized}`;
+          } else if (currentMediaInfo?.filename) {
+             src = `file:///C:/SignageData/assets/${currentMediaInfo.filename}`;
+          }
+          
+          if (!src) {
+             // パスが特定できない場合はスキップ
+             if (!currentMediaInfo) {
+                 logWarn('video', 'Asset info not found for ID', { id: data.current_media_id });
+                 return;
+             }
+             // filenameもない場合
+             if (!currentMediaInfo.filename) {
+                 logWarn('video', 'Filename not found in schedule for ID', { id: data.current_media_id });
+                 return;
+             }
           }
 
-          // プロキシ経由ではなくローカルファイルを直接参照する
-          // const src = `/file/${filename}`;
-          // const src = `gido-local://C:/SignageData/assets/${filename}`;
-          const src = `file:///C:/SignageData/assets/${filename}`;
-          
           const newAsset: CurrentAsset = {
             id: data.current_media_id,
             src: src,
@@ -160,7 +170,21 @@ export function useCurrentAsset(
           // 次のメディア情報の取得
           if (data.next_media_id) {
             const nextInfo = mediaMap.get(data.next_media_id);
-            setNextAsset(nextInfo || null);
+            let nextItem: MediaMapItem | null = nextInfo ? { ...nextInfo } : null;
+            
+            // SSEからのパス情報があれば、srcプロパティとして注入
+            if (data.next_media_local_path) {
+                const normalizedNext = data.next_media_local_path.replace(/\\/g, '/');
+                const nextSrc = normalizedNext.startsWith('file://') ? normalizedNext : `file:///${normalizedNext}`;
+                
+                // マップ情報がなくても、最低限の情報でオブジェクトを作成することも検討できるが、
+                // durationなどが不明なため、一旦はマップ情報がある場合にsrcを追加する形にする
+                if (nextItem) {
+                    nextItem.src = nextSrc;
+                }
+            }
+            
+            setNextAsset(nextItem);
           } else {
             setNextAsset(null);
           }
