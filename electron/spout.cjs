@@ -17,21 +17,14 @@ class SpoutReceiverWrapper {
       // デバッグログ: モジュールの中身を確認
       logger.info('Spout: Loaded native module structure', { keys: Object.keys(nativeModule) });
 
-      // SpoutReceiverクラスの特定
-      // electron-spout は default エクスポートや別名の可能性がある
-      let SpoutReceiverClass = nativeModule.SpoutReceiver || nativeModule.Receiver || nativeModule.default || nativeModule;
+      // SpoutOutputクラスの特定 (electron-spout は SpoutOutput という名前でエクスポートしている)
+      let SpoutClass = nativeModule.SpoutOutput || nativeModule.default || nativeModule;
       
-      // もし関数としてエクスポートされていたら、それをクラスとして扱う
-      if (typeof SpoutReceiverClass !== 'function' && typeof nativeModule === 'function') {
-          SpoutReceiverClass = nativeModule;
-      }
-
       try {
-        this.receiver = new SpoutReceiverClass(senderName);
+        this.receiver = new SpoutClass(senderName);
       } catch (err) {
-        // new が不要なタイプかもしれない（ファクトリ関数の場合）
-        logger.warn('Spout: new failed, trying function call', { error: err.message });
-        this.receiver = SpoutReceiverClass(senderName);
+        logger.warn('Spout: new failed', { error: err.message });
+        throw err;
       }
 
       logger.info('Spout: Native module loaded successfully', { senderName });
@@ -47,13 +40,28 @@ class SpoutReceiverWrapper {
     }
 
     try {
-      const frame = this.receiver.receive();
-      if (!frame) return null;
+      // 受信チェック (pollReceiver)
+      const isConnected = this.receiver.pollReceiver();
+      
+      if (!isConnected) {
+        return null;
+      }
+
+      // テクスチャ取得 (receiveTexture)
+      // pollReceiver が成功していれば、サイズ情報も更新されているはず
+      const width = this.receiver.getReceiverWidth();
+      const height = this.receiver.getReceiverHeight();
+      
+      if (width === 0 || height === 0) return null;
+
+      const buffer = this.receiver.receiveTexture();
+      
+      if (!buffer) return null;
       
       return {
-        buffer: frame.buffer, // Buffer or Uint8Array
-        width: frame.width,
-        height: frame.height
+        buffer: buffer,
+        width: width,
+        height: height
       };
     } catch (e) {
       logger.error('Spout: Error during receive', { error: e.message });
