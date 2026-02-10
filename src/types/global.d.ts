@@ -74,6 +74,14 @@ interface ElectronAPI {
   onShopSettingsUpdated: (cb: (settings: ShopSettings) => void) => () => void;
   getDebugSettingsStatus: () => Promise<any>;
   onDebugLog: (cb: (entry: any) => void) => () => void;
+  onSpoutFrame: (
+    cb: (frame: {
+      buffer: Uint8Array;
+      width: number;
+      height: number;
+      isMock?: boolean;
+    }) => void
+  ) => () => void;
   manualUpdateCheck: () => void;
   oneClickUpdate: () => void;
   quitApp: () => void;

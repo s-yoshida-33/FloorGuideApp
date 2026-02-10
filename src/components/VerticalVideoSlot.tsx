@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
 import { logError, logDebug } from '../logs/logging';
 import { OptimizedVideo } from './OptimizedVideo';
+import { SpoutCanvas } from './SpoutCanvas';
 import type { CurrentAsset } from '../types/wsp';
 
 interface VerticalVideoSlotProps {
@@ -123,8 +124,15 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   }, [targetAsset, nextAsset, activeSlot, slotAssets, isLoaded]);
 
 
+  // Spoutの確認モード（一時的）
+  // 従来のSSE映像（Video/Image）を非表示にする
+  const isSpoutDebugMode = true;
+
   // レンダリング用ヘルパー
   const renderSlot = (slot: 'A' | 'B') => {
+    // デバッグモード時はレンダリングしない（DOMから消す、または非表示にする）
+    if (isSpoutDebugMode) return null;
+
     const asset = slotAssets[slot];
     const isActive = slot === activeSlot;
     
@@ -193,6 +201,8 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000', overflow: 'hidden' }}>
       {renderSlot('A')}
       {renderSlot('B')}
+      {/* Spout Overlay (Visible when signal is present) */}
+      <SpoutCanvas style={{ position: 'absolute', top: 0, left: 0, zIndex: 10 }} />
     </div>
   );
 };

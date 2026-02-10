@@ -178,6 +178,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('debug:log', listener);
     };
   },
+  onSpoutFrame(callback) {
+    // 高頻度で呼ばれるため、リスナー管理に注意
+    const listener = (_event, frame) => callback(frame);
+    ipcRenderer.on('spout-frame', listener);
+    return () => {
+      ipcRenderer.removeListener('spout-frame', listener);
+    };
+  },
   manualUpdateCheck() {
     ipcRenderer.send('menu:check-updates');
   },

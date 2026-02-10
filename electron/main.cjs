@@ -14,6 +14,7 @@ const {
   getLatestVersionInfo,
 } = require('./updateChecker.cjs');
 const logger = require('./logger.cjs');
+const { SpoutReceiverWrapper } = require('./spout.cjs'); // Spout Wrapper
 
 // 【修正】ハードウェアアクセラレーションを有効に戻す（Unityとの競合回避のため、設定で制御する）
 // app.disableHardwareAcceleration();
@@ -1139,6 +1140,42 @@ function createMainWindow() {
     logger.info('Main window closed');
     mainWindow = null;
   });
+
+  // Start Spout Receiver
+  setupSpout(mainWindow);
+}
+
+/**
+ * Setup Spout Receiver for the window
+ */
+function setupSpout(window) {
+  const senderName = 'WonderFlow'; // Wonder Flowの送信名に合わせる
+  const receiver = new SpoutReceiverWrapper(senderName);
+  
+  // 30fps (約33ms) でポーリング
+  const interval = setInterval(() => {
+    if (!window || window.isDestroyed()) {
+      clearInterval(interval);
+      return;
+    }
+
+    // ウィンドウが最小化されている時などはスキップして負荷軽減
+    if (window.isMinimized()) return;
+
+    const frame = receiver.receive();
+    if (frame) {
+      // IPCでレンダラーへ送信
+      // データのコピーが発生するため、サイズに注意
+      window.webContents.send('spout-frame', {
+        buffer: frame.buffer,
+        width: frame.width,
+        height: frame.height,
+        isMock: frame.isMock
+      });
+    }
+  }, 33);
+  
+  logger.info('Spout receiver setup completed', { senderName });
 }
 
 /**
