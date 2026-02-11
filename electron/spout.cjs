@@ -56,18 +56,22 @@ class SpoutReceiverWrapper {
     }
 
     try {
-      const isConnected = this.receiver.pollReceiver();
+      // receiveTexture() handles everything:
+      //   - Connection establishment (returns null during probe phase)
+      //   - Frame reception via ReceiveImage (double-buffered staging)
+      //   - Returns Buffer with RGBA pixels, or null if no frame
+      const buffer = this.receiver.receiveTexture();
 
-      if (!isConnected) {
-        // 接続が切れた場合のログ（一度だけ）
-        if (this.connected) {
+      if (!buffer) {
+        // No frame: either connecting, no new frame, or disconnected
+        if (this.connected && !this.receiver.pollReceiver()) {
           this.connected = false;
           logger.warn('Spout: Connection lost');
         }
         return null;
       }
 
-      // 初回接続時のログ
+      // Got a frame - update connection state
       if (!this.connected) {
         this.connected = true;
         logger.info('Spout: Connected to sender', {
@@ -80,11 +84,6 @@ class SpoutReceiverWrapper {
       const height = this.receiver.getReceiverHeight();
 
       if (width === 0 || height === 0) {
-        return null;
-      }
-
-      const buffer = this.receiver.receiveTexture();
-      if (!buffer) {
         return null;
       }
 

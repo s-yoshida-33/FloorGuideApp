@@ -933,33 +933,49 @@ function createMainWindow() {
 
 /**
  * Setup Spout Receiver for the window
+ *
+ * パフォーマンス最適化:
+ * - ACKパターン: レンダラーが前フレームの描画完了を通知するまで次フレームを送らない
+ *   → IPC backlog を防止し、レンダラーの処理能力に自動適応
+ * - ポーリングは 100ms (最大10fps) で実行
+ *   → 1080x1920x4 = ~8MB/frame のIPC転送量を抑制
  */
 function setupSpout(window) {
   const senderName = 'WonderFlow'; // Wonder Flowの送信名に合わせる
   const receiver = new SpoutReceiverWrapper(senderName);
   
-  // 30fps (約33ms) でポーリング
+  // ACKパターン: レンダラーが描画完了するまで次フレームを送信しない
+  let rendererReady = true;
+  
+  ipcMain.on('spout-frame-ack', () => {
+    rendererReady = true;
+  });
+
+  // 最大10fps (100ms) でポーリング
+  // 実効フレームレートはレンダラーの処理速度により自動調整される
   const interval = setInterval(() => {
     if (!window || window.isDestroyed()) {
       clearInterval(interval);
       return;
     }
 
-    // ウィンドウが最小化されている時などはスキップして負荷軽減
+    // ウィンドウが最小化されている時はスキップ
     if (window.isMinimized()) return;
+
+    // レンダラーがまだ前フレームを処理中ならスキップ
+    // → GPU readback + IPC コピーの無駄を回避
+    if (!rendererReady) return;
 
     const frame = receiver.receive();
     if (frame) {
-      // IPCでレンダラーへ送信
-      // データのコピーが発生するため、サイズに注意
+      rendererReady = false;
       window.webContents.send('spout-frame', {
         buffer: frame.buffer,
         width: frame.width,
-        height: frame.height,
-        isMock: frame.isMock
+        height: frame.height
       });
     }
-  }, 33);
+  }, 100);
   
   logger.info('Spout receiver setup completed', { senderName });
 }

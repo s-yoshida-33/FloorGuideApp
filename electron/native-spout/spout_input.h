@@ -21,7 +21,7 @@ public:
     Napi::Value PollReceiver(const Napi::CallbackInfo &info);
     Napi::Value GetReceiverWidth(const Napi::CallbackInfo &info);
     Napi::Value GetReceiverHeight(const Napi::CallbackInfo &info);
-    Napi::Value ReceiveTexture(const Napi::CallbackInfo &info);
+    Napi::Value ReceiveFrame(const Napi::CallbackInfo &info);
 
     // Diagnostic API
     Napi::Value GetAvailableSenders(const Napi::CallbackInfo &info);
@@ -34,7 +34,7 @@ private:
 
     unsigned int texWidth = 0;
     unsigned int texHeight = 0;
-    bool lastPollResult = false;
+    bool connected = false;
     bool initialized = false;
 
     std::string senderName;
