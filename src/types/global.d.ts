@@ -1,12 +1,6 @@
 // src/types/global.d.ts
 export {};
 
-import type {
-  CurrentAsset,
-  WspCurrentTimelineResponse,
-  WspTimelineResponse,
-} from "./wsp";
-
 import type { LocationIconSettings } from "./locationIcon";
 import type { ImageSettings } from "./imageSettings";
 import type { GenreMappings, GenreMemoSettings } from "./genreSettings";
@@ -87,7 +81,6 @@ interface ElectronAPI {
   quitApp: () => void;
   notifySettingsOpened: () => void;
   notifySettingsClosed: () => void;
-  notifyScheduleUpdated?: () => void;
 }
 
 export type StatusState = 'checking' | 'available' | 'none' | 'downloaded' | 'error' | 'optimizing';
@@ -120,14 +113,6 @@ export interface AppInfoAPI {
   } | null>;
 }
 
-interface WspApi {
-  getCurrentAsset: () => Promise<CurrentAsset | null>;
-  getCurrentTimeline: () => Promise<WspCurrentTimelineResponse | null>;
-  getTimeline: (hour?: number) => Promise<WspTimelineResponse | null>;
-  getCmsBaseUrl: () => Promise<string>;
-  getLocalSchedule: () => Promise<import("./wsp").WspScheduleJson | null>;
-}
-
 interface LoggerApi {
   log: (
     level: string,
@@ -147,7 +132,6 @@ declare global {
     electronAPI?: ElectronAPI;
     updater?: UpdaterAPI;
     appInfo?: AppInfoAPI;
-    wspApi?: WspApi;
     logger?: LoggerApi;
   }
 }

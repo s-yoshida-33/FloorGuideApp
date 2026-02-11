@@ -272,15 +272,11 @@ function loadSettings() {
       },
       openTimeImage: '',
     },
-    // Port ranges for auto-detection (Bridge: 8090, CMS: 48080)
+    // Port ranges for auto-detection (Bridge: 8090)
     portRanges: {
       bridge: {
         min: 8090,
         max: 8090,
-      },
-      cms: {
-        min: 48080,
-        max: 48080,
       },
     },
     shopSettings: {},
@@ -394,9 +390,8 @@ function loadSettings() {
 
         // Check if migration is needed (if ranges are wider than 0, i.e. min != max)
         const bridgeNeedsFix = stored.bridge && (stored.bridge.max > stored.bridge.min || stored.bridge.max !== defaults.bridge.max);
-        const cmsNeedsFix = stored.cms && (stored.cms.max > stored.cms.min || stored.cms.max !== defaults.cms.max);
 
-        if (bridgeNeedsFix || cmsNeedsFix) {
+        if (bridgeNeedsFix) {
           logger.info('Migrating port ranges to fixed single ports', { 
             old: stored, 
             new: defaults 
@@ -408,10 +403,6 @@ function loadSettings() {
             bridge: {
               min: typeof stored.bridge?.min === 'number' ? stored.bridge.min : defaults.bridge.min,
               max: typeof stored.bridge?.max === 'number' ? stored.bridge.max : defaults.bridge.max,
-            },
-            cms: {
-              min: typeof stored.cms?.min === 'number' ? stored.cms.min : defaults.cms.min,
-              max: typeof stored.cms?.max === 'number' ? stored.cms.max : defaults.cms.max,
             },
         };
       })(),
@@ -670,69 +661,9 @@ async function getBridgeBaseUrl() {
   return 'http://localhost:8090';
 }
 
-/**
- * Get the base URL for CMS (WSP), using port range detection if configured.
- */
-async function getCmsBaseUrl() {
-  const settings = loadSettings();
-  const portRange = settings.portRanges?.cms;
-  // Updated: Probe /api/events instead of legacy /current-timeline
-  const probePath = '/api/events';
-
-  logger.debug('Getting CMS base URL', { portRange });
-  if (portRange && portRange.min && portRange.max) {
-    // Try both localhost and 127.0.0.1 to handle different network configurations
-    const hosts = ['localhost', '127.0.0.1'];
-    for (const host of hosts) {
-      const port = await findAvailablePortInRange(portRange.min, portRange.max, probePath, host);
-      if (port) {
-        const baseUrl = `http://${host}:${port}`;
-        logger.info('CMS base URL determined', { baseUrl, port, portRange, host });
-        return baseUrl;
-      }
-    }
-    logger.warn('CMS port detection failed for all hosts, using fallback', { portRange });
-  } else {
-    logger.debug('CMS port range not configured, using fallback');
-  }
-
-  // Fallback check
-  const fallbackHosts = ['localhost', '127.0.0.1'];
-  const fallbackPort = 48080;
-  
-  for (const host of fallbackHosts) {
-    try {
-      const testUrl = `http://${host}:${fallbackPort}${probePath}`;
-      const available = await new Promise((resolve) => {
-        const req = http.get(testUrl, { timeout: 1500 }, (res) => {
-          req.destroy();
-          if (res.statusCode >= 200 && res.statusCode < 300) resolve(true);
-          else resolve(false);
-        });
-        req.on('error', () => resolve(false));
-        req.on('timeout', () => { req.destroy(); resolve(false); });
-        req.setTimeout(1500);
-      });
-      if (available) {
-        const fallbackUrl = `http://${host}:${fallbackPort}`;
-        logger.info('Using CMS fallback URL (verified)', { fallbackUrl, host });
-        return fallbackUrl;
-      }
-    } catch (error) {
-        // ignore
-    }
-  }
-  
-  const fallbackUrl = 'http://localhost:48080';
-  logger.warn('Using CMS fallback URL (unverified)', { fallbackUrl });
-  return fallbackUrl;
-}
-
 // Cache for base URLs to avoid repeated port detection
 let cachedBridgeBaseUrl = null;
-let cachedCmsBaseUrl = null;
 let bridgeDiscoveryPromise = null;
-let cmsDiscoveryPromise = null;
 let lastPortCheckTime = 0;
 const PORT_CHECK_INTERVAL = 30000; // Check every 30 seconds
 
@@ -768,161 +699,6 @@ async function getCachedBridgeBaseUrl() {
   return bridgeDiscoveryPromise;
 }
 
-/**
- * Get cached or fresh CMS base URL.
- */
-async function getCachedCmsBaseUrl() {
-  const now = Date.now();
-  
-  // Return cached value if valid
-  if (cachedCmsBaseUrl && (now - lastPortCheckTime) <= PORT_CHECK_INTERVAL) {
-    logger.debug('Using cached CMS base URL', { baseUrl: cachedCmsBaseUrl });
-    return cachedCmsBaseUrl;
-  }
-
-  // If discovery is already in progress, return the existing promise
-  if (cmsDiscoveryPromise) {
-    logger.debug('Waiting for existing CMS discovery promise');
-    return cmsDiscoveryPromise;
-  }
-
-  // Start new discovery
-  cmsDiscoveryPromise = (async () => {
-    try {
-      logger.info('Refreshing CMS base URL cache', { 
-        cached: cachedCmsBaseUrl, 
-        lastCheck: lastPortCheckTime,
-        interval: PORT_CHECK_INTERVAL 
-      });
-      const url = await getCmsBaseUrl();
-      cachedCmsBaseUrl = url;
-      lastPortCheckTime = Date.now();
-      logger.info('CMS base URL cache updated', { baseUrl: url });
-      return url;
-    } finally {
-      cmsDiscoveryPromise = null;
-    }
-  })();
-
-  return cmsDiscoveryPromise;
-}
-
-/**
- * Clear CMS base URL cache to force re-detection on next request.
- */
-function clearCmsBaseUrlCache() {
-  cachedCmsBaseUrl = null;
-  lastPortCheckTime = 0;
-  // Note: We don't clear ongoing promises to avoid interrupting active checks
-  logger.info('CMS base URL cache cleared');
-}
-
-/**
- * IPC handler to clear CMS base URL cache (for debugging).
- */
-ipcMain.handle('cms:clear-cache', () => {
-  clearCmsBaseUrlCache();
-  logger.info('CMS cache cleared via IPC');
-  return true;
-});
-
-/**
- * IPC handler to get current CMS base URL (for debugging).
- */
-ipcMain.handle('cms:get-base-url', async () => {
-  const baseUrl = await getCachedCmsBaseUrl();
-  logger.info('CMS base URL requested via IPC', { baseUrl });
-  return baseUrl;
-});
-
-const SCHEDULE_PATH = 'C:\\SignageData\\schedule.json';
-
-ipcMain.handle('wsp:get-local-schedule', async () => {
-  try {
-    if (fs.existsSync(SCHEDULE_PATH)) {
-      const data = fs.readFileSync(SCHEDULE_PATH, 'utf-8');
-      const json = JSON.parse(data);
-      logger.info('Local schedule loaded', { path: SCHEDULE_PATH });
-      return json;
-    }
-    logger.warn('Local schedule file not found', { path: SCHEDULE_PATH });
-    return null;
-  } catch (error) {
-    logger.error('Failed to read local schedule', { error: error.message });
-    return null;
-  }
-});
-
-/**
- * Simple HTTP GET helper that retrieves JSON from a given URL.
- */
-function httpGetJson(url) {
-  return new Promise((resolve, reject) => {
-    const timeout = 5000; // 5 seconds timeout
-    const startTime = Date.now();
-
-    const req = http.get(url, (res) => {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        const error = new Error(`HTTP ${res.statusCode}`);
-        logger.warn('HTTP request failed', {
-          url,
-          statusCode: res.statusCode,
-          durationMs: Date.now() - startTime,
-        });
-        reject(error);
-        res.resume();
-        return;
-      }
-
-      let data = '';
-      res.setEncoding('utf8');
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          const duration = Date.now() - startTime;
-          logger.debug('HTTP request succeeded', {
-            url,
-            durationMs: duration,
-            dataSize: data.length,
-          });
-          resolve(json);
-        } catch (err) {
-          logger.error('Failed to parse JSON response', {
-            url,
-            error: err?.message,
-            durationMs: Date.now() - startTime,
-          });
-          reject(err);
-        }
-      });
-    });
-
-    req.on('error', (err) => {
-      logger.error('HTTP request error', {
-        url,
-        error: err?.message,
-        durationMs: Date.now() - startTime,
-      });
-      reject(err);
-    });
-
-    // Set timeout
-    req.setTimeout(timeout, () => {
-      req.destroy();
-      const error = new Error(`Request timeout after ${timeout}ms`);
-      logger.error('HTTP request timeout', {
-        url,
-        timeout,
-        durationMs: Date.now() - startTime,
-      });
-      reject(error);
-    });
-    req.end();
-  });
-}
 
 /**
  * Convert a Windows file path to a file:// URL string.
@@ -1569,158 +1345,6 @@ ipcMain.handle('save-image-settings', async (_event, imageSettings) => {
 });
 
 /**
- * IPC handler for WSP current asset.
- * Uses /current-timeline, extracts the first media asset,
- * and returns a simplified object for the renderer.
- */
-ipcMain.handle('wsp:get-current-asset', async () => {
-  try {
-    const baseUrl = await getCachedCmsBaseUrl();
-    const url = `${baseUrl}/current-timeline`;
-    logger.info('wsp:get-current-asset: requesting', { url, baseUrl });
-    const json = await httpGetJson(url);
-
-    if (!json || !json.current_timeline) {
-      logger.warn('wsp:get-current-asset: current_timeline is missing');
-      return null;
-    }
-
-    const tl = json.current_timeline;
-    // Support both old format (tl.media_assets) and new format (tl.data.media_assets)
-    const data = tl.data || tl;
-    const assets = data.media_assets || [];
-    if (!Array.isArray(assets) || assets.length === 0) {
-      logger.warn('wsp:get-current-asset: media_assets is empty', {
-        hasData: !!tl.data,
-        hasMediaAssets: !!(tl.data?.media_assets || tl.media_assets),
-      });
-      return null;
-    }
-
-    const asset = assets[0];
-
-    // Determine media type from asset properties or URL extension
-    const mediaType = asset.mediaType || asset.type || '';
-    // Support both 'url' and 'localPath' fields
-    const assetPath = asset.url || asset.localPath || '';
-    const pathLower = assetPath.toLowerCase();
-    
-    // Infer media type from URL extension if not provided
-    let inferredMediaType = mediaType;
-    if (!inferredMediaType) {
-      if (pathLower.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/)) {
-        inferredMediaType = 'video';
-      } else if (pathLower.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/)) {
-        inferredMediaType = 'image';
-      }
-    }
-
-    // Convert localPath or url to file:// URL
-    let src = '';
-    if (assetPath) {
-      if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
-        src = assetPath;
-      } else {
-        src = toFileUrl(assetPath);
-      }
-    }
-
-    // Support both old format (tl.media_names) and new format (data.media_names)
-    const mediaNames = data.media_names || tl.media_names || [];
-    // Support both old format (tl.start_time) and new format (data.start_time)
-    const startTime = data.start_time || tl.start_time || '';
-    const endTime = data.end_time || tl.end_time || '';
-
-    logger.info('wsp:get-current-asset: returning first asset', {
-      assetId: asset.id,
-      path: assetPath,
-      src,
-      mediaType: inferredMediaType,
-      hasData: !!tl.data,
-    });
-
-    return {
-      id: asset.id,
-      src: src,
-      duration: asset.duration,
-      width: asset.width,
-      height: asset.height,
-      name:
-        Array.isArray(mediaNames) && mediaNames.length > 0
-          ? mediaNames[0]
-          : '',
-      startTime: startTime,
-      endTime: endTime,
-      mediaType: inferredMediaType,
-      type: asset.type,
-    };
-  } catch (error) {
-    logger.error('wsp:get-current-asset failed', {
-      error: error?.message,
-    });
-    // Clear cache on connection error to force re-detection
-    if (error?.message?.includes('ECONNREFUSED') || error?.message?.includes('timeout') || error?.message?.includes('ENOTFOUND')) {
-      logger.warn('Connection error detected, clearing CMS cache for re-detection');
-      clearCmsBaseUrlCache();
-    }
-    return null;
-  }
-});
-
-/**
- * IPC handler: return raw /current-timeline JSON.
- */
-ipcMain.handle('wsp:get-current-timeline', async () => {
-  try {
-    const baseUrl = await getCachedCmsBaseUrl();
-    const url = `${baseUrl}/current-timeline`;
-    const json = await httpGetJson(url);
-    logger.debug('wsp:get-current-timeline: success');
-    return json || null;
-  } catch (error) {
-    logger.error('wsp:get-current-timeline failed', {
-      error: error?.message,
-    });
-    // Clear cache on connection error to force re-detection
-    if (error?.message?.includes('ECONNREFUSED') || error?.message?.includes('timeout') || error?.message?.includes('ENOTFOUND')) {
-      logger.warn('Connection error detected, clearing CMS cache for re-detection');
-      clearCmsBaseUrlCache();
-    }
-    return null;
-  }
-});
-
-/**
- * IPC handler: return raw /timeline or /timeline?hour=... JSON.
- */
-ipcMain.handle('wsp:get-timeline', async (_event, options) => {
-  try {
-    const hour =
-      options && typeof options.hour === 'number' && !Number.isNaN(options.hour)
-        ? options.hour
-        : undefined;
-
-    const cmsBaseUrl = await getCachedCmsBaseUrl();
-    const baseUrl = `${cmsBaseUrl}/timeline`;
-    const url = hour != null ? `${baseUrl}?hour=${hour}` : baseUrl;
-
-    const json = await httpGetJson(url);
-    logger.debug('wsp:get-timeline: success', { hour });
-    return json || null;
-  } catch (error) {
-    logger.error('wsp:get-timeline failed', {
-      error: error?.message,
-    });
-    // Clear cache on connection error to force re-detection
-    if (error?.message?.includes('ECONNREFUSED') || error?.message?.includes('timeout') || error?.message?.includes('ENOTFOUND')) {
-      logger.warn('Connection error detected, clearing CMS cache for re-detection');
-      clearCmsBaseUrlCache();
-    }
-    return null;
-  }
-});
-
-/**
  * IPC handler to receive logs from renderer process.
  * The preload exposes window.logger which sends log-message IPC.
  */
@@ -1771,12 +1395,6 @@ ipcMain.on('menu:one-click-update', () => {
 // Quit app
 ipcMain.on('menu:quit', () => {
   app.quit();
-});
-
-// Schedule update notification from renderer
-ipcMain.on('wsp:schedule-updated', () => {
-  logger.info('Schedule updated.');
-  // 将来的な拡張: 必要に応じて次回起動時などに最適化フラグを立てる等
 });
 
 /**

@@ -2,8 +2,6 @@
 // SpoutInput - Spout Receiver for Electron
 // Receives textures FROM a Spout sender (e.g., Wonder Flow)
 //
-// Uses SpoutDX built-in methods for all D3D11/staging operations.
-//
 
 #ifndef ELECTRON_SPOUT_SPOUT_INPUT_H
 #define ELECTRON_SPOUT_SPOUT_INPUT_H

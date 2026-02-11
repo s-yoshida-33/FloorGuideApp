@@ -117,9 +117,7 @@ const App: React.FC = () => {
   // API Status State
   const [sseStatus, setSseStatus] = useState<SseConnectionStatus>('disconnected');
   const [bridgeBaseUrl, setBridgeBaseUrl] = useState<string>("Loading...");
-  const [cmsBaseUrl, setCmsBaseUrl] = useState<string>("Loading...");
   const [bridgeStatus, setBridgeStatus] = useState<'checking' | 'connected' | 'error'>('checking');
-  const [cmsStatus, setCmsStatus] = useState<'checking' | 'connected' | 'error'>('checking');
 
   // Debug Settings Info
   const [debugSettingsInfo, setDebugSettingsInfo] = useState<any>(null);
@@ -152,10 +150,7 @@ const App: React.FC = () => {
     });
 
     const unsubscribeUpdate = sseClient.on('update', () => {
-      addDebug('SSE Update received, triggering video optimization', 'INFO');
-      if (window.electronAPI?.notifyScheduleUpdated) {
-        window.electronAPI.notifyScheduleUpdated();
-      }
+      addDebug('SSE Update received', 'INFO');
     });
 
     return () => {
@@ -220,20 +215,6 @@ const App: React.FC = () => {
             setBridgeStatus('error');
         }
 
-        // Check CMS URL
-        try {
-            if (window.wspApi?.getCmsBaseUrl) {
-                const cUrl = await window.wspApi.getCmsBaseUrl();
-                setCmsBaseUrl(cUrl);
-                setCmsStatus('connected'); // Simplified check
-            } else {
-                setCmsBaseUrl("N/A");
-                setCmsStatus('error');
-            }
-        } catch(e) {
-            setCmsStatus('error');
-        }
-        
         // Detailed Debug Info from Electron
         if (window.electronAPI?.getDebugSettingsStatus) {
            const status = await window.electronAPI.getDebugSettingsStatus();
@@ -578,7 +559,6 @@ const App: React.FC = () => {
             <div style={{marginLeft: '15px', marginBottom: '10px'}}>
               <div>SSE: <span style={{color: sseStatus === 'connected' ? 'lime' : 'red'}}>{sseStatus}</span></div>
               <div>Bridge: <span style={{color: bridgeStatus === 'connected' ? 'lime' : 'red'}}>{bridgeStatus}</span> ({bridgeBaseUrl})</div>
-              <div>CMS: <span style={{color: cmsStatus === 'connected' ? 'lime' : 'red'}}>{cmsStatus}</span> ({cmsBaseUrl})</div>
             </div>
           </details>
 

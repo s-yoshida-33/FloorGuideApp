@@ -195,27 +195,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   quitApp() {
     ipcRenderer.send('menu:quit');
   },
-  notifyScheduleUpdated() {
-    ipcRenderer.send('wsp:schedule-updated');
-  },
-});
-
-contextBridge.exposeInMainWorld('wspApi', {
-  getCurrentAsset() {
-    return ipcRenderer.invoke('wsp:get-current-asset');
-  },
-  getCurrentTimeline() {
-    return ipcRenderer.invoke('wsp:get-current-timeline');
-  },
-  getTimeline(hour) {
-    return ipcRenderer.invoke('wsp:get-timeline', { hour });
-  },
-  getCmsBaseUrl() {
-    return ipcRenderer.invoke('cms:get-base-url');
-  },
-  getLocalSchedule() {
-    return ipcRenderer.invoke('wsp:get-local-schedule');
-  },
 });
 
 contextBridge.exposeInMainWorld('logger', {
