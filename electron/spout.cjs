@@ -7,6 +7,8 @@ class SpoutReceiverWrapper {
     this.receiver = null;
     this.useMock = false;
     this.mockFrameCount = 0;
+    this.diagnosticLogged = false;
+    this.diagnosticInterval = null;
 
     try {
       // ネイティブモジュールの読み込み
@@ -16,14 +18,21 @@ class SpoutReceiverWrapper {
       logger.info('Spout: Loaded native module structure', { keys: Object.keys(nativeModule) });
 
       // SpoutInput (受信クラス) を優先的に使用
-      // electron-spout の SpoutOutput は送信専用クラスであり、受信には使用できない
       if (nativeModule.SpoutInput) {
-        // 新しいレシーバーモジュール（SpoutInput = 受信用）
         this.receiver = new nativeModule.SpoutInput(senderName);
         logger.info('Spout: SpoutInput (receiver) loaded successfully', { senderName });
+
+        // 起動時に利用可能なSpout senderを一覧表示（診断用）
+        this.logAvailableSenders();
+        
+        // 定期的に診断情報をログに出力（接続できない間だけ）
+        this.diagnosticInterval = setInterval(() => {
+          if (!this.diagnosticLogged) {
+            this.logDiagnostics();
+          }
+        }, 10000); // 10秒ごと
+
       } else if (nativeModule.SpoutOutput) {
-        // 旧モジュール: SpoutOutput は送信専用であり、受信には使用できない
-        // pollReceiver() 等のメソッドが存在しないため、MOCKモードにフォールバック
         logger.warn('Spout: Only SpoutOutput (sender) found in native module. ' +
           'SpoutInput (receiver) is required to receive from Wonder Flow. ' +
           'Please rebuild the native module with SpoutInput support. ' +
@@ -38,6 +47,44 @@ class SpoutReceiverWrapper {
     } catch (e) {
       logger.warn('Spout: Failed to load native module, using MOCK mode', { error: e.message });
       this.useMock = true;
+    }
+  }
+
+  // 利用可能なSpout senderを一覧表示
+  logAvailableSenders() {
+    try {
+      if (this.receiver && typeof this.receiver.getAvailableSenders === 'function') {
+        const senders = this.receiver.getAvailableSenders();
+        logger.info('Spout: Available senders on this system', {
+          count: senders.length,
+          senders: senders,
+          lookingFor: this.senderName
+        });
+
+        if (senders.length === 0) {
+          logger.warn('Spout: No active Spout senders found. Is Wonder Flow running and sending via Spout?');
+        } else if (!senders.includes(this.senderName)) {
+          logger.warn('Spout: Sender name mismatch!', {
+            expected: this.senderName,
+            available: senders,
+            hint: 'Change senderName in main.cjs to match one of the available senders'
+          });
+        }
+      }
+    } catch (e) {
+      logger.warn('Spout: Failed to get available senders', { error: e.message });
+    }
+  }
+
+  // 診断情報のログ出力
+  logDiagnostics() {
+    try {
+      if (this.receiver && typeof this.receiver.getDiagnostics === 'function') {
+        const diag = this.receiver.getDiagnostics();
+        logger.info('Spout: Diagnostics', diag);
+      }
+    } catch (e) {
+      // 診断失敗は無視
     }
   }
 
@@ -57,8 +104,20 @@ class SpoutReceiverWrapper {
         return null;
       }
 
+      // 接続成功 - 定期診断を停止
+      if (!this.diagnosticLogged) {
+        this.diagnosticLogged = true;
+        if (this.diagnosticInterval) {
+          clearInterval(this.diagnosticInterval);
+          this.diagnosticInterval = null;
+        }
+        logger.info('Spout: Connected to sender!', {
+          width: this.receiver.getReceiverWidth(),
+          height: this.receiver.getReceiverHeight()
+        });
+      }
+
       // テクスチャ取得 (receiveTexture)
-      // pollReceiver が成功していれば、サイズ情報も更新されているはず
       const width = this.receiver.getReceiverWidth();
       const height = this.receiver.getReceiverHeight();
       
@@ -108,37 +167,20 @@ class SpoutReceiverWrapper {
 
   // モックフレーム生成（ノイズ画像）
   generateMockFrame() {
-    // 30fps程度で変化させる
     this.mockFrameCount++;
     
-    // Spout出力解像度（Wonder Flowからの入力を想定）
-    // ユーザー情報: 1080x1920 (縦長)
-    const width = 1080;
-    const height = 1920;
-    
-    // データ量削減のため、モックでは小さいサイズで返すことも検討できるが
-    // 実動作をシミュレートするためフルサイズに近いものを返すべきか？
-    // いや、Node.jsで毎回 1080*1920*4 byte (約8MB) のバッファ確保は重すぎる。
-    // モックでは小さくして、受け側で引き伸ばすテストにする。
-    // -> しかしCanvas描画ロジックのテストのため、アスペクト比は合わせる。
     const mockW = 270; // 1/4
     const mockH = 480; // 1/4
     
-    // 簡易的なバッファ生成（毎回作ると重いのでキャッシュしたいが、簡易実装で）
-    // RGBA
     const size = mockW * mockH * 4;
     const buffer = Buffer.allocUnsafe(size);
     
-    // 色を時間で変化させる
     const r = (this.mockFrameCount * 2) % 255;
     const g = (this.mockFrameCount * 3) % 255;
     const b = (this.mockFrameCount * 5) % 255;
     
-    // 全ピクセル埋めるのは遅いので、先頭だけ埋めてあとは手抜き（実際は真っ黒になるかもだが）
-    // fillを使う
-    buffer.fill(255); // Alpha
+    buffer.fill(255);
     
-    // ちゃんと見せたいので少し真面目に描く
     for (let i = 0; i < size; i += 4) {
       buffer[i] = r;     // R
       buffer[i+1] = g;   // G
