@@ -1,0 +1,13 @@
+{
+  "name": "electron-spout",
+  "description": "Spout Input/Output for Electron (with receiver support for Wonder Flow)",
+  "dependencies": [
+    {
+      "name": "spout2",
+      "default-features": true,
+      "features": ["dx"]
+    },
+    "node-addon-api"
+  ],
+  "supports": "windows"
+}

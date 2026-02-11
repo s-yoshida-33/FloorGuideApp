@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\dev\Gido\electron\native-spout\build\CMakeFiles\51349035c53f8c4e20a5d91590dc574e\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{02DBDDD4-9127-389A-8A52-E548EBBC7753}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

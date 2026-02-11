@@ -1,0 +1,10 @@
+{
+  "name": "electron-spout-receiver",
+  "version": "1.0.0",
+  "description": "Spout receiver native module for Electron (Wonder Flow integration)",
+  "cmake-js": {
+    "runtime": "electron",
+    "runtimeVersion": "39.2.2",
+    "arch": "x64"
+  }
+}

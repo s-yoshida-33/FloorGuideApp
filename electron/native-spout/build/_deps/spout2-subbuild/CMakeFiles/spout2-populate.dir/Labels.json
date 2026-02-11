@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/spout2-populate"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/9db24d20e13da1961c658ef8722a865d/spout2-populate.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/e0e2c211aa825a8a8e7c26214fd4c250/spout2-populate-complete.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/d877c7dc6085d765a2611d78231c406c/spout2-populate-build.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/d877c7dc6085d765a2611d78231c406c/spout2-populate-configure.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/d877c7dc6085d765a2611d78231c406c/spout2-populate-download.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/d877c7dc6085d765a2611d78231c406c/spout2-populate-install.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/d877c7dc6085d765a2611d78231c406c/spout2-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/d877c7dc6085d765a2611d78231c406c/spout2-populate-patch.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/d877c7dc6085d765a2611d78231c406c/spout2-populate-test.rule"
+		},
+		{
+			"file" : "C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/d877c7dc6085d765a2611d78231c406c/spout2-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"spout2-populate"
+		],
+		"name" : "spout2-populate"
+	}
+}

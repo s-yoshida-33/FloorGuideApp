@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

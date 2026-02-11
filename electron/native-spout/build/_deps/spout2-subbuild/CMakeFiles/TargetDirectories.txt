@@ -1,0 +1,3 @@
+C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/spout2-populate.dir
+C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/ALL_BUILD.dir
+C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/CMakeFiles/ZERO_CHECK.dir

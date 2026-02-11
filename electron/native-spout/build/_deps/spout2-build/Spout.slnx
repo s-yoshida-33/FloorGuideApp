@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="Debug"/>
+		<BuildType Name="Release"/>
+		<BuildType Name="MinSizeRel"/>
+		<BuildType Name="RelWithDebInfo"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="da350528-2e37-3798-9fa6-33758716064e" DefaultStartup="true">
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX12/SpoutDX12.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX12/SpoutDX12_static.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX9/SpoutDX9.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX9/SpoutDX9_static.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX_static.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutLibrary/SpoutLibrary.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutLibrary/SpoutLibrary_static.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="INSTALL.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c9d2bf70-b4a4-3194-96ce-49a753d168d7">
+		<BuildDependency Project="ALL_BUILD.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+		<Build Solution="Debug|*" Project="false"/>
+		<Build Solution="Release|*" Project="false"/>
+		<Build Solution="MinSizeRel|*" Project="false"/>
+		<Build Solution="RelWithDebInfo|*" Project="false"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutGL/Spout.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="29e30db9-4d3e-35f6-8603-9dcd9950652e">
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="7b3cc924-31fd-3b24-b916-70250d406aa3">
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX12/SpoutDX12.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="b8fa9640-e85c-3ba9-9c18-8ccfded63904">
+		<BuildDependency Project="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX_static.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX12/SpoutDX12_static.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="7ae53b46-29fa-37da-bd61-9f654a0cc8e3">
+		<BuildDependency Project="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX_static.vcxproj"/>
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX9/SpoutDX9.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="5d68d9fa-a71d-3342-aa47-d458ee6424c1">
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX9/SpoutDX9_static.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="a4a8d3b7-edec-38f8-9620-826d5acd1e74">
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX_static.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="91e6c38f-3951-3b31-bd54-6a9e23c3126d">
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutLibrary/SpoutLibrary.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="04463dd4-9373-3417-ad3a-ac76507340c9">
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutLibrary/SpoutLibrary_static.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="571ca935-c374-3a42-9b28-22b5c5cd9470">
+		<BuildDependency Project="SPOUTSDK/SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SPOUTSDK/SpoutGL/Spout_static.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c441c0ca-fd3d-3a69-9ab5-a23b748d0d04">
+		<BuildDependency Project="../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="../../ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="df8b73e9-51ca-347a-a3cb-3a1a5d49a077"/>
+</Solution>

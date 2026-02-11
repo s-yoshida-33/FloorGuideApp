@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\dev\Gido\electron\native-spout\build\_deps\spout2-subbuild\CMakeFiles\9db24d20e13da1961c658ef8722a865d\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{F717CC15-9313-323B-A604-16B33C94F764}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

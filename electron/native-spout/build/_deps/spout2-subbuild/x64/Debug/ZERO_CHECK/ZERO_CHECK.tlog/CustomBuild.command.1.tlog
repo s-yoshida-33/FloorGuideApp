@@ -1,0 +1,10 @@
+^C:\DEV\GIDO\ELECTRON\NATIVE-SPOUT\BUILD\_DEPS\SPOUT2-SUBBUILD\CMAKEFILES\9DB24D20E13DA1961C658EF8722A865D\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild -BC:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/dev/Gido/electron/native-spout/build/_deps/spout2-subbuild/spout2-populate.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\dev\Gido\electron\native-spout\build\_deps\spout2-src\SPOUTSDK\SpoutDirectX\SpoutDX\SpoutDX12\SpoutDX12.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\dev\Gido\electron\native-spout\build\_deps\spout2-src\SPOUTSDK\SpoutDirectX\SpoutDX\SpoutDX12\SpoutDX12.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\dev\Gido\electron\native-spout\build\_deps\spout2-src\SPOUTSDK\SpoutDirectX\SpoutDX\SpoutDX12\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{892743D1-8544-30BA-961F-14218D865763}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{2EB3EE03-57D3-3270-9A65-033A31992227}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

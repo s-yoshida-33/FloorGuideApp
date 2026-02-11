@@ -1,0 +1,13 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/dev/Gido/electron/native-spout/build/cmake_install.cmake",
+		"C:/dev/Gido/electron/native-spout/build/_deps/spout2-build/cmake_install.cmake",
+		"C:/dev/Gido/electron/native-spout/build/_deps/spout2-build/SPOUTSDK/SpoutGL/cmake_install.cmake",
+		"C:/dev/Gido/electron/native-spout/build/_deps/spout2-build/SPOUTSDK/SpoutLibrary/cmake_install.cmake",
+		"C:/dev/Gido/electron/native-spout/build/_deps/spout2-build/SPOUTSDK/SpoutDirectX/SpoutDX/cmake_install.cmake",
+		"C:/dev/Gido/electron/native-spout/build/_deps/spout2-build/SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX9/cmake_install.cmake",
+		"C:/dev/Gido/electron/native-spout/build/_deps/spout2-build/SPOUTSDK/SpoutDirectX/SpoutDX/SpoutDX12/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

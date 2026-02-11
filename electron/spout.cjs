@@ -9,25 +9,32 @@ class SpoutReceiverWrapper {
     this.mockFrameCount = 0;
 
     try {
-      // node-spoutの読み込みを試行
-      // 実際にはユーザー環境で npm install electron-spout が必要
-      // かつネイティブビルドが必要
+      // ネイティブモジュールの読み込み
       const nativeModule = require('./electron-spout.node');
       
       // デバッグログ: モジュールの中身を確認
       logger.info('Spout: Loaded native module structure', { keys: Object.keys(nativeModule) });
 
-      // SpoutOutputクラスの特定 (electron-spout は SpoutOutput という名前でエクスポートしている)
-      let SpoutClass = nativeModule.SpoutOutput || nativeModule.default || nativeModule;
-      
-      try {
-        this.receiver = new SpoutClass(senderName);
-      } catch (err) {
-        logger.warn('Spout: new failed', { error: err.message });
-        throw err;
+      // SpoutInput (受信クラス) を優先的に使用
+      // electron-spout の SpoutOutput は送信専用クラスであり、受信には使用できない
+      if (nativeModule.SpoutInput) {
+        // 新しいレシーバーモジュール（SpoutInput = 受信用）
+        this.receiver = new nativeModule.SpoutInput(senderName);
+        logger.info('Spout: SpoutInput (receiver) loaded successfully', { senderName });
+      } else if (nativeModule.SpoutOutput) {
+        // 旧モジュール: SpoutOutput は送信専用であり、受信には使用できない
+        // pollReceiver() 等のメソッドが存在しないため、MOCKモードにフォールバック
+        logger.warn('Spout: Only SpoutOutput (sender) found in native module. ' +
+          'SpoutInput (receiver) is required to receive from Wonder Flow. ' +
+          'Please rebuild the native module with SpoutInput support. ' +
+          'Falling back to MOCK mode.');
+        this.useMock = true;
+      } else {
+        logger.warn('Spout: Neither SpoutInput nor SpoutOutput found in native module', {
+          keys: Object.keys(nativeModule)
+        });
+        this.useMock = true;
       }
-
-      logger.info('Spout: Native module loaded successfully', { senderName });
     } catch (e) {
       logger.warn('Spout: Failed to load native module, using MOCK mode', { error: e.message });
       this.useMock = true;

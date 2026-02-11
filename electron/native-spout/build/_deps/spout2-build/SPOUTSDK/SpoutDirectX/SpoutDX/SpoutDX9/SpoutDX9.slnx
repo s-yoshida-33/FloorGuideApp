@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="Debug"/>
+		<BuildType Name="Release"/>
+		<BuildType Name="MinSizeRel"/>
+		<BuildType Name="RelWithDebInfo"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="da350528-2e37-3798-9fa6-33758716064e" DefaultStartup="true">
+		<BuildDependency Project="SpoutDX9.vcxproj"/>
+		<BuildDependency Project="SpoutDX9_static.vcxproj"/>
+		<BuildDependency Project="../../../../../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="INSTALL.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c9d2bf70-b4a4-3194-96ce-49a753d168d7">
+		<BuildDependency Project="ALL_BUILD.vcxproj"/>
+		<BuildDependency Project="../../../../../../ZERO_CHECK.vcxproj"/>
+		<Build Solution="Debug|*" Project="false"/>
+		<Build Solution="Release|*" Project="false"/>
+		<Build Solution="MinSizeRel|*" Project="false"/>
+		<Build Solution="RelWithDebInfo|*" Project="false"/>
+	</Project>
+	<Project Path="SpoutDX9.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="5d68d9fa-a71d-3342-aa47-d458ee6424c1">
+		<BuildDependency Project="../../../SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../../../../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SpoutDX9_static.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="a4a8d3b7-edec-38f8-9620-826d5acd1e74">
+		<BuildDependency Project="../../../SpoutGL/Spout_static.vcxproj"/>
+		<BuildDependency Project="../../../../../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="../../../SpoutGL/Spout_static.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c441c0ca-fd3d-3a69-9ab5-a23b748d0d04">
+		<BuildDependency Project="../../../../../../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="../../../../../../ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="df8b73e9-51ca-347a-a3cb-3a1a5d49a077"/>
+</Solution>
