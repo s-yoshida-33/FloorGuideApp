@@ -19,9 +19,19 @@ const { SpoutReceiverWrapper } = require('./spout.cjs'); // Spout Wrapper
 // 【修正】ハードウェアアクセラレーションを有効に戻す（Unityとの競合回避のため、設定で制御する）
 // app.disableHardwareAcceleration();
 
-// 【修正】描画バックエンドをD3D11(デフォルト)に戻し、負荷の高い処理のみ制限する
-// D3D9(ANGLE)はエミュレーション層のオーバーヘッドやメモリ管理の不整合リスクがあるため避ける
+// 【修正】描画バックエンドの設定
+// D3D11バックエンドを強制し、AMDドライバエラー対策としてDirectCompositionを無効化
 app.commandLine.appendSwitch('use-angle', 'd3d11');
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.commandLine.appendSwitch('no-sandbox');
+app.commandLine.appendSwitch('disable-direct-composition');
+
+// 【修正】共有テクスチャ関連の最適化
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+
+// 【追加】GPUプロセスを独立させず、メインプロセス内で実行する
+// app.commandLine.appendSwitch('in-process-gpu');
 
 // 【継続】GPUラスタライズを無効化
 // app.commandLine.appendSwitch('disable-gpu-rasterization');
@@ -39,7 +49,7 @@ app.commandLine.appendSwitch('use-angle', 'd3d11');
 
 // ビデオデコードのハードウェア支援はひとまず有効に戻して様子見（必要に応じて再有効化）
 // app.commandLine.appendSwitch('disable-features', 'HardwareVideoDecoder');
-app.commandLine.appendSwitch('disable-zero-copy');
+// app.commandLine.appendSwitch('disable-zero-copy');
 
 // GPUプロセスの不具合回避を無効化（安全策として残すが、状況に応じて削除検討）
 // app.commandLine.appendSwitch('disable-gpu-driver-bug-workarounds');
