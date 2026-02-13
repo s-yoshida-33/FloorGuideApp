@@ -93,6 +93,17 @@ class SpoutReceiverWrapper {
       return null;
     }
   }
+
+    getDiagnostics() {
+      try {
+        if (this.receiver && typeof this.receiver.getDiagnostics === 'function') {
+          return this.receiver.getDiagnostics();
+        }
+      } catch (e) {
+        logger.warn('Spout: Failed to get diagnostics', { error: e.message });
+      }
+      return null;
+    }
 }
 
 module.exports = { SpoutReceiverWrapper };

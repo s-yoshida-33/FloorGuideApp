@@ -76,6 +76,7 @@ interface ElectronAPI {
       isMock?: boolean;
     }) => void
   ) => () => void;
+  spoutAck: () => void;
   manualUpdateCheck: () => void;
   oneClickUpdate: () => void;
   quitApp: () => void;

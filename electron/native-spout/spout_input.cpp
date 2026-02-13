@@ -53,6 +53,10 @@ SpoutInput::SpoutInput(const Napi::CallbackInfo &info) : ObjectWrap(info) {
 SpoutInput::~SpoutInput() {
     receiver.ReleaseReceiver();
     receiver.CloseDirectX11();
+    if (!bufferRef.IsEmpty()) {
+        bufferRef.Reset();
+        bufferSize = 0;
+    }
 }
 
 // ------------------------------------------------------------------
@@ -118,8 +122,17 @@ Napi::Value SpoutInput::ReceiveFrame(const Napi::CallbackInfo &info) {
     }
 
     // Phase 2: Dimensions known - receive frame with pixel readback
-    size_t bufferSize = (size_t)texWidth * texHeight * 4;
-    auto buffer = Napi::Buffer<unsigned char>::New(env, bufferSize);
+    size_t desiredSize = (size_t)texWidth * texHeight * 4;
+
+    // Reuse buffer if size is unchanged; recreate only on resize
+    if (bufferRef.IsEmpty() || bufferSize != desiredSize) {
+        auto buffer = Napi::Buffer<unsigned char>::New(env, desiredSize);
+        bufferRef = Napi::Persistent(buffer);
+        bufferRef.SuppressDestruct();
+        bufferSize = desiredSize;
+    }
+
+    auto buffer = bufferRef.Value();
     unsigned char* pixels = buffer.Data();
 
     if (!receiver.ReceiveImage(pixels, texWidth, texHeight, false, false)) {

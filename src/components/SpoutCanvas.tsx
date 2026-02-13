@@ -56,8 +56,22 @@ export const SpoutCanvas: React.FC<SpoutCanvasProps> = ({ style }) => {
     if (!data) return;
     latestFrameRef.current = null; // 消費済み
 
+    let ackSent = false;
+    const ack = () => {
+      if (ackSent) return;
+      ackSent = true;
+      try {
+        window.electronAPI?.spoutAck?.();
+      } catch (e) {
+        console.warn('SpoutCanvas: Failed to ack spout frame', e);
+      }
+    };
+
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      ack();
+      return;
+    }
 
     // Canvas 解像度を sender の解像度に合わせる（変更時のみ）
     if (canvas.width !== data.width || canvas.height !== data.height) {
@@ -68,7 +82,10 @@ export const SpoutCanvas: React.FC<SpoutCanvasProps> = ({ style }) => {
     }
 
     const ctx = getCtx();
-    if (!ctx) return;
+    if (!ctx) {
+      ack();
+      return;
+    }
 
     try {
       // ゼロコピー: Uint8Array の underlying ArrayBuffer をそのまま参照
@@ -98,6 +115,9 @@ export const SpoutCanvas: React.FC<SpoutCanvasProps> = ({ style }) => {
       ctx.putImageData(imageDataRef.current, 0, 0);
     } catch (e) {
       console.error('SpoutCanvas: Failed to putImageData', e);
+    } finally {
+      // 描画完了後に ACK を返し、次フレーム送信を許可する
+      ack();
     }
   }, [getCtx]);
 

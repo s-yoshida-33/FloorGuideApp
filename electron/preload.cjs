@@ -180,15 +180,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onSpoutFrame(callback) {
     // 高頻度で呼ばれるため、リスナー管理に注意
-    // コールバック完了後にACKを送信し、次フレームの送信を許可する
     const listener = (_event, frame) => {
       callback(frame);
-      ipcRenderer.send('spout-frame-ack');
     };
     ipcRenderer.on('spout-frame', listener);
     return () => {
       ipcRenderer.removeListener('spout-frame', listener);
     };
+  },
+  spoutAck() {
+    ipcRenderer.send('spout-frame-ack');
   },
   manualUpdateCheck() {
     ipcRenderer.send('menu:check-updates');

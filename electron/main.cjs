@@ -943,41 +943,71 @@ function createMainWindow() {
 function setupSpout(window) {
   const senderName = 'WonderFlow'; // Wonder Flowの送信名に合わせる
   const receiver = new SpoutReceiverWrapper(senderName);
-  
-  // ACKパターン: レンダラーが描画完了するまで次フレームを送信しない
-  let rendererReady = true;
-  
-  ipcMain.on('spout-frame-ack', () => {
-    rendererReady = true;
-  });
 
-  // 最大10fps (100ms) でポーリング
-  // 実効フレームレートはレンダラーの処理速度により自動調整される
-  const interval = setInterval(() => {
+  // ACKベース: レンダラーから描画完了通知が来るまで次のフレームは送らない
+  let rendererReady = true;
+  const ackHandler = () => {
+    rendererReady = true;
+  };
+  ipcMain.on('spout-frame-ack', ackHandler);
+
+  const TARGET_INTERVAL_MS = Math.round(1000 / 30); // 目標30fps
+  const POLL_INTERVAL_MS = 5; // 軽いポーリングで隙を見て送る
+  let lastSendAt = 0;
+  let disposed = false;
+
+  const tick = () => {
+    if (disposed) return;
+
     if (!window || window.isDestroyed()) {
-      clearInterval(interval);
+      disposed = true;
+      clearInterval(loopHandle);
+      ipcMain.removeListener('spout-frame-ack', ackHandler);
       return;
     }
 
-    // ウィンドウが最小化されている時はスキップ
     if (window.isMinimized()) return;
-
-    // レンダラーがまだ前フレームを処理中ならスキップ
-    // → GPU readback + IPC コピーの無駄を回避
     if (!rendererReady) return;
+
+    const now = Date.now();
+    if (now - lastSendAt < TARGET_INTERVAL_MS) return;
 
     const frame = receiver.receive();
     if (frame) {
       rendererReady = false;
+      lastSendAt = now;
       window.webContents.send('spout-frame', {
         buffer: frame.buffer,
         width: frame.width,
         height: frame.height
       });
     }
-  }, 100);
-  
-  logger.info('Spout receiver setup completed', { senderName });
+  };
+
+  const loopHandle = setInterval(tick, POLL_INTERVAL_MS);
+
+  // 接続状況の軽量ダイアグノスティクスを定期的に出力
+  const diagHandle = setInterval(() => {
+    if (disposed) {
+      clearInterval(diagHandle);
+      return;
+    }
+    try {
+      const diag = receiver.getDiagnostics?.();
+      if (diag && !diag.connected) {
+        logger.info('Spout: waiting for sender', {
+          expected: senderName,
+          available: diag.availableSenders,
+          width: diag.width,
+          height: diag.height,
+        });
+      }
+    } catch (e) {
+      logger.debug('Spout: diagnostics check failed', { error: e?.message });
+    }
+  }, 5000);
+
+  logger.info('Spout receiver setup completed', { senderName, targetFps: 30 });
 }
 
 /**

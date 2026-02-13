@@ -7,7 +7,7 @@
     <ClCompile Include="C:\dev\Gido\electron\native-spout\spout_input.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\dev\Gido\node_modules\cmake-js\lib\cpp\win_delay_load_hook.cc">
+    <ClCompile Include="C:\Users\葭田翔大\AppData\Roaming\npm\node_modules\cmake-js\lib\cpp\win_delay_load_hook.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

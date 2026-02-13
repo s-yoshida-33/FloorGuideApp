@@ -38,6 +38,10 @@ private:
     bool initialized = false;
 
     std::string senderName;
+
+    // Reuse a single JS Buffer to avoid per-frame allocations (recreated only on resize)
+    Napi::Reference<Napi::Buffer<unsigned char>> bufferRef;
+    size_t bufferSize = 0;
 };
 
 #endif // ELECTRON_SPOUT_SPOUT_INPUT_H
