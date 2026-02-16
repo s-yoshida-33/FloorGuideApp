@@ -946,14 +946,20 @@ function setupSpout(window) {
 
   // ACKベース: レンダラーから描画完了通知が来るまで次のフレームは送らない
   let rendererReady = true;
+  let lastSendAt = 0;
+  let lastAckAt = 0;
   const ackHandler = () => {
     rendererReady = true;
+    const now = Date.now();
+    lastAckAt = now;
+    const latencyMs = lastSendAt ? now - lastSendAt : undefined;
+    logger.debug('Spout: ack received', { scope: 'spout', latencyMs });
   };
   ipcMain.on('spout-frame-ack', ackHandler);
 
   const TARGET_INTERVAL_MS = Math.round(1000 / 30); // 目標30fps
   const POLL_INTERVAL_MS = 5; // 軽いポーリングで隙を見て送る
-  let lastSendAt = 0;
+  const ACK_TIMEOUT_MS = 1000; // ACKが1秒途絶えたら強制的に再開
   let disposed = false;
 
   const tick = () => {
@@ -962,7 +968,9 @@ function setupSpout(window) {
     if (!window || window.isDestroyed()) {
       disposed = true;
       clearInterval(loopHandle);
+      clearInterval(ackWatchdogHandle);
       ipcMain.removeListener('spout-frame-ack', ackHandler);
+      logger.info('Spout: window destroyed, stopping receiver', { scope: 'spout' });
       return;
     }
 
@@ -975,16 +983,42 @@ function setupSpout(window) {
     const frame = receiver.receive();
     if (frame) {
       rendererReady = false;
+      const sinceLastSendMs = lastSendAt ? now - lastSendAt : null;
       lastSendAt = now;
       window.webContents.send('spout-frame', {
         buffer: frame.buffer,
         width: frame.width,
         height: frame.height
       });
+      logger.info('Spout: send frame', {
+        scope: 'spout',
+        width: frame.width,
+        height: frame.height,
+        sinceLastSendMs: sinceLastSendMs ?? 'first'
+      });
     }
   };
 
   const loopHandle = setInterval(tick, POLL_INTERVAL_MS);
+
+  // ACKタイムアウト監視: 1秒ACKが来なければ強制的に再開して警告
+  const ackWatchdogHandle = setInterval(() => {
+    if (disposed) {
+      clearInterval(ackWatchdogHandle);
+      return;
+    }
+    if (rendererReady || !lastSendAt) return;
+
+    const elapsed = Date.now() - lastSendAt;
+    if (elapsed >= ACK_TIMEOUT_MS) {
+      rendererReady = true;
+      logger.warn('Spout: ACK timeout, forcing resume', {
+        scope: 'spout',
+        elapsedMs: elapsed,
+        lastAckAt,
+      });
+    }
+  }, 250);
 
   // 接続状況の軽量ダイアグノスティクスを定期的に出力
   const diagHandle = setInterval(() => {
@@ -996,6 +1030,7 @@ function setupSpout(window) {
       const diag = receiver.getDiagnostics?.();
       if (diag && !diag.connected) {
         logger.info('Spout: waiting for sender', {
+          scope: 'spout',
           expected: senderName,
           available: diag.availableSenders,
           width: diag.width,
@@ -1003,11 +1038,11 @@ function setupSpout(window) {
         });
       }
     } catch (e) {
-      logger.debug('Spout: diagnostics check failed', { error: e?.message });
+      logger.debug('Spout: diagnostics check failed', { scope: 'spout', error: e?.message });
     }
   }, 5000);
 
-  logger.info('Spout receiver setup completed', { senderName, targetFps: 30 });
+  logger.info('Spout receiver setup completed', { scope: 'spout', senderName, targetFps: 30 });
 }
 
 /**
