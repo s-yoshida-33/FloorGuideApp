@@ -139,6 +139,10 @@ export const FLOOR_ROWS_PER_COL: Record<string, number> = {
   "4F": 18,
 };
 
+// Timeline stream SSE endpoint
+export const TIMELINE_STREAM_URL =
+  import.meta.env.VITE_TIMELINE_STREAM_URL ?? "http://localhost:48080/api/timeline/stream";
+
 // Polling intervals
 export const POLLING_INTERVALS = {
   IMAGE_CHECK_MS: 5 * 60 * 1000, // 5 minutes
