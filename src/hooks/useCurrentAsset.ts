@@ -1,7 +1,7 @@
 // src/hooks/useCurrentAsset.ts
 import { useEffect, useState, useRef, useCallback } from 'react';
-import type { CurrentAsset } from '../types/wsp';
-import { getCmsBaseUrl } from '../repositories/wspRepository'; // fetchCurrentAsset を削除
+import type { CurrentAsset, TimelineStreamEvent } from '../types/wsp';
+import { TIMELINE_STREAM_URL } from '../config';
 import { logWarn, logError, logDebug } from '../logs/logging';
 
 interface UseCurrentAssetResult {
@@ -12,52 +12,33 @@ interface UseCurrentAssetResult {
 type AssetStatus = 'ok' | 'noAsset' | 'error' | null;
 
 /**
- * Helper to convert TimelineItem (from SSE/REST) to CurrentAsset
+ * Convert a TimelineStreamEvent (item_changed) into a CurrentAsset.
  */
-function mapTimelineToAsset(timelineItem: any): CurrentAsset | null {
-  if (!timelineItem) return null;
-  const data = timelineItem.data || timelineItem;
-  const assets = data.media_assets || timelineItem.media_assets || [];
-  
-  if (!Array.isArray(assets) || assets.length === 0) return null;
+function mapStreamEventToAsset(event: TimelineStreamEvent): CurrentAsset | null {
+  if (!event.current_media_id) return null;
 
-  const asset = assets[0];
-  const assetPath = asset.url || asset.localPath || '';
-  
-  // Convert to file URL if local path
+  const localPath = event.current_media_local_path || '';
   let src = '';
-  if (assetPath) {
-    if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
-      src = assetPath;
+  if (localPath) {
+    if (localPath.startsWith('http://') || localPath.startsWith('https://')) {
+      src = localPath;
     } else {
-      const normalized = assetPath.replace(/\\/g, '/');
+      const normalized = localPath.replace(/\\/g, '/');
       src = `file:///${normalized}`;
     }
   }
 
-  const mediaNames = data.media_names || timelineItem.media_names || [];
-  
-  let mediaType = asset.mediaType || asset.type || '';
-   if (!mediaType) {
-      const pathLower = assetPath.toLowerCase();
-      if (pathLower.match(/\.(mp4|webm|ogg|mov|avi|mkv)$/)) {
-          mediaType = 'video';
-      } else if (pathLower.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/)) {
-          mediaType = 'image';
-      }
-  }
-
   return {
-      id: asset.id,
-      src,
-      duration: asset.duration,
-      width: asset.width,
-      height: asset.height,
-      name: mediaNames[0] || '',
-      startTime: data.start_time || timelineItem.start_time || '',
-      endTime: data.end_time || timelineItem.end_time || '',
-      mediaType,
-      type: asset.type
+    id: event.current_media_id,
+    src,
+    duration: 0,
+    width: 0,
+    height: 0,
+    name: event.current_media_name || '',
+    startTime: '',
+    endTime: '',
+    mediaType: event.current_media_type || '',
+    type: event.current_media_type || '',
   };
 }
 
@@ -66,7 +47,7 @@ export function useCurrentAsset(
 ): UseCurrentAssetResult {
   const [asset, setAsset] = useState<CurrentAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<number | undefined>(undefined);
   const isMountedRef = useRef<boolean>(true);
@@ -92,10 +73,6 @@ export function useCurrentAsset(
       }
       lastStatusRef.current = 'ok';
     } else {
-      if (lastStatusRef.current !== 'noAsset') {
-        // Suppress repeated warnings if we are just waiting for the first event
-        // logWarn('video', 'No current video asset available yet');
-      }
       lastStatusRef.current = 'noAsset';
     }
 
@@ -104,18 +81,11 @@ export function useCurrentAsset(
     setIsLoading(false);
   }, []);
 
-  const connectSSE = useCallback(async () => {
+  const connectSSE = useCallback(() => {
+    const url = TIMELINE_STREAM_URL;
+    logDebug('video', 'Connecting to SSE', { url });
+
     try {
-      const baseUrl = await getCmsBaseUrl();
-      if (!baseUrl) {
-        logWarn('video', 'CMS base URL not found, retrying...');
-        retryTimeoutRef.current = window.setTimeout(connectSSE, retryIntervalMs);
-        return;
-      }
-
-      const url = `${baseUrl}/api/events`;
-      logDebug('video', 'Connecting to SSE', { url });
-
       const es = new EventSource(url);
       eventSourceRef.current = es;
 
@@ -124,64 +94,25 @@ export function useCurrentAsset(
       };
 
       es.onerror = (e) => {
-        // Only log error if it's not a normal reconnection attempt or if verbose
-        // es.readyState === 0 means connecting, 1 open, 2 closed
         if (es.readyState === 2) {
-             logError('video', 'SSE connection closed/error', { state: es.readyState, error: e });
+          logError('video', 'SSE connection closed/error', { state: es.readyState, error: e });
         }
         es.close();
         eventSourceRef.current = null;
         if (isMountedRef.current) {
-             retryTimeoutRef.current = window.setTimeout(connectSSE, retryIntervalMs);
+          retryTimeoutRef.current = window.setTimeout(connectSSE, retryIntervalMs);
         }
       };
 
-      // Event: connected
-      // NOTE: Assuming the 'connected' event sends the current state payload
-      es.addEventListener('connected', (e: MessageEvent) => {
+      // Event: item_changed
+      es.addEventListener('item_changed', (e: MessageEvent) => {
         try {
-          const data = JSON.parse(e.data);
-          logDebug('video', 'SSE: connected event', data);
-          
-          // Try to extract initial asset from connected event if available
-          if (data.current_timeline) {
-              const initialAsset = mapTimelineToAsset(data.current_timeline);
-              if (initialAsset) {
-                  handleAssetUpdate(initialAsset);
-              }
-          }
-        } catch (err) {
-          console.error('Failed to parse connected event', err);
-        }
-      });
-
-      // Event: switch (Content switching)
-      es.addEventListener('switch', (e: MessageEvent) => {
-        try {
-          const data = JSON.parse(e.data);
-          const newAsset = mapTimelineToAsset(data.current_timeline);
+          const data: TimelineStreamEvent = JSON.parse(e.data);
+          const newAsset = mapStreamEventToAsset(data);
           handleAssetUpdate(newAsset);
         } catch (err) {
-          logError('video', 'Failed to parse switch event', { error: err });
+          logError('video', 'Failed to parse item_changed event', { error: err });
         }
-      });
-
-      // Event: update (Timeline update)
-      // Since legacy fetch is disabled, we rely on the payload in the event or wait for next switch
-      es.addEventListener('update', (e: MessageEvent) => {
-          logDebug('video', 'SSE: update event received');
-          // If update event carries data, use it. Otherwise we might need to wait or use a different endpoint.
-          // Currently assuming update might trigger a reload in legacy, but here we just log.
-          // If `update` event contains `current_timeline`, use it:
-          try {
-             if (e.data) {
-                 const data = JSON.parse(e.data);
-                 if (data.current_timeline) {
-                     const updatedAsset = mapTimelineToAsset(data.current_timeline);
-                     handleAssetUpdate(updatedAsset);
-                 }
-             }
-          } catch(err) { /* ignore */ }
       });
 
     } catch (error) {
