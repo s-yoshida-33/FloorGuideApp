@@ -53,6 +53,21 @@ export interface WspMediaAsset {
   }
   
   /**
+   * SSE event data from /api/timeline/stream (event: item_changed)
+   */
+  export interface TimelineStreamEvent {
+    event_type: 'item_changed';
+    current_media_id: string;
+    current_media_name: string;
+    current_media_type: string; // 'image' | 'video'
+    current_media_local_path: string;
+    next_media_id: string;
+    next_media_local_path: string;
+    timeline_count: number;
+    timestamp: string;
+  }
+
+  /**
    * Simplified current asset object used by the renderer.
    * This matches the object returned from "wsp:get-current-asset".
    */
