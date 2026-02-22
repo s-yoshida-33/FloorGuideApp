@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { CurrentAsset, TimelineStreamEvent } from '../types/wsp';
 import { TIMELINE_STREAM_URL } from '../config';
-import { logWarn, logError, logDebug } from '../logs/logging';
+import { logError, logDebug } from '../logs/logging';
 
 interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
