@@ -402,6 +402,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
                 locationIconSettings={locationIconSettings}
                 previewFloor={floor}
                 previewFloorLayout={floorLayout}
+                isPreview={true}
                 imageSettings={imageSettings}
                 genreMappings={genreMappings}
                 genreMemoSettings={genreMemoSettings}

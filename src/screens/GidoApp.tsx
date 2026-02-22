@@ -67,6 +67,7 @@ interface GidoAppProps {
   locationIconSettings: LocationIconSettings;
   previewFloor?: string;
   previewFloorLayout?: FloorLayout;
+  isPreview?: boolean;
   imageSettings?: ImageSettings;
   genreMappings?: GenreMappings;
   genreMemoSettings?: GenreMemoSettings;
@@ -77,6 +78,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
   locationIconSettings,
   previewFloor,
   previewFloorLayout,
+  isPreview = false,
   imageSettings,
   genreMappings = DEFAULT_GENRE_MAPPINGS,
   genreMemoSettings = DEFAULT_GENRE_MEMO_SETTINGS,
@@ -115,7 +117,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
 
   // Periodic image visibility check (every 5 minutes)
   useEffect(() => {
-    if (previewFloor) return;
+    if (isPreview) return;
 
     const checkVisibility = () => {
       let needsReload = false;
@@ -311,7 +313,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
               background: "#000",
             }}
           >
-            {previewFloor ? (
+            {isPreview ? (
               <div
                 style={{
                   width: "100%",
