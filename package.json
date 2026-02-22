@@ -19,7 +19,10 @@
     "icon:gen": "magick -background none -density 1024 src/assets/icon.svg -define icon:auto-resize=256,128,64,48,32,16 -write src/assets/icon.ico build/icon.ico",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "tauri:build:signed": "node ./build/runner.js sign-and-build.ps1",
+    "tauri:release": "npm run tauri:build:signed && node ./build/runner.js manage-release.ps1",
+    "bump:version": "powershell -ExecutionPolicy Bypass -File ./build/bump-version.ps1"
   },
   "dependencies": {
     "@tauri-apps/plugin-dialog": "^2.0.0",

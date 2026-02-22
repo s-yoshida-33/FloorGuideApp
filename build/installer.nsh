@@ -81,11 +81,11 @@ FunctionEnd
   ${Else}
     StrCpy $DesktopShortcutExists "0"
   ${EndIf}
-  
+
   ${If} $DesktopShortcutExists == "1"
-    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\icon.ico" 0
+    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
   ${ElseIf} $WantDesktop == ${BST_CHECKED}
-    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\icon.ico" 0
+    CreateShortCut "$DESKTOP\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
   ${EndIf}
 
   ; Start Menu shortcut handling
@@ -96,42 +96,47 @@ FunctionEnd
   ${Else}
     StrCpy $StartMenuShortcutExists "0"
   ${EndIf}
-  
+
   ${If} $StartMenuShortcutExists == "1"
     CreateDirectory "$SMPROGRAMS\Gido"
-    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\icon.ico" 0
+    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
   ${ElseIf} $WantStartMenu == ${BST_CHECKED}
     CreateDirectory "$SMPROGRAMS\Gido"
-    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\icon.ico" 0
+    CreateShortCut "$SMPROGRAMS\Gido\Gido.lnk" "$INSTDIR\Gido.exe" "" "$INSTDIR\Gido.exe" 0
   ${EndIf}
 
-  ; Windows auto-start registry
+  ; --- Windows auto-start via Task Scheduler ---
   ${IfNot} ${Silent}
     ${If} $WantAutoStart == ${BST_CHECKED}
-      WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido" "$INSTDIR\Gido.exe"
+      ExecWait 'schtasks /create /tn "Gido Auto Start" /tr "$\"$INSTDIR\Gido.exe$\"" /sc onlogon /delay 0000:10 /f'
     ${Else}
-      DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido"
+      ExecWait 'schtasks /delete /tn "Gido Auto Start" /f'
     ${EndIf}
   ${Else}
-    ; Silent install (e.g. auto-update) - Force auto-start
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido" "$INSTDIR\Gido.exe"
+    ; Silent install (e.g. auto-update)
+    ExecWait 'schtasks /query /tn "Gido Auto Start" /fo list' $0
+    ${If} $0 == 0
+      ExecWait 'schtasks /create /tn "Gido Auto Start" /tr "$\"$INSTDIR\Gido.exe$\"" /sc onlogon /delay 0000:10 /f'
+    ${EndIf}
   ${EndIf}
+
+  ; --- Scheduled task for daily reboot at 03:00 ---
+  ExecWait 'schtasks /create /tn "Gido Daily Reboot" /tr "shutdown /r /t 0" /sc daily /st 03:00 /f'
+
+  ; システムにアイコン等の変更を通知
+  System::Call 'shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
 
 !macroend
 
 ; -----------------------------------------
 ; Auto-advance from InstFiles page to Finish page
-; This function is called when leaving the InstFiles page
 ; -----------------------------------------
 Function InstFilesLeave
-  ; Automatically click "Next" button to advance to finish page
   Sleep 500
   FindWindow $0 "#32770" "" $HWNDPARENT
   ${If} $0 != 0
-    ; Find the Next button (IDOK = 1)
     GetDlgItem $1 $0 1
     ${If} $1 != 0
-      ; Simulate button click
       SendMessage $1 ${BM_CLICK} 0 0
     ${EndIf}
   ${EndIf}
@@ -139,10 +144,8 @@ FunctionEnd
 
 ; -----------------------------------------
 ; Override finish page text when it's shown
-; This function is called when the finish page is displayed
 ; -----------------------------------------
 Function .onInstSuccess
-  ; Override MUI finish page header text
   !insertmacro MUI_HEADER_TEXT "インストール完了" "インストールが正常に完了しました。"
 FunctionEnd
 
@@ -150,5 +153,6 @@ FunctionEnd
 ; Custom uninstall actions
 ; -----------------------------------------
 !macro customUnInstall
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Gido"
+  ExecWait 'schtasks /delete /tn "Gido Auto Start" /f'
+  ExecWait 'schtasks /delete /tn "Gido Daily Reboot" /f'
 !macroend
