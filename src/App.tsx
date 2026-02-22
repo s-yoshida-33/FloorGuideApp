@@ -250,6 +250,8 @@ const App: React.FC = () => {
 
         <GidoApp
           locationIconSettings={locationSettings}
+          previewFloor={floor}
+          previewFloorLayout={floorLayout}
           imageSettings={displayImageSettings}
           genreMappings={genreMappings}
           genreMemoSettings={genreMemoSettings}
