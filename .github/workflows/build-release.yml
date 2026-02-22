@@ -1,0 +1,100 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  create-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: get_version
+        run: |
+          $version = (Get-Content package.json | Select-String '"version": "([^"]*)"' | ForEach-Object { $_.Matches.Groups[1].Value })
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+
+      - name: Create Release (if tag exists)
+        id: create_release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Release v${{ steps.get_version.outputs.version }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: create-release
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build signed release
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri:release
+
+      - name: List release artifacts
+        run: Get-ChildItem -Path release -File | Format-Table Name, Length
+
+      - name: Upload artifacts to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/latest.json
+            release/GidoSetup-x64-*.exe
+            release/GidoSetup-x64-*.exe.sig
+            release/GidoSetup-x64-*.msi
+            release/GidoSetup-x64-*.msi.sig
+            release/*.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    needs: [create-release, build]
+    runs-on: windows-latest
+    if: always()
+    steps:
+      - name: Release build complete
+        run: |
+          if ("${{ needs.build.result }}" -eq "success") {
+            Write-Output "[+] Build completed successfully"
+            Write-Output "[+] Release version: ${{ needs.create-release.outputs.release_version }}"
+          } else {
+            Write-Output "[-] Build failed"
+            exit 1
+          }
