@@ -59,7 +59,8 @@
     "windows": {
       "nsis": {
         "languages": ["Japanese"],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerScript": "../build/installer.nsh"
       }
     }
   },
