@@ -1,6 +1,9 @@
 import React, { useRef, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { FloorId } from "../types/floorLayout";
 import type { ImageSettings } from "../types/imageSettings";
+import { saveImageFile, deleteImageFile } from "../utils/settings";
+import { logInfo, logError } from "../logs/logging";
 
 export interface ImageSettingsTabProps {
   floor: FloorId;
@@ -21,105 +24,115 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
   const openTimeInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const validateImageFile = (file: File): Promise<boolean> => {
-    return new Promise((resolve) => {
-      // For SVG, we check content
-      if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const content = e.target?.result as string;
-          // Basic SVG validation: check if it contains <svg> tag
-          if (content && content.includes("<svg")) {
-            resolve(true);
-          } else {
-            resolve(false);
-          }
-        };
-        reader.onerror = () => resolve(false);
-        reader.readAsText(file);
-        return;
-      }
-      
-      // For WebP and other images, we rely on the type check done before calling this
-      resolve(true);
-    });
-  };
-
+  /**
+   * Handle file selection: read as bytes, save via Rust, store asset URL.
+   * No Base64 encoding at any stage.
+   */
   const handleFileSelect = async (
     event: React.ChangeEvent<HTMLInputElement>,
     type: "floorMap" | "openTime",
-    floorId?: FloorId
+    floorId?: FloorId,
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setErrors({});
 
-    // Validate file type (WebP, SVG, PNG, JPEG)
+    // Validate file type (WebP, PNG, JPEG)
     const allowedTypes = ["image/webp", "image/png", "image/jpeg"];
     const allowedExts = [".webp", ".png", ".jpg", ".jpeg"];
-    
     const isTypeValid = allowedTypes.includes(file.type);
-    const isExtValid = allowedExts.some(ext => file.name.toLowerCase().endsWith(ext));
+    const isExtValid = allowedExts.some((ext) =>
+      file.name.toLowerCase().endsWith(ext),
+    );
 
     if (!isTypeValid && !isExtValid) {
-      const errorKey = type === "floorMap" ? `floorMap-${floorId}` : "openTime";
-      setErrors({
-        ...errors,
-        [errorKey]: "対応している画像形式は WebP, SVG, PNG, JPEG です",
-      });
+      const errorKey =
+        type === "floorMap" ? `floorMap-${floorId}` : "openTime";
+      setErrors((prev) => ({
+        ...prev,
+        [errorKey]: "対応している画像形式は WebP, PNG, JPEG です",
+      }));
       return;
     }
 
-    // Validate content (mainly for SVG)
-    const isValid = await validateImageFile(file);
-    if (!isValid) {
-      const errorKey = type === "floorMap" ? `floorMap-${floorId}` : "openTime";
-      setErrors({
-        ...errors,
-        [errorKey]: "無効な画像ファイルです",
-      });
-      return;
-    }
+    try {
+      // Read file as raw bytes (no Base64)
+      const arrayBuffer = await file.arrayBuffer();
+      const data = new Uint8Array(arrayBuffer);
 
-    // Convert to data URL
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
+      // Determine filename
+      const ext = file.name.split(".").pop()?.toLowerCase() || "webp";
+      const filename =
+        type === "floorMap"
+          ? `floor-${floorId}-map.${ext}`
+          : `open-time.${ext}`;
+
+      // Save to disk via Rust backend
+      const absPath = await saveImageFile(filename, data);
+      const assetUrl = convertFileSrc(absPath);
+
+      logInfo("CONFIG", "Image file saved", { type, filename, absPath });
+
+      // Update settings with asset URL
       if (type === "floorMap" && floorId) {
         onChangeImageSettings({
           ...imageSettings,
           floorMaps: {
             ...imageSettings.floorMaps,
-            [floorId]: dataUrl,
+            [floorId]: assetUrl,
           },
         });
       } else if (type === "openTime") {
         onChangeImageSettings({
           ...imageSettings,
-          openTimeImage: dataUrl,
+          openTimeImage: assetUrl,
         });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      logError("CONFIG", "Failed to save image file", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      const errorKey =
+        type === "floorMap" ? `floorMap-${floorId}` : "openTime";
+      setErrors((prev) => ({
+        ...prev,
+        [errorKey]: "画像の保存に失敗しました",
+      }));
+    }
 
     // Reset input
     event.target.value = "";
   };
 
-  const handleRemoveImage = (type: "floorMap" | "openTime", floorId?: FloorId) => {
-    if (type === "floorMap" && floorId) {
-      onChangeImageSettings({
-        ...imageSettings,
-        floorMaps: {
-          ...imageSettings.floorMaps,
-          [floorId]: "",
-        },
-      });
-    } else if (type === "openTime") {
-      onChangeImageSettings({
-        ...imageSettings,
-        openTimeImage: "",
+  const handleRemoveImage = async (
+    type: "floorMap" | "openTime",
+    floorId?: FloorId,
+  ) => {
+    try {
+      if (type === "floorMap" && floorId) {
+        await deleteImageFile(`floor-${floorId}-map.webp`).catch(() => {});
+        await deleteImageFile(`floor-${floorId}-map.png`).catch(() => {});
+        await deleteImageFile(`floor-${floorId}-map.jpg`).catch(() => {});
+        onChangeImageSettings({
+          ...imageSettings,
+          floorMaps: {
+            ...imageSettings.floorMaps,
+            [floorId]: "",
+          },
+        });
+      } else if (type === "openTime") {
+        await deleteImageFile("open-time.webp").catch(() => {});
+        await deleteImageFile("open-time.png").catch(() => {});
+        await deleteImageFile("open-time.jpg").catch(() => {});
+        onChangeImageSettings({
+          ...imageSettings,
+          openTimeImage: "",
+        });
+      }
+    } catch (err) {
+      logError("CONFIG", "Failed to delete image file", {
+        error: err instanceof Error ? err.message : String(err),
       });
     }
   };
@@ -179,7 +192,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
         <input
           ref={floorMapInputRef}
           type="file"
-          accept=".webp,.svg,.png,.jpg,.jpeg,image/webp,image/svg+xml,image/png,image/jpeg"
+          accept=".webp,.png,.jpg,.jpeg,image/webp,image/png,image/jpeg"
           style={{ display: "none" }}
           onChange={(e) => handleFileSelect(e, "floorMap", floor)}
         />
@@ -262,7 +275,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
         <input
           ref={openTimeInputRef}
           type="file"
-          accept=".webp,.svg,.png,.jpg,.jpeg,image/webp,image/svg+xml,image/png,image/jpeg"
+          accept=".webp,.png,.jpg,.jpeg,image/webp,image/png,image/jpeg"
           style={{ display: "none" }}
           onChange={(e) => handleFileSelect(e, "openTime")}
         />
@@ -331,7 +344,3 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
     </div>
   );
 };
-
-
-
-

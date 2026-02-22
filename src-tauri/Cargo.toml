@@ -1,0 +1,31 @@
+[package]
+name = "gido"
+version = "1.5.0"
+description = "Floor guide display system"
+authors = ["Toei Techno International Inc."]
+license = "UNLICENSED"
+edition = "2021"
+rust-version = "1.56"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-fs = "2"
+tauri-plugin-process = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-http = "2"
+tauri-plugin-updater = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+dirs = "5.0"
+chrono = "0.4"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
+opt-level = "z"

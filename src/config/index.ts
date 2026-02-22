@@ -1,12 +1,12 @@
 // src/config/index.ts
 import type { LocationIconSettings } from '../types/locationIcon';
 
-// Global app configuration (do not use Japanese in comments to avoid encoding issues)
+// Global app configuration
 export const APP_CONFIG = {
   // Default base URL for BridgeWebPopper HTTP server
   defaultApiBaseUrl: "http://localhost:8090",
 
-  // Default floor for this screen (this screen is dedicated to one floor)
+  // Default floor for this screen
   floor: "3F",
 
   // Layout configuration (4K display assumed)
@@ -19,51 +19,28 @@ export const APP_CONFIG = {
   fontSizeVmin: 1.05,
 };
 
-// Effective API base URL
-// Priority: window.__BWP_BASE_URL__ (injected by BridgeWebPopper) > Electron API (port range detection) > Vite env > default
-// Note: API_BASE_URL is now a function that returns a Promise to support async port detection
+// Effective API base URL resolution
+// Priority: Vite env > default
 let cachedApiBaseUrl: string | null = null;
 
 export async function getApiBaseUrl(): Promise<string> {
-  // Priority 1: window.__BWP_BASE_URL__ (injected by BridgeWebPopper)
-  if ((window as any).__BWP_BASE_URL__) {
-    return (window as any).__BWP_BASE_URL__;
-  }
-
-  // Priority 2: Electron API (port range detection)
-  if ((window as any).electronAPI?.getBridgeBaseUrl) {
-    try {
-      const url = await (window as any).electronAPI.getBridgeBaseUrl();
-      if (url) {
-        cachedApiBaseUrl = url;
-        return url;
-      }
-    } catch (error) {
-      console.warn('Failed to get Bridge base URL from Electron API', error);
-    }
-  }
-
-  // Priority 3: Cached value (if available)
   if (cachedApiBaseUrl) {
     return cachedApiBaseUrl;
   }
 
-  // Priority 4: Vite env
   if (import.meta.env.VITE_API_BASE) {
-    const viteUrl = import.meta.env.VITE_API_BASE;
-    cachedApiBaseUrl = viteUrl;
-    return viteUrl;
+    cachedApiBaseUrl = import.meta.env.VITE_API_BASE;
+    return cachedApiBaseUrl;
   }
 
-  // Priority 5: Default
   cachedApiBaseUrl = APP_CONFIG.defaultApiBaseUrl;
-  return APP_CONFIG.defaultApiBaseUrl;
+  return cachedApiBaseUrl;
 }
 
-// For backward compatibility, export a synchronous getter that uses cached value or default
+// Synchronous getter for backward compatibility
 export const API_BASE_URL: string = APP_CONFIG.defaultApiBaseUrl;
 
-// Data source switch (prepared for future extensions)
+// Data source switch
 export type DataSource = "bridge" | "api" | "cms" | "hybrid";
 
 export const DATA_SOURCE: DataSource =
@@ -87,7 +64,7 @@ export const GENRE_ENGLISH: Record<string, string> = {
   "サービス": "Services",
 };
 
-// Location icon settings (speech bubble and location icon)
+// Location icon settings defaults
 export const DEFAULT_LOCATION_ICON_SETTINGS: LocationIconSettings = {
   speechBubble: {
     enabled: true,

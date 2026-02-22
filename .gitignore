@@ -1,6 +1,5 @@
-# Logs
-logs
-*.log
+# Logs (runtime log files, not source code)
+/logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -32,6 +31,9 @@ out/
 *.msi
 *.deb
 *.dmg
+
+# Tauri build output
+src-tauri/target/
 
 # Temporary files
 tmp/

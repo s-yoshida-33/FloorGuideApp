@@ -32,6 +32,7 @@ interface UnifiedSettingsScreenProps {
   onSaveGenreMemoSettings: (settings: GenreMemoSettings) => Promise<void> | void;
   shopSettings: ShopSettings;
   onSaveShopSettings: (settings: ShopSettings) => Promise<void> | void;
+  onClose: () => void;
 }
 
 const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
@@ -49,8 +50,8 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   onSaveGenreMemoSettings,
   shopSettings: initialShopSettings,
   onSaveShopSettings,
+  onClose,
 }) => {
-  const [visible, setVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("floor");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -77,56 +78,24 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   // Container ref for calculating center position
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load initial values when screen opens
+  // Sync local state with props on mount
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-
-    if (window.electronAPI?.onOpenSettings) {
-      unsubscribe = window.electronAPI.        onOpenSettings(() => {
-        if (window.electronAPI?.notifySettingsOpened) {
-          window.electronAPI.notifySettingsOpened();
-        }
-        setVisible(true);
-        setActiveTab("floor");
-        setFloor(initialFloor);
-        setFloorLayout(initialFloorLayout);
-        setLocationIconSettings(initialLocationIconSettings);
-        setImageSettings(initialImageSettings);
-        setGenreMappings(initialGenreMappings);
-        setGenreMemoSettings(initialGenreMemoSettings);
-        setShopSettings(initialShopSettings);
-        setErrors({});
-        // Reset transform when opening settings
-        if (transformRef.current) {
-          transformRef.current.resetTransform();
-        }
-      });
+    setFloor(initialFloor);
+    setFloorLayout(initialFloorLayout);
+    setLocationIconSettings(initialLocationIconSettings);
+    setImageSettings(initialImageSettings);
+    setGenreMappings(initialGenreMappings);
+    setGenreMemoSettings(initialGenreMemoSettings);
+    setShopSettings(initialShopSettings);
+    setErrors({});
+    if (transformRef.current) {
+      transformRef.current.resetTransform();
     }
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
   }, [initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings]);
 
-  // Sync with external changes when screen is closed
-  useEffect(() => {
-    if (!visible) {
-      setFloor(initialFloor);
-      setFloorLayout(initialFloorLayout);
-      setLocationIconSettings(initialLocationIconSettings);
-      setImageSettings(initialImageSettings);
-      setGenreMappings(initialGenreMappings);
-      setGenreMemoSettings(initialGenreMemoSettings);
-      setShopSettings(initialShopSettings);
-    }
-  }, [visible, initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings]);
-
   const handleClose = () => {
-    if (window.electronAPI?.notifySettingsClosed) {
-      window.electronAPI.notifySettingsClosed();
-    }
-    setVisible(false);
     setErrors({});
+    onClose();
   };
 
   const handleCancel = () => {
@@ -253,8 +222,6 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     }
   };
 
-
-  if (!visible) return null;
 
   return (
     <div
