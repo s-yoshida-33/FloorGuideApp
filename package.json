@@ -1,118 +1,54 @@
 {
   "name": "gido",
   "private": true,
-  "version": "1.4.4",
+  "version": "1.5.0",
   "type": "module",
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
+  "license": "UNLICENSED",
+  "copyright": "\u00a9 2026 Toei Techno International Inc.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/s-yoshida-33/Gido.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron:dev": "cross-env NODE_ENV=development concurrently \"npm:dev\" \"npm:electron:start\"",
-    "electron:start": "wait-on http://localhost:5173 && electron .",
-    "electron:build": "npm run build && electron-builder",
-    "export-settings": "node scripts/export-settings.cjs",
-    "icon:gen": "magick -background none -density 1024 src/assets/icon.svg -define icon:auto-resize=256,128,64,48,32,16 -write src/assets/icon.ico build/icon.ico"
-  },
-  "main": "electron/main.cjs",
-  "build": {
-    "asar": true,
-    "asarUnpack": [],
-    "appId": "com.tti.gido",
-    "productName": "Gido",
-    "copyright": "© 2025 Toei Techno International Inc.",
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "build/icon.ico",
-      "artifactName": "GidoSetup-${arch}-${version}.exe",
-      "extraFiles": [
-        {
-          "from": "build/icon.ico",
-          "to": "icon.ico"
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": false,
-      "createStartMenuShortcut": false,
-      "shortcutName": "Gido",
-      "deleteAppDataOnUninstall": false,
-      "include": "build/installer.nsh",
-      "warningsAsErrors": false,
-      "runAfterFinish": true,
-      "allowElevation": false,
-      "perMachine": false,
-      "language": "1041",
-      "installerLanguages": [
-        "ja_JP"
-      ],
-      "menuCategory": true,
-      "uninstallDisplayName": "Gido アンインストール",
-      "unicode": true,
-      "differentialPackage": false
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "s-yoshida-33",
-        "repo": "Gido",
-        "releaseType": "release"
-      }
-    ]
+    "icon:gen": "magick -background none -density 1024 src/assets/icon.svg -define icon:auto-resize=256,128,64,48,32,16 -write src/assets/icon.ico build/icon.ico",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
-    "electron-log": "^5.4.3",
-    "electron-updater": "^6.6.2",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-fs": "^2.0.0",
+    "@tauri-apps/plugin-http": "^2.5.7",
+    "@tauri-apps/plugin-process": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.0.0",
     "framer-motion": "^12.23.24",
-    "nodemailer": "^7.0.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-zoom-pan-pinch": "^3.7.0",
-    "semver": "^7.7.3"
+    "react-zoom-pan-pinch": "^3.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.1.17",
-    "@types/node": "^24.10.0",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/cli": "^2.10.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
     "autoprefixer": "^10.4.22",
-    "concurrently": "^9.1.2",
-    "cross-env": "^7.0.3",
-    "electron": "^39.2.2",
-    "electron-builder": "^26.0.12",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "postcss": "^8.5.6",
-    "sharp": "^0.34.5",
     "tailwindcss": "^4.1.17",
-    "to-ico": "^1.1.5",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vite": "^7.2.2",
-    "wait-on": "^8.0.1"
+    "vite": "^7.2.2"
   }
 }

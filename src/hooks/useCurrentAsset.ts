@@ -1,5 +1,6 @@
 // src/hooks/useCurrentAsset.ts
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import type { CurrentAsset, TimelineStreamEvent } from '../types/wsp';
 import { TIMELINE_STREAM_URL } from '../config';
 import { logWarn, logError, logDebug } from '../logs/logging';
@@ -12,7 +13,8 @@ interface UseCurrentAssetResult {
 type AssetStatus = 'ok' | 'noAsset' | 'error' | null;
 
 /**
- * Convert a TimelineStreamEvent (item_changed) into a CurrentAsset.
+ * Convert a TimelineStreamEvent into a CurrentAsset.
+ * Uses convertFileSrc for local paths (Tauri asset protocol).
  */
 function mapStreamEventToAsset(event: TimelineStreamEvent): CurrentAsset | null {
   if (!event.current_media_id) return null;
@@ -23,8 +25,9 @@ function mapStreamEventToAsset(event: TimelineStreamEvent): CurrentAsset | null 
     if (localPath.startsWith('http://') || localPath.startsWith('https://')) {
       src = localPath;
     } else {
+      // Use Tauri asset protocol instead of file://
       const normalized = localPath.replace(/\\/g, '/');
-      src = `file:///${normalized}`;
+      src = convertFileSrc(normalized);
     }
   }
 
@@ -60,13 +63,13 @@ export function useCurrentAsset(
     if (next) {
       const assetChanged = lastAssetIdRef.current !== next.id;
       if (lastStatusRef.current !== 'ok') {
-        logDebug('video', 'Received current video asset via SSE', {
+        logDebug('CMS_DELIVERY', 'Received current video asset via SSE', {
           assetId: next.id,
           src: next.src,
           name: next.name,
         });
       } else if (assetChanged) {
-        logDebug('video', 'Asset changed via SSE', {
+        logDebug('CMS_DELIVERY', 'Asset changed via SSE', {
           oldAssetId: lastAssetIdRef.current,
           newAssetId: next.id,
         });
@@ -83,19 +86,19 @@ export function useCurrentAsset(
 
   const connectSSE = useCallback(() => {
     const url = TIMELINE_STREAM_URL;
-    logDebug('video', 'Connecting to SSE', { url });
+    logDebug('CMS_DELIVERY', 'Connecting to timeline SSE', { url });
 
     try {
       const es = new EventSource(url);
       eventSourceRef.current = es;
 
       es.onopen = () => {
-        logDebug('video', 'SSE connection established');
+        logDebug('CMS_DELIVERY', 'Timeline SSE connection established');
       };
 
-      es.onerror = (e) => {
+      es.onerror = () => {
         if (es.readyState === 2) {
-          logError('video', 'SSE connection closed/error', { state: es.readyState, error: e });
+          logWarn('CMS_DELIVERY', 'Timeline SSE connection closed');
         }
         es.close();
         eventSourceRef.current = null;
@@ -104,19 +107,22 @@ export function useCurrentAsset(
         }
       };
 
-      // Event: item_changed
+      // Event: item_changed - real-time schedule update from CMS player
       es.addEventListener('item_changed', (e: MessageEvent) => {
         try {
           const data: TimelineStreamEvent = JSON.parse(e.data);
           const newAsset = mapStreamEventToAsset(data);
           handleAssetUpdate(newAsset);
         } catch (err) {
-          logError('video', 'Failed to parse item_changed event', { error: err });
+          logError('CMS_DELIVERY', 'Failed to parse item_changed event', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       });
-
     } catch (error) {
-      logError('video', 'Failed to initialize SSE', { error });
+      logError('CMS_DELIVERY', 'Failed to initialize timeline SSE', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       if (isMountedRef.current) {
         retryTimeoutRef.current = window.setTimeout(connectSSE, retryIntervalMs);
       }
