@@ -55,21 +55,14 @@
     "active": true,
     "icon": ["icons/icon.ico"],
     "publisher": "Toei Techno International Inc.",
-    "copyright": "\u00a9 2026 Toei Techno International Inc.",
-    "windows": {
-      "nsis": {
-        "languages": ["Japanese"],
-        "displayLanguageSelector": false,
-        "installerScript": "../build/installer.nsh"
-      }
-    }
+    "copyright": "\u00a9 2026 Toei Techno International Inc."
   },
   "plugins": {
     "updater": {
       "active": true,
       "endpoints": ["https://github.com/s-yoshida-33/Gido/releases/latest/download/latest.json"],
       "dialog": false,
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg0QkE1REEyNDM1Nzc1NDgKUldSSWRWZERvbDI2aENEWEF0eVd0NWhubjVsUE1tWGFuMjdiZjlKR3I2ei9VMmIxd3hrWVdLOTkK"
     }
   }
 }
