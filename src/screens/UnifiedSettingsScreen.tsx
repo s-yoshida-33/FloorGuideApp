@@ -14,42 +14,31 @@ import iconSvg from "../assets/icon.svg";
 import type { ImageSettings } from "../types/imageSettings";
 import type { GenreMappings, GenreMemoSettings } from "../types/genreSettings";
 import type { ShopSettings } from "../types/shopSettings";
+import type { GidoSettings } from "../utils/settings";
 
 type TabType = "floor" | "layout" | "location" | "image" | "genre" | "shop";
 
 interface UnifiedSettingsScreenProps {
   floor: FloorId;
-  onSaveFloor: (floor: FloorId) => Promise<void> | void;
   floorLayout: FloorLayout;
-  onSaveFloorLayout: (layout: FloorLayout) => Promise<void> | void;
   locationIconSettings: LocationIconSettings;
-  onSaveLocationIconSettings: (settings: LocationIconSettings) => Promise<void> | void;
   imageSettings: ImageSettings;
-  onSaveImageSettings: (settings: ImageSettings) => Promise<void> | void;
   genreMappings: GenreMappings;
-  onSaveGenreMappings: (mappings: GenreMappings) => Promise<void> | void;
   genreMemoSettings: GenreMemoSettings;
-  onSaveGenreMemoSettings: (settings: GenreMemoSettings) => Promise<void> | void;
   shopSettings: ShopSettings;
-  onSaveShopSettings: (settings: ShopSettings) => Promise<void> | void;
+  onSaveAll: (settings: GidoSettings) => Promise<void>;
   onClose: () => void;
 }
 
 const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   floor: initialFloor,
-  onSaveFloor,
   floorLayout: initialFloorLayout,
-  onSaveFloorLayout,
   locationIconSettings: initialLocationIconSettings,
-  onSaveLocationIconSettings,
   imageSettings: initialImageSettings,
-  onSaveImageSettings,
   genreMappings: initialGenreMappings,
-  onSaveGenreMappings,
   genreMemoSettings: initialGenreMemoSettings,
-  onSaveGenreMemoSettings,
   shopSettings: initialShopSettings,
-  onSaveShopSettings,
+  onSaveAll,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>("floor");
@@ -170,15 +159,16 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
 
     try {
       setSaving(true);
-      await Promise.all([
-        onSaveFloor(floor),
-        onSaveFloorLayout(floorLayout),
-        onSaveLocationIconSettings(locationIconSettings),
-        onSaveImageSettings(imageSettings),
-        onSaveGenreMappings(genreMappings),
-        onSaveGenreMemoSettings(genreMemoSettings),
-        onSaveShopSettings(shopSettings),
-      ]);
+      // Single atomic save to avoid race condition
+      await onSaveAll({
+        floor,
+        floorLayout,
+        locationIcons: locationIconSettings,
+        imageSettings,
+        genreMappings,
+        genreMemoSettings,
+        shopSettings,
+      });
       handleClose();
     } catch (e) {
       console.error("Failed to save settings", e);

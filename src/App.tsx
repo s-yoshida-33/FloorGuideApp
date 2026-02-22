@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import GidoApp from "./screens/GidoApp";
 import VersionInfoScreen from "./screens/VersionInfoScreen";
 import UnifiedSettingsScreen from "./screens/UnifiedSettingsScreen";
+import { ContextMenu } from "./components/ContextMenu";
 import { DEFAULT_LOCATION_ICON_SETTINGS } from "./config";
 import type { LocationIconSettings } from "./types/locationIcon";
 import type { ImageSettings } from "./types/imageSettings";
@@ -18,7 +19,7 @@ import { sseClient } from "./api/sseClient";
 import type { SseConnectionStatus } from "./api/sseClient";
 import {
   loadSettings,
-  updateSettings,
+  saveAllSettings,
   type GidoSettings,
 } from "./utils/settings";
 import { logInfo, logError } from "./logs/logging";
@@ -95,7 +96,7 @@ const App: React.FC = () => {
     useState<GenreMemoSettings>(DEFAULT_GENRE_MEMO_SETTINGS);
   const [shopSettings, setShopSettings] = useState<ShopSettings>({});
 
-  // Settings screen visibility (toggled via keyboard shortcut)
+  // Settings screen visibility (toggled via right-click context menu)
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [isVersionInfoVisible, setIsVersionInfoVisible] = useState(false);
 
@@ -145,18 +146,12 @@ const App: React.FC = () => {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Keyboard shortcuts: Ctrl+Shift+S = settings, Ctrl+Shift+D = debug
+  // Keyboard shortcut: Ctrl+Shift+D = debug overlay toggle
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey) {
-        if (e.key === "s" || e.key === "S") {
-          setIsSettingsVisible((prev) => !prev);
-        } else if (e.key === "d" || e.key === "D") {
-          setIsDebugVisible((prev) => !prev);
-        } else if (e.key === "v" || e.key === "V") {
-          setIsVersionInfoVisible((prev) => !prev);
-        }
+      if (e.ctrlKey && e.shiftKey && (e.key === "d" || e.key === "D")) {
+        setIsDebugVisible((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -164,75 +159,30 @@ const App: React.FC = () => {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Save handlers: persist to disk via Tauri invoke, then update local state
+  // Batch save: persist all settings to disk in a single write, then update state
   // ---------------------------------------------------------------------------
-  const persistAndSet = useCallback(
-    async <K extends keyof GidoSettings>(
-      key: K,
-      value: GidoSettings[K],
-      setter: (v: GidoSettings[K]) => void,
-    ) => {
-      try {
-        await updateSettings({ [key]: value });
-        setter(value);
-      } catch (e) {
-        logError("CONFIG", `Failed to save ${key}`, {
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
-    },
-    [],
-  );
-
-  const handleSaveFloor = useCallback(
-    (nextFloor: FloorId) => persistAndSet("floor", nextFloor, setFloor),
-    [persistAndSet],
-  );
-
-  const handleSaveFloorLayout = useCallback(
-    (layout: FloorLayout) =>
-      persistAndSet("floorLayout", layout, setFloorLayout),
-    [persistAndSet],
-  );
-
-  const handleSaveLocationSettings = useCallback(
-    (settings: LocationIconSettings) =>
-      persistAndSet("locationIcons", settings, setLocationSettings),
-    [persistAndSet],
-  );
-
-  const handleSaveImageSettings = useCallback(
-    async (settings: ImageSettings) => {
-      try {
-        await updateSettings({ imageSettings: settings });
-        setImageSettings(settings);
+  const handleSaveAll = useCallback(async (settings: GidoSettings) => {
+    try {
+      await saveAllSettings(settings);
+      if (settings.floor) setFloor(settings.floor);
+      if (settings.floorLayout) setFloorLayout(settings.floorLayout);
+      if (settings.locationIcons) setLocationSettings(settings.locationIcons);
+      if (settings.imageSettings) {
+        setImageSettings(settings.imageSettings);
         setImageUpdateTs(Date.now());
-      } catch (e) {
-        logError("CONFIG", "Failed to save image settings", {
-          error: e instanceof Error ? e.message : String(e),
-        });
       }
-    },
-    [],
-  );
-
-  const handleSaveGenreMappings = useCallback(
-    (mappings: GenreMappings) =>
-      persistAndSet("genreMappings", mappings, setGenreMappings),
-    [persistAndSet],
-  );
-
-  const handleSaveGenreMemoSettings = useCallback(
-    (settings: GenreMemoSettings) =>
-      persistAndSet("genreMemoSettings", settings, setGenreMemoSettings),
-    [persistAndSet],
-  );
-
-  const handleSaveShopSettings = useCallback(
-    (settings: ShopSettings) =>
-      persistAndSet("shopSettings", settings, setShopSettings),
-    [persistAndSet],
-  );
+      if (settings.genreMappings) setGenreMappings(settings.genreMappings);
+      if (settings.genreMemoSettings)
+        setGenreMemoSettings(settings.genreMemoSettings);
+      if (settings.shopSettings) setShopSettings(settings.shopSettings);
+      logInfo("CONFIG", "All settings saved successfully");
+    } catch (e) {
+      logError("CONFIG", "Failed to save settings", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      throw e;
+    }
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Process image settings: append cache-bust timestamp to asset URLs
@@ -270,61 +220,60 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      {/* Debug overlay */}
-      {isDebugVisible && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 10,
-            right: 10,
-            zIndex: 99999,
-            background: "rgba(0,0,0,0.85)",
-            color: "lime",
-            padding: "10px 16px",
-            borderRadius: 4,
-            fontFamily: "monospace",
-            fontSize: 12,
-          }}
-        >
-          <div>SSE: {sseStatus}</div>
-          <div>Floor: {floor}</div>
-          <div style={{ fontSize: 10, color: "#888", marginTop: 4 }}>
-            Ctrl+Shift+D to hide
+      <ContextMenu
+        onOpenSettings={() => setIsSettingsVisible(true)}
+        onOpenVersionInfo={() => setIsVersionInfoVisible(true)}
+      >
+        {/* Debug overlay */}
+        {isDebugVisible && (
+          <div
+            style={{
+              position: "fixed",
+              bottom: 10,
+              right: 10,
+              zIndex: 99999,
+              background: "rgba(0,0,0,0.85)",
+              color: "lime",
+              padding: "10px 16px",
+              borderRadius: 4,
+              fontFamily: "monospace",
+              fontSize: 12,
+            }}
+          >
+            <div>SSE: {sseStatus}</div>
+            <div>Floor: {floor}</div>
+            <div style={{ fontSize: 10, color: "#888", marginTop: 4 }}>
+              Ctrl+Shift+D to hide
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <GidoApp
-        locationIconSettings={locationSettings}
-        imageSettings={displayImageSettings}
-        genreMappings={genreMappings}
-        genreMemoSettings={genreMemoSettings}
-        shopSettings={shopSettings}
-      />
-
-      {isSettingsVisible && (
-        <UnifiedSettingsScreen
-          floor={floor}
-          onSaveFloor={handleSaveFloor}
-          floorLayout={floorLayout}
-          onSaveFloorLayout={handleSaveFloorLayout}
+        <GidoApp
           locationIconSettings={locationSettings}
-          onSaveLocationIconSettings={handleSaveLocationSettings}
-          imageSettings={imageSettings}
-          onSaveImageSettings={handleSaveImageSettings}
+          imageSettings={displayImageSettings}
           genreMappings={genreMappings}
-          onSaveGenreMappings={handleSaveGenreMappings}
           genreMemoSettings={genreMemoSettings}
-          onSaveGenreMemoSettings={handleSaveGenreMemoSettings}
           shopSettings={shopSettings}
-          onSaveShopSettings={handleSaveShopSettings}
-          onClose={() => setIsSettingsVisible(false)}
         />
-      )}
 
-      {isVersionInfoVisible && (
-        <VersionInfoScreen onClose={() => setIsVersionInfoVisible(false)} />
-      )}
+        {isSettingsVisible && (
+          <UnifiedSettingsScreen
+            floor={floor}
+            floorLayout={floorLayout}
+            locationIconSettings={locationSettings}
+            imageSettings={imageSettings}
+            genreMappings={genreMappings}
+            genreMemoSettings={genreMemoSettings}
+            shopSettings={shopSettings}
+            onSaveAll={handleSaveAll}
+            onClose={() => setIsSettingsVisible(false)}
+          />
+        )}
+
+        {isVersionInfoVisible && (
+          <VersionInfoScreen onClose={() => setIsVersionInfoVisible(false)} />
+        )}
+      </ContextMenu>
     </ErrorBoundary>
   );
 };
