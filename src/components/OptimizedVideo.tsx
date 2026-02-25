@@ -51,7 +51,6 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
       src={src}
       className={className}
       style={style}
-      muted
       loop
       autoPlay
       playsInline
