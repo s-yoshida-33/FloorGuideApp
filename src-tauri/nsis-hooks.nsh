@@ -3,9 +3,10 @@
 
 !macro NSIS_HOOK_POSTINSTALL
   ; --- Windows起動時に自動で起動（ログオン後10秒遅延） ---
-  ExecWait 'schtasks /create /tn "Grain Link Auto Start" /tr "\"$INSTDIR\grain-link.exe\"" /sc onlogon /delay 0000:10 /f'
+  ExecWait 'schtasks /create /tn "Gido Auto Start" /tr "\"$INSTDIR\gido.exe\"" /sc onlogon /delay 0000:10 /f'
+!macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
   ; --- アンインストール時にタスクを削除 ---
-  ExecWait 'schtasks /delete /tn "Grain Link Auto Start" /f'
+  ExecWait 'schtasks /delete /tn "Gido Auto Start" /f'
 !macroend
