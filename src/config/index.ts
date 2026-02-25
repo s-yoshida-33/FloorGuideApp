@@ -29,7 +29,7 @@ export async function getApiBaseUrl(): Promise<string> {
   }
 
   if (import.meta.env.VITE_API_BASE) {
-    cachedApiBaseUrl = import.meta.env.VITE_API_BASE;
+    cachedApiBaseUrl = import.meta.env.VITE_API_BASE as string;
     return cachedApiBaseUrl;
   }
 
