@@ -1,11 +1,23 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use chrono::Local;
+
+// ---------------------------------------------------------------------------
+// State management structure
+// ---------------------------------------------------------------------------
+
+#[derive(Default)]
+struct AppState {
+    // key: scope (tag), value: "alert" | "ok"
+    last_alert_state: Mutex<HashMap<String, String>>,
+}
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -68,6 +80,35 @@ fn get_settings_path() -> Result<PathBuf, String> {
 }
 
 // ---------------------------------------------------------------------------
+// Slack Webhook sender
+// ---------------------------------------------------------------------------
+
+fn send_slack_notification(level: &str, tag: &str, message: &str, is_recovery: bool, context_str: &str) {
+    let webhook_url = match std::env::var("SLACK_WEBHOOK_URL") {
+        Ok(url) if !url.is_empty() => url,
+        _ => return, // If no URL is set, do nothing
+    };
+
+    let title = if is_recovery {
+        format!("RECOVERY: {}", tag)
+    } else {
+        format!("ALERT: {}", tag)
+    };
+
+    let payload = serde_json::json!({
+        "text": format!(
+            "*{title}*\n*Level*: {level}\n*Scope*: {tag}\n*Message*: {message}\n*Context*: {context_str}"
+        )
+    });
+
+    // Send HTTP requests asynchronously in a separate thread to avoid blocking log writes
+    std::thread::spawn(move || {
+        let client = reqwest::blocking::Client::new();
+        let _ = client.post(&webhook_url).json(&payload).send();
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Logging command
 // ---------------------------------------------------------------------------
 
@@ -77,16 +118,44 @@ fn write_log(
     tag: String,
     message: String,
     context: Option<String>,
+    state: tauri::State<'_, AppState>,
 ) -> Result<LogResponse, String> {
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
-
     let context_str = context.unwrap_or_default();
+    
+    // Slack notification target scopes
+    let alert_scopes = [
+        "map", "shopList", "video", "SYSTEM", 
+        "DATA_SYNC", "CMS_DELIVERY", "ASSET_CHECK", "RENDERER_ERROR"
+    ];
+
+    let upper_level = level.to_uppercase();
+
+    // State transition-based Slack alert management
+    if alert_scopes.contains(&tag.as_str()) {
+        let mut alert_states = state.last_alert_state.lock().unwrap();
+        let current_state = alert_states.get(&tag).cloned().unwrap_or_else(|| "ok".to_string());
+        
+        let is_error_level = upper_level == "WARN" || upper_level == "ERROR" || upper_level == "FATAL";
+        
+        if is_error_level && current_state == "ok" {
+            // "ok" -> "alert" (New Alert Issued)
+            alert_states.insert(tag.clone(), "alert".to_string());
+            send_slack_notification(&upper_level, &tag, &message, false, &context_str);
+        } else if upper_level == "INFO" && current_state == "alert" {
+            // "alert" -> "ok" (Recovery Notification)
+            alert_states.insert(tag.clone(), "ok".to_string());
+            send_slack_notification(&upper_level, &tag, &message, true, &context_str);
+        }
+    }
+
+    // Log String Construction
     let log_entry = if context_str.is_empty() {
-        format!("[{}] [{}] [{}] {}\n", timestamp, level, tag, message)
+        format!("[{}] [{}] [{}] {}\n", timestamp, upper_level, tag, message)
     } else {
         format!(
             "[{}] [{}] [{}] {} | {}\n",
-            timestamp, level, tag, message, context_str
+            timestamp, upper_level, tag, message, context_str
         )
     };
 
@@ -243,6 +312,7 @@ fn read_image_file(file_path: String) -> Result<Vec<u8>, String> {
 
 fn main() {
     let builder = tauri::Builder::default()
+        .manage(AppState::default())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())

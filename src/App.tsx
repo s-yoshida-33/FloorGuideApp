@@ -23,6 +23,7 @@ import {
   type GidoSettings,
 } from "./utils/settings";
 import { logInfo, logError } from "./logs/logging";
+import { BootScreen } from "./screens/BootScreen";
 
 // Error boundary for React render failures
 class ErrorBoundary extends React.Component<
@@ -82,6 +83,7 @@ const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
 };
 
 const App: React.FC = () => {
+  const [bootComplete, setBootComplete] = useState(!import.meta.env.PROD);
   const [locationSettings, setLocationSettings] =
     useState<LocationIconSettings>(DEFAULT_LOCATION_ICON_SETTINGS);
   const [floor, setFloor] = useState<FloorId>("1F");
@@ -103,6 +105,10 @@ const App: React.FC = () => {
   // Debug state
   const [sseStatus, setSseStatus] = useState<SseConnectionStatus>("disconnected");
   const [isDebugVisible, setIsDebugVisible] = useState(false);
+
+  if (!bootComplete) {
+    return <BootScreen onBootComplete={() => setBootComplete(true)} />;
+  }
 
   // ---------------------------------------------------------------------------
   // Load initial settings from disk
@@ -220,62 +226,66 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <ContextMenu
-        onOpenSettings={() => setIsSettingsVisible(true)}
-        onOpenVersionInfo={() => setIsVersionInfoVisible(true)}
-      >
-        {/* Debug overlay */}
-        {isDebugVisible && (
-          <div
-            style={{
-              position: "fixed",
-              bottom: 10,
-              right: 10,
-              zIndex: 99999,
-              background: "rgba(0,0,0,0.85)",
-              color: "lime",
-              padding: "10px 16px",
-              borderRadius: 4,
-              fontFamily: "monospace",
-              fontSize: 12,
-            }}
-          >
-            <div>SSE: {sseStatus}</div>
-            <div>Floor: {floor}</div>
-            <div style={{ fontSize: 10, color: "#888", marginTop: 4 }}>
-              Ctrl+Shift+D to hide
+      {!bootComplete ? (
+        <BootScreen onBootComplete={() => setBootComplete(true)} />
+      ) : (
+        <ContextMenu
+          onOpenSettings={() => setIsSettingsVisible(true)}
+          onOpenVersionInfo={() => setIsVersionInfoVisible(true)}
+        >
+          {/* Debug overlay */}
+          {isDebugVisible && (
+            <div
+              style={{
+                position: "fixed",
+                bottom: 10,
+                right: 10,
+                zIndex: 99999,
+                background: "rgba(0,0,0,0.85)",
+                color: "lime",
+                padding: "10px 16px",
+                borderRadius: 4,
+                fontFamily: "monospace",
+                fontSize: 12,
+              }}
+            >
+              <div>SSE: {sseStatus}</div>
+              <div>Floor: {floor}</div>
+              <div style={{ fontSize: 10, color: "#888", marginTop: 4 }}>
+                Ctrl+Shift+D to hide
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <GidoApp
-          locationIconSettings={locationSettings}
-          previewFloor={floor}
-          previewFloorLayout={floorLayout}
-          imageSettings={displayImageSettings}
-          genreMappings={genreMappings}
-          genreMemoSettings={genreMemoSettings}
-          shopSettings={shopSettings}
-        />
-
-        {isSettingsVisible && (
-          <UnifiedSettingsScreen
-            floor={floor}
-            floorLayout={floorLayout}
+          <GidoApp
             locationIconSettings={locationSettings}
-            imageSettings={imageSettings}
+            previewFloor={floor}
+            previewFloorLayout={floorLayout}
+            imageSettings={displayImageSettings}
             genreMappings={genreMappings}
             genreMemoSettings={genreMemoSettings}
             shopSettings={shopSettings}
-            onSaveAll={handleSaveAll}
-            onClose={() => setIsSettingsVisible(false)}
           />
-        )}
 
-        {isVersionInfoVisible && (
-          <VersionInfoScreen onClose={() => setIsVersionInfoVisible(false)} />
-        )}
-      </ContextMenu>
+          {isSettingsVisible && (
+            <UnifiedSettingsScreen
+              floor={floor}
+              floorLayout={floorLayout}
+              locationIconSettings={locationSettings}
+              imageSettings={imageSettings}
+              genreMappings={genreMappings}
+              genreMemoSettings={genreMemoSettings}
+              shopSettings={shopSettings}
+              onSaveAll={handleSaveAll}
+              onClose={() => setIsSettingsVisible(false)}
+            />
+          )}
+
+          {isVersionInfoVisible && (
+            <VersionInfoScreen onClose={() => setIsVersionInfoVisible(false)} />
+          )}
+        </ContextMenu>
+      )}
     </ErrorBoundary>
   );
 };
