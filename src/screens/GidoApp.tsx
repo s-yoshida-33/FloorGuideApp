@@ -92,26 +92,6 @@ const GidoApp: React.FC<GidoAppProps> = ({
   );
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Startup log
-  useEffect(() => {
-    logInfo("SYS_INIT", "Gido Signage App Started", {
-      floor: APP_CONFIG.floor,
-      platform: window.navigator.userAgent,
-    });
-  }, []);
-
-  // Heartbeat - once per hour
-  useEffect(() => {
-    const heartbeat = () => {
-      logInfo("SYS_INIT", "System Heartbeat - App is running", {
-        shopCount: shops.length,
-        currentFloor: floor,
-      });
-    };
-    const interval = setInterval(heartbeat, 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [shops.length, floor]);
-
   const floorMapRef = useRef<HTMLImageElement>(null);
   const openTimeImageRef = useRef<HTMLImageElement>(null);
 

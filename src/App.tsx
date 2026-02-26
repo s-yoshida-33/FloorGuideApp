@@ -100,6 +100,8 @@ const App: React.FC = () => {
     useState<GenreMemoSettings>(DEFAULT_GENRE_MEMO_SETTINGS);
   const [shopSettings, setShopSettings] = useState<ShopSettings>({});
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [isVersionInfoVisible, setIsVersionInfoVisible] = useState(false);
 
@@ -108,6 +110,16 @@ const App: React.FC = () => {
 
   // Heartbeat + system monitoring (Grain-Link pattern)
   useHeartbeat();
+
+  // Soft reload: re-fetch data without restarting app / BootScreen
+  useEffect(() => {
+    const handleReload = () => {
+      logInfo("SYS_INIT", "Soft reload triggered via context menu");
+      setRefreshKey((prev) => prev + 1);
+    };
+    window.addEventListener('reload-current-view', handleReload);
+    return () => window.removeEventListener('reload-current-view', handleReload);
+  }, []);
 
   // Load initial settings from disk
   useEffect(() => {
@@ -251,6 +263,7 @@ const App: React.FC = () => {
         )}
 
         <GidoApp
+          key={refreshKey}
           locationIconSettings={locationSettings}
           previewFloor={floor}
           previewFloorLayout={floorLayout}
