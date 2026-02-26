@@ -38,7 +38,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   }, [hideMenu]);
 
   const reloadApp = useCallback(() => {
-    window.location.reload();
+    window.dispatchEvent(new CustomEvent('reload-current-view'));
   }, []);
 
   const quitApp = useCallback(async () => {
