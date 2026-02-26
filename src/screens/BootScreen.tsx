@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { UpdateDialog } from '../components/UpdateDialog';
 import { useAutoUpdate } from '../hooks/useAutoUpdate';
+import { logInfo } from '../logs/logging';
 
 interface BootScreenProps {
   onBootComplete: () => void;
@@ -20,12 +21,16 @@ export const BootScreen: React.FC<BootScreenProps> = ({ onBootComplete }) => {
     let timer: ReturnType<typeof setTimeout>;
 
     if (updateStatus.status === 'ready') {
+      logInfo('BOOT', 'Update ready, restarting in 5s...');
       timer = setTimeout(() => installUpdate(), 5000);
     } else if (updateStatus.status === 'error' || updateStatus.status === 'uptodate') {
-      timer = setTimeout(() => setCurrentStage('countdown'), 1000);
+      logInfo('BOOT', `Update check finished (${updateStatus.status}), proceeding to countdown...`);
+      timer = setTimeout(() => setCurrentStage('countdown'), 1500);
     }
     return () => { if (timer) clearTimeout(timer); };
-  }, [updateStatus.status, currentStage, installUpdate]);
+    
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateStatus.status, currentStage]);
 
   // --- Stage 2: Countdown ---
   useEffect(() => {
@@ -55,14 +60,16 @@ export const BootScreen: React.FC<BootScreenProps> = ({ onBootComplete }) => {
 
   if (currentStage === 'update') {
     return (
-      <UpdateDialog
-        isOpen={true}
-        status={updateStatus.status === 'idle' ? 'checking' : updateStatus.status}
-        progress={updateStatus.progress}
-        message={updateStatus.message}
-        onInstall={installUpdate}
-        onDismiss={handleSkipUpdate}
-      />
+      <div style={{ position: 'fixed', inset: 0, backgroundColor: '#111827', zIndex: 50 }}>
+        <UpdateDialog
+          isOpen={true}
+          status={updateStatus.status === 'idle' ? 'checking' : updateStatus.status}
+          progress={updateStatus.progress}
+          message={updateStatus.message}
+          onInstall={installUpdate}
+          onDismiss={handleSkipUpdate}
+        />
+      </div>
     );
   }
 
