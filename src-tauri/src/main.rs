@@ -8,6 +8,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use chrono::Local;
+use sysinfo::System;
 
 // ---------------------------------------------------------------------------
 // State management structure
@@ -307,6 +308,86 @@ fn read_image_file(file_path: String) -> Result<Vec<u8>, String> {
 }
 
 // ---------------------------------------------------------------------------
+// System info command (CPU, memory, GPU, OS)
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize)]
+struct SystemInfoResponse {
+    cpu_name: String,
+    cpu_cores: usize,
+    cpu_usage: f32,
+    memory_total_mb: u64,
+    memory_used_mb: u64,
+    memory_usage_percent: f64,
+    gpu_name: String,
+    os_name: String,
+    os_version: String,
+}
+
+#[tauri::command]
+fn get_system_info() -> SystemInfoResponse {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    // CPU info
+    let cpu_name = sys.cpus().first()
+        .map(|c| c.brand().to_string())
+        .unwrap_or_else(|| "Unknown".to_string());
+    let cpu_cores = sys.cpus().len();
+    let cpu_usage = sys.global_cpu_usage();
+
+    // Memory info
+    let memory_total_mb = sys.total_memory() / (1024 * 1024);
+    let memory_used_mb = sys.used_memory() / (1024 * 1024);
+    let memory_usage_percent = if sys.total_memory() > 0 {
+        (sys.used_memory() as f64 / sys.total_memory() as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    // GPU info via Windows wmic (best-effort)
+    let gpu_name = get_gpu_name();
+
+    // OS info
+    let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
+    let os_version = System::os_version().unwrap_or_else(|| "Unknown".to_string());
+
+    SystemInfoResponse {
+        cpu_name,
+        cpu_cores,
+        cpu_usage,
+        memory_total_mb,
+        memory_used_mb,
+        memory_usage_percent,
+        gpu_name,
+        os_name,
+        os_version,
+    }
+}
+
+fn get_gpu_name() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let output = Command::new("wmic")
+            .args(["path", "win32_VideoController", "get", "name"])
+            .output();
+        if let Ok(out) = output {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let name = text.lines()
+                .skip(1) // skip header "Name"
+                .find(|l| !l.trim().is_empty())
+                .map(|l| l.trim().to_string())
+                .unwrap_or_default();
+            if !name.is_empty() {
+                return name;
+            }
+        }
+    }
+    "Unknown".to_string()
+}
+
+// ---------------------------------------------------------------------------
 // App entry point
 // ---------------------------------------------------------------------------
 
@@ -327,6 +408,7 @@ fn main() {
             get_image_path,
             delete_image_file,
             read_image_file,
+            get_system_info,
         ]);
 
     let app = builder

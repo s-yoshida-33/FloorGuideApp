@@ -22,15 +22,23 @@ export const BootScreen: React.FC<BootScreenProps> = ({ onBootComplete }) => {
 
     if (updateStatus.status === 'ready') {
       logInfo('BOOT', 'Update ready, restarting in 5s...');
-      timer = setTimeout(() => installUpdate(), 5000);
-    } else if (updateStatus.status === 'error' || updateStatus.status === 'uptodate') {
-      logInfo('BOOT', `Update check finished (${updateStatus.status}), proceeding to countdown...`);
-      timer = setTimeout(() => setCurrentStage('countdown'), 1500);
+      timer = setTimeout(() => {
+        logInfo('BOOT', 'Executing auto-restart for update...');
+        installUpdate();
+      }, 5000);
+    } else if (updateStatus.status === 'error') {
+      logInfo('BOOT', 'Update error, skipping in 5s...');
+      timer = setTimeout(() => {
+        logInfo('BOOT', 'Auto-skipping update due to error');
+        setCurrentStage('countdown');
+      }, 5000);
+    } else if (updateStatus.status === 'uptodate') {
+      logInfo('BOOT', 'App is up to date, proceeding...');
+      timer = setTimeout(() => setCurrentStage('countdown'), 1000);
     }
+
     return () => { if (timer) clearTimeout(timer); };
-    
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateStatus.status, currentStage]);
+  }, [updateStatus.status, currentStage, installUpdate]);
 
   // --- Stage 2: Countdown ---
   useEffect(() => {
@@ -55,9 +63,11 @@ export const BootScreen: React.FC<BootScreenProps> = ({ onBootComplete }) => {
     }
   }, [currentStage, onBootComplete]);
 
+  // --- Handlers ---
   const handleSkipUpdate = () => setCurrentStage('countdown');
   const handleSkipCountdown = () => setCurrentStage('complete');
 
+  // Phase 1: Update dialog
   if (currentStage === 'update') {
     return (
       <div style={{ position: 'fixed', inset: 0, backgroundColor: '#111827', zIndex: 50 }}>
@@ -73,17 +83,57 @@ export const BootScreen: React.FC<BootScreenProps> = ({ onBootComplete }) => {
     );
   }
 
+  // Phase 2: Countdown
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: '#111827', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-      <div style={{ textAlign: 'center' }}>
-        <h1 style={{ fontSize: '2.25rem', fontWeight: 'bold', color: 'white', marginBottom: '2rem' }}>Gido System</h1>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'linear-gradient(to bottom, #111827, #000000)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 50,
+      }}
+    >
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <h1 style={{ fontSize: '2.25rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem' }}>
+            Gido System
+          </h1>
+        </div>
+
         {currentStage === 'countdown' && (
-          <div style={{ backgroundColor: '#1f2937', padding: '1.5rem', borderRadius: '8px' }}>
-            <div style={{ fontSize: '3rem', fontWeight: 'bold', color: 'white' }}>{countdownSeconds}</div>
-            <p style={{ color: '#9ca3af', marginBottom: '1rem' }}>Seconds remaining</p>
-            <button onClick={handleSkipCountdown} style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              Start Now
-            </button>
+          <div style={{ width: '24rem' }}>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '1.5rem',
+                backgroundColor: '#1f2937',
+                borderRadius: '8px',
+              }}
+            >
+              <div style={{ fontSize: '3rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem' }}>
+                {countdownSeconds}
+              </div>
+              <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '1rem' }}>
+                Seconds remaining
+              </p>
+              <button
+                onClick={handleSkipCountdown}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                }}
+              >
+                Start Now
+              </button>
+            </div>
           </div>
         )}
       </div>
