@@ -1,5 +1,5 @@
 // src/hooks/useAutoUpdate.ts
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { check } from '@tauri-apps/plugin-updater';
 import type { Update, DownloadEvent } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -106,9 +106,13 @@ export const useAutoUpdate = () => {
     }
   };
 
-  const installUpdate = async () => {
-    try { await relaunch(); } catch (error) { logError('UPDATER', 'Failed to relaunch app', { error: String(error) }); }
-  };
+  const installUpdate = useCallback(async () => {
+    try { 
+      await relaunch(); 
+    } catch (error) { 
+      logError('UPDATER', 'Failed to relaunch app', { error: String(error) }); 
+    }
+  }, []);
 
   return { updateStatus, installUpdate };
 };
