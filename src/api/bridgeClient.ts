@@ -64,7 +64,7 @@ export function normalizeBridgeShops(rawList: BridgeShop[]): Shop[] {
 
     return {
       shopId,
-      name: shopName || "",
+      name: shopName ? shopName.replace(/【.*?】/g, "").trim() : "",
       genre: item.genre,
       genreMemo: genreMemo || "",
       number: item.number,

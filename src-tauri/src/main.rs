@@ -6,7 +6,7 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use chrono::Local;
 use sysinfo::System;
 
@@ -326,8 +326,15 @@ struct SystemInfoResponse {
 
 #[tauri::command]
 fn get_system_info() -> SystemInfoResponse {
-    let mut sys = System::new_all();
-    sys.refresh_all();
+    let mut sys = System::new();
+    // First CPU sample (populates CPU list for brand/core count)
+    sys.refresh_cpu_all();
+    // Wait 200ms between samples for accurate CPU usage measurement
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    // Second CPU sample (now global_cpu_usage() returns meaningful value)
+    sys.refresh_cpu_usage();
+    // Memory only (skip processes, disks, networks, components)
+    sys.refresh_memory();
 
     // CPU info
     let cpu_name = sys.cpus().first()
@@ -345,8 +352,8 @@ fn get_system_info() -> SystemInfoResponse {
         0.0
     };
 
-    // GPU info via Windows wmic (best-effort)
-    let gpu_name = get_gpu_name();
+    // GPU info via Windows wmic (cached after first call)
+    let gpu_name = get_gpu_name_cached();
 
     // OS info
     let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
@@ -363,6 +370,12 @@ fn get_system_info() -> SystemInfoResponse {
         os_name,
         os_version,
     }
+}
+
+static GPU_NAME_CACHE: OnceLock<String> = OnceLock::new();
+
+fn get_gpu_name_cached() -> String {
+    GPU_NAME_CACHE.get_or_init(|| get_gpu_name()).clone()
 }
 
 fn get_gpu_name() -> String {

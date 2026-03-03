@@ -156,11 +156,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
       logInfo("DATA_SYNC", "Using shops from SSE event", {
         count: providedShops.length,
       });
-      const cleaned = providedShops.map((s) => ({
-        ...s,
-        name: s.name ? s.name.replace(/【.*?】/g, "").trim() : "",
-      }));
-      setShops(cleaned);
+      setShops(providedShops);
       setError(null);
       saveShopCache(providedShops);
       return;
@@ -171,11 +167,7 @@ const GidoApp: React.FC<GidoAppProps> = ({
     try {
       const cached = loadShopCache();
       if (cached && cached.length > 0) {
-        const cleaned = cached.map((s) => ({
-          ...s,
-          name: s.name ? s.name.replace(/【.*?】/g, "").trim() : "",
-        }));
-        setShops(cleaned);
+        setShops(cached);
         setError(null);
         hasShownCache = true;
         logInfo("DATA_SYNC", "Displaying cached shop data", {
@@ -191,15 +183,11 @@ const GidoApp: React.FC<GidoAppProps> = ({
     try {
       const apiData = await fetchShops();
       if (apiData) {
-        const cleaned = apiData.map((s) => ({
-          ...s,
-          name: s.name ? s.name.replace(/【.*?】/g, "").trim() : "",
-        }));
-        setShops(cleaned);
+        setShops(apiData);
         setError(null);
         saveShopCache(apiData);
         logInfo("DATA_SYNC", "Shop data synced from API", {
-          count: cleaned.length,
+          count: apiData.length,
         });
       }
     } catch (e: unknown) {
