@@ -4,6 +4,9 @@ import { extractShopsFromResponse, normalizeBridgeShops } from "../api/bridgeCli
 import type { Shop } from "../types/shop";
 import { logInfo, logError } from "../logs/logging";
 
+// Module-level cache for SSE data diff detection (avoids redundant processing)
+let lastShopsRawData: string | null = null;
+
 export function useBridgeEvents(onUpdate: (shops?: Shop[]) => void) {
   useEffect(() => {
     // Connect if not already connected
@@ -11,9 +14,16 @@ export function useBridgeEvents(onUpdate: (shops?: Shop[]) => void) {
 
     const unsubscribeShops = sseClient.on('shops', (data) => {
         try {
-            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            // Diff detection: skip all processing if data is unchanged
+            const rawData = typeof data === 'string' ? data : JSON.stringify(data);
+            if (rawData === lastShopsRawData) {
+                return;
+            }
+            lastShopsRawData = rawData;
+
+            const parsed = JSON.parse(rawData);
             logInfo("DATA_SYNC", "Realtime update received (shops)", { 
-                dataSize: JSON.stringify(parsed).length 
+                dataSize: rawData.length 
             });
             
             // Extract and normalize directly from event data
