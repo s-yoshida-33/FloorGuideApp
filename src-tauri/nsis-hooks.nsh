@@ -2,8 +2,8 @@
 ; タスクスケジューラへの登録・削除を行う
 
 !macro NSIS_HOOK_POSTINSTALL
-  ; --- Windows起動時に自動で起動（ログオン後10秒遅延） ---
-  ExecWait 'schtasks /create /tn "Gido Auto Start" /tr "\"$INSTDIR\gido.exe\"" /sc onlogon /delay 0000:10 /f'
+  ; --- Windows起動時に自動で起動（ログオン後30秒遅延） ---
+  ExecWait 'schtasks /create /tn "Gido Auto Start" /tr "\"$INSTDIR\gido.exe\"" /sc onlogon /delay 0000:30 /f'
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
