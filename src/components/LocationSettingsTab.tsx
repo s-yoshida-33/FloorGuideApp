@@ -8,6 +8,7 @@ export interface LocationSettingsTabProps {
   onChangeFloor: (floor: FloorId) => void;
   locationIconSettings: LocationIconSettings;
   onChangeLocationIconSettings: React.Dispatch<React.SetStateAction<LocationIconSettings>>;
+  floors?: FloorId[];
 }
 
 const clampPercent = (value: number) =>
@@ -731,8 +732,8 @@ export const LocationSettingsTab: React.FC<LocationSettingsTabProps> = ({
   onChangeFloor,
   locationIconSettings,
   onChangeLocationIconSettings,
+  floors = ["1F", "2F", "3F", "4F"],
 }) => {
-  const floors: FloorId[] = ["1F", "2F", "3F", "4F"];
   const [selectedFloor, setSelectedFloor] = useState<FloorId>(floor);
 
   // Update preview floor when selected floor changes

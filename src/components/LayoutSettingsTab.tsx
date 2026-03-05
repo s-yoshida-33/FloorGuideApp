@@ -7,6 +7,7 @@ export interface LayoutSettingsTabProps {
   floorLayout: FloorLayout;
   onChangeFloorLayout: (layout: FloorLayout) => void;
   errors: Record<string, string>;
+  floors?: FloorId[];
 }
 
 export const LayoutSettingsTab: React.FC<LayoutSettingsTabProps> = ({
@@ -15,8 +16,8 @@ export const LayoutSettingsTab: React.FC<LayoutSettingsTabProps> = ({
   floorLayout,
   onChangeFloorLayout,
   errors,
+  floors = ["1F", "2F", "3F", "4F"],
 }) => {
-  const floors: FloorId[] = ["1F", "2F", "3F", "4F"];
   const [selectedFloor, setSelectedFloor] = useState<FloorId>(floor);
 
   // Update preview floor when selected floor changes

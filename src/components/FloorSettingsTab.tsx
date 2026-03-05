@@ -5,13 +5,14 @@ export type FloorId = "1F" | "2F" | "3F" | "4F";
 export interface FloorSettingsTabProps {
   floor: FloorId;
   onChangeFloor: (floor: FloorId) => void;
+  floors?: FloorId[];
 }
 
 export const FloorSettingsTab: React.FC<FloorSettingsTabProps> = ({
   floor,
   onChangeFloor,
+  floors = ["1F", "2F", "3F", "4F"],
 }) => {
-  const floors: FloorId[] = ["1F", "2F", "3F", "4F"];
 
   return (
     <div>

@@ -1,25 +1,20 @@
 // src/screens/GidoApp.tsx
-import React, { useEffect, useState, useRef, useCallback } from "react";
+// Mall-aware layout router: delegates rendering to per-mall layout components
+// while keeping shared data-fetching logic (shops, SSE, cache) here.
 
-import ShopList from "../components/ShopList";
+import React, { useEffect, useState, useCallback } from "react";
+
 import type { Shop } from "../types/shop";
-
-import floorMap1F from "../assets/floor-1F-map.webp";
-import floorMap2F from "../assets/floor-2F-map.webp";
-import floorMap3F from "../assets/floor-3F-map.webp";
-import floorMap4F from "../assets/floor-4F-map.webp";
-import openTimeImage from "../assets/open-time.webp";
+import type { MallId } from "../types/mall";
 
 import { APP_CONFIG, POLLING_INTERVALS } from "../config";
 import { fetchShops } from "../repositories/shopRepository";
 import { loadShopCache, saveShopCache } from "../repositories/shopCache";
 import { useBridgeEvents } from "../hooks/useBridgeEvents";
-import VerticalVideoSlot from "../components/VerticalVideoSlot";
 
 import type { LocationIconSettings } from "../types/locationIcon";
-import { LocationIconsOverlay } from "../components/LocationIconsOverlay";
 import type { ImageSettings } from "../types/imageSettings";
-import type { FloorId } from "../types/floorLayout";
+import type { FloorLayout } from "../types/floorLayout";
 import {
   DEFAULT_GENRE_MAPPINGS,
   type GenreMappings,
@@ -30,33 +25,21 @@ import type { ShopSettings } from "../types/shopSettings";
 
 import { logInfo, logError } from "../logs/logging";
 
-const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
-const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
+import { SakaikitahanadaLayout, SuzakaLayout } from "./layouts";
+import type { LayoutProps } from "./layouts";
 
-const FLOOR_MAPS: Record<string, string> = {
-  "1F": floorMap1F,
-  "2F": floorMap2F,
-  "3F": floorMap3F,
-  "4F": floorMap4F,
+// --------------------------------------------------------------------------
+// Layout registry: add new mall layouts here
+// --------------------------------------------------------------------------
+const LAYOUT_MAP: Record<MallId, React.FC<LayoutProps>> = {
+  sakaikitahanada: SakaikitahanadaLayout,
+  suzaka: SuzakaLayout,
 };
 
-type ColumnPadding = {
-  top?: number;
-  right?: number;
-  bottom?: number;
-  left?: number;
-};
-
-type FloorLayoutPerFloor = {
-  columns: number;
-  rowsPerCol: number;
-  perColumnRows?: number[];
-  perColumnPadding?: ColumnPadding[];
-};
-
-type FloorLayout = Record<string, FloorLayoutPerFloor>;
-
-const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
+// --------------------------------------------------------------------------
+// Default floor layout (fallback only)
+// --------------------------------------------------------------------------
+const DEFAULT_FLOOR_LAYOUT: Record<string, { columns: number; rowsPerCol: number }> = {
   "1F": { columns: 3, rowsPerCol: 20 },
   "2F": { columns: 2, rowsPerCol: 19 },
   "3F": { columns: 3, rowsPerCol: 20 },
@@ -64,6 +47,7 @@ const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
 };
 
 interface GidoAppProps {
+  mallId: MallId;
   locationIconSettings: LocationIconSettings;
   previewFloor?: string;
   previewFloorLayout?: FloorLayout;
@@ -75,6 +59,7 @@ interface GidoAppProps {
 }
 
 const GidoApp: React.FC<GidoAppProps> = ({
+  mallId,
   locationIconSettings,
   previewFloor,
   previewFloorLayout,
@@ -92,45 +77,6 @@ const GidoApp: React.FC<GidoAppProps> = ({
   );
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const floorMapRef = useRef<HTMLImageElement>(null);
-  const openTimeImageRef = useRef<HTMLImageElement>(null);
-
-  // Periodic image visibility check (every 5 minutes)
-  useEffect(() => {
-    if (isPreview) return;
-
-    const checkVisibility = () => {
-      let needsReload = false;
-
-      if (floorMapRef.current) {
-        const { naturalWidth, complete } = floorMapRef.current;
-        if (!complete || naturalWidth === 0) {
-          logError("ASSET_CHECK", "Floor map broken image detected", { floor });
-          needsReload = true;
-        }
-      }
-
-      if (openTimeImageRef.current) {
-        const { naturalWidth, complete } = openTimeImageRef.current;
-        if (!complete || naturalWidth === 0) {
-          logError("ASSET_CHECK", "Open time broken image detected");
-          needsReload = true;
-        }
-      }
-
-      if (needsReload) {
-        logInfo("ASSET_CHECK", "Triggering auto-reload due to asset failure");
-        setRefreshKey((prev) => prev + 1);
-      }
-    };
-
-    const intervalId = window.setInterval(
-      checkVisibility,
-      POLLING_INTERVALS.IMAGE_CHECK_MS,
-    );
-    return () => window.clearInterval(intervalId);
-  }, [floor, previewFloor]);
-
   // Sync preview props
   useEffect(() => {
     if (previewFloor !== undefined) setFloor(previewFloor);
@@ -140,15 +86,15 @@ const GidoApp: React.FC<GidoAppProps> = ({
     if (previewFloorLayout !== undefined) setFloorLayout(previewFloorLayout);
   }, [previewFloorLayout]);
 
-  // Select floor map: custom (asset URL from settings) > bundled default
-  const floorId = floor as FloorId;
-  const customFloorMap = floorId
-    ? imageSettings?.floorMaps?.[floorId]
-    : undefined;
-  const floorMap = customFloorMap || FLOOR_MAPS[floor] || floorMap1F;
-
-  const videoWidthVh = TOP_HEIGHT_VH * (9 / 16);
-  const listWidthVh = 100 - videoWidthVh;
+  // Periodic image-visibility check (every 5 minutes)
+  useEffect(() => {
+    if (isPreview) return;
+    const intervalId = window.setInterval(() => {
+      // Simple reload trigger — the layout components handle their own refs
+      setRefreshKey((prev) => prev + 1);
+    }, POLLING_INTERVALS.IMAGE_CHECK_MS);
+    return () => window.clearInterval(intervalId);
+  }, [isPreview]);
 
   // Shop data loading with SWR pattern
   const loadShops = useCallback(async (providedShops?: Shop[]) => {
@@ -210,167 +156,23 @@ const GidoApp: React.FC<GidoAppProps> = ({
 
   useBridgeEvents(loadShops);
 
-  const currentLayout =
-    floorLayout[floor] ??
-    DEFAULT_FLOOR_LAYOUT[floor] ??
-    DEFAULT_FLOOR_LAYOUT["1F"];
+  // Select the layout component for the active mall
+  const LayoutComponent = LAYOUT_MAP[mallId] ?? SakaikitahanadaLayout;
 
   return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        overflow: "hidden",
-        fontFamily: "'Rounded Mplus 1c', sans-serif",
-        fontWeight: 700,
-      }}
-    >
-      {/* Top: map + video area */}
-      <div style={{ display: "flex", height: `${TOP_HEIGHT_VH}vh` }}>
-        {/* Floor map */}
-        <div
-          style={{
-            flex: 2,
-            position: "relative",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <img
-            ref={floorMapRef}
-            src={floorMap}
-            alt={`Floor map ${floor}`}
-            draggable={false}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "100%",
-              objectFit: "contain",
-            }}
-            onLoad={() => {
-              logInfo("ASSET_CHECK", "Floor map rendered", { floor });
-            }}
-            onError={(event) => {
-              logError("ASSET_CHECK", "Floor map load failed", {
-                floor,
-                reason: "FILE_NOT_FOUND_OR_CORRUPT",
-              });
-              (event.target as HTMLImageElement).style.visibility = "hidden";
-            }}
-          />
-          <LocationIconsOverlay settings={locationIconSettings} />
-        </div>
-
-        {/* Video area */}
-        <div
-          style={{
-            width: `${videoWidthVh}vh`,
-            background: "#000",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxHeight: "100%",
-              aspectRatio: "9 / 16",
-              overflow: "hidden",
-              background: "#000",
-            }}
-          >
-            {isPreview ? (
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#555",
-                  fontSize: "1.5vh",
-                  fontWeight: "normal",
-                }}
-              >
-                (設定中は非表示)
-              </div>
-            ) : (
-              <VerticalVideoSlot key={refreshKey} />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom: shop list + open-time image */}
-      <div
-        style={{
-          height: `${LIST_HEIGHT_VH}vh`,
-          display: "flex",
-          flexDirection: "row",
-        }}
-      >
-        <div
-          style={{
-            flex: 2,
-            width: `${listWidthVh}vh`,
-            height: `${LIST_HEIGHT_VH}vh`,
-          }}
-        >
-          {error ? (
-            <div style={{ padding: "16px 32px", color: "red" }}>
-              Error: {error}
-            </div>
-          ) : (
-            <ShopList
-              shops={shops}
-              floor={floor}
-              columnCount={currentLayout.columns}
-              rowsPerColumn={currentLayout.rowsPerCol}
-              perColumnRows={currentLayout.perColumnRows}
-              perColumnPadding={currentLayout.perColumnPadding}
-              genreMappings={genreMappings}
-              genreMemoSettings={genreMemoSettings}
-              shopSettings={shopSettings}
-            />
-          )}
-        </div>
-
-        {/* Open-time image */}
-        <div
-          style={{
-            width: `${videoWidthVh}vh`,
-            height: `${LIST_HEIGHT_VH}vh`,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            background: "#fff",
-            margin: "0 auto",
-          }}
-        >
-          <img
-            ref={openTimeImageRef}
-            key={`opentime-${refreshKey}`}
-            src={imageSettings?.openTimeImage || openTimeImage}
-            alt="Open Time"
-            style={{
-              maxWidth: "100%",
-              maxHeight: "100%",
-              objectFit: "contain",
-              padding: "1.4em",
-            }}
-            onLoad={() => {
-              logInfo("ASSET_CHECK", "Open-time image loaded");
-            }}
-            onError={(event) => {
-              logError("ASSET_CHECK", "Failed to load open-time image");
-              (event.target as HTMLImageElement).style.visibility = "hidden";
-            }}
-          />
-        </div>
-      </div>
-    </div>
+    <LayoutComponent
+      shops={shops}
+      floor={floor}
+      floorLayout={floorLayout}
+      locationIconSettings={locationIconSettings}
+      imageSettings={imageSettings}
+      genreMappings={genreMappings}
+      genreMemoSettings={genreMemoSettings}
+      shopSettings={shopSettings}
+      isPreview={isPreview}
+      refreshKey={refreshKey}
+      error={error}
+    />
   );
 };
 
