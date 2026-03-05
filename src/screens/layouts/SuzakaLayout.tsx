@@ -10,9 +10,9 @@ import ShopList from "../../components/ShopList";
 import VerticalVideoSlot from "../../components/VerticalVideoSlot";
 import { LocationIconsOverlay } from "../../components/LocationIconsOverlay";
 
-import floorMap1F from "../../assets/malls/suzaka/floor-1F-map.svg";
-import floorMap2F from "../../assets/malls/suzaka/floor-2F-map.svg";
-import floorMap3F from "../../assets/malls/suzaka/floor-3F-map.svg";
+import floorMap1F from "../../assets/malls/suzaka/floor-1F-map.webp";
+import floorMap2F from "../../assets/malls/suzaka/floor-2F-map.webp";
+import floorMap3F from "../../assets/malls/suzaka/floor-3F-map.webp";
 
 import type { FloorId } from "../../types/floorLayout";
 import {

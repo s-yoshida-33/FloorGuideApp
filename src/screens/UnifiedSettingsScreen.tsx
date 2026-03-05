@@ -19,6 +19,7 @@ import type { GenreMappings, GenreMemoSettings } from "../types/genreSettings";
 import type { ShopSettings } from "../types/shopSettings";
 import type { BlackScreenSettings } from "../types/blackScreenSettings";
 import { DEFAULT_BLACK_SCREEN_SETTINGS } from "../types/blackScreenSettings";
+import { DEFAULT_GENRE_MEMO_SETTINGS } from "../types/genreSettings";
 import {
   ensureMallSettingsFile,
   loadMallSettings,
@@ -77,6 +78,56 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   const [shopSettings, setShopSettings] = useState<ShopSettings>(initialShopSettings);
   const [blackScreenSettings, setBlackScreenSettings] = useState<BlackScreenSettings>(initialBlackScreenSettings);
 
+  // Per-mall state cache to prevent cross-contamination when switching malls
+  type MallLocalState = {
+    floor: FloorId;
+    floorLayout: FloorLayout;
+    locationIconSettings: LocationIconSettings;
+    imageSettings: ImageSettings;
+    genreMappings: GenreMappings;
+    genreMemoSettings: GenreMemoSettings;
+    shopSettings: ShopSettings;
+    blackScreenSettings: BlackScreenSettings;
+  };
+  const mallStateCacheRef = useRef<Partial<Record<MallId, MallLocalState>>>({
+    [initialMallId]: {
+      floor: initialFloor,
+      floorLayout: initialFloorLayout,
+      locationIconSettings: initialLocationIconSettings,
+      imageSettings: initialImageSettings,
+      genreMappings: initialGenreMappings,
+      genreMemoSettings: initialGenreMemoSettings,
+      shopSettings: initialShopSettings,
+      blackScreenSettings: initialBlackScreenSettings,
+    },
+  });
+
+  /** Snapshot current local state into the cache for the given mall */
+  const snapshotToCache = (targetMallId: MallId) => {
+    mallStateCacheRef.current[targetMallId] = {
+      floor,
+      floorLayout,
+      locationIconSettings,
+      imageSettings,
+      genreMappings,
+      genreMemoSettings,
+      shopSettings,
+      blackScreenSettings,
+    };
+  };
+
+  /** Apply a cached (or freshly loaded) state snapshot to all local state */
+  const applySnapshot = (s: MallLocalState) => {
+    setFloor(s.floor);
+    setFloorLayout(s.floorLayout);
+    setLocationIconSettings(s.locationIconSettings);
+    setImageSettings(s.imageSettings);
+    setGenreMappings(s.genreMappings);
+    setGenreMemoSettings(s.genreMemoSettings);
+    setShopSettings(s.shopSettings);
+    setBlackScreenSettings(s.blackScreenSettings);
+  };
+
   // Transform wrapper ref for programmatic control
   const transformRef = useRef<{
     zoomIn: () => void;
@@ -113,22 +164,33 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   const handleMallChange = async (newMallId: MallId) => {
     if (newMallId === mallId) return;
 
+    // Save current editing state for the mall we're leaving
+    snapshotToCache(mallId);
+
     setMallId(newMallId);
     const config = getMallConfig(newMallId);
 
-    // Ensure per-mall settings file exists
-    await ensureMallSettingsFile(newMallId);
-    const ms = await loadMallSettings(newMallId);
-
-    // Apply loaded settings to local state
-    setFloor(config.defaultFloor);
-    if (ms.floorLayout) setFloorLayout(ms.floorLayout);
-    if (ms.locationIcons) setLocationIconSettings(ms.locationIcons);
-    if (ms.imageSettings) setImageSettings(ms.imageSettings);
-    if (ms.genreMappings) setGenreMappings(ms.genreMappings);
-    if (ms.genreMemoSettings) setGenreMemoSettings(ms.genreMemoSettings);
-    setShopSettings(ms.shopSettings ?? {});
-    if (ms.blackScreenSettings) setBlackScreenSettings(ms.blackScreenSettings);
+    // Restore from cache if we've already visited this mall in this session
+    const cached = mallStateCacheRef.current[newMallId];
+    if (cached) {
+      applySnapshot(cached);
+    } else {
+      // First visit — load from disk
+      await ensureMallSettingsFile(newMallId);
+      const ms = await loadMallSettings(newMallId);
+      const snapshot: MallLocalState = {
+        floor: config.defaultFloor,
+        floorLayout: ms.floorLayout ?? config.defaultFloorLayout,
+        locationIconSettings: ms.locationIcons ?? initialLocationIconSettings,
+        imageSettings: ms.imageSettings ?? {} as ImageSettings,
+        genreMappings: ms.genreMappings ?? {},
+        genreMemoSettings: ms.genreMemoSettings ?? DEFAULT_GENRE_MEMO_SETTINGS,
+        shopSettings: ms.shopSettings ?? {},
+        blackScreenSettings: ms.blackScreenSettings ?? DEFAULT_BLACK_SCREEN_SETTINGS,
+      };
+      mallStateCacheRef.current[newMallId] = snapshot;
+      applySnapshot(snapshot);
+    }
 
     setErrors({});
   };
