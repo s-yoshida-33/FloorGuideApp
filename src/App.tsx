@@ -162,7 +162,6 @@ const App: React.FC = () => {
       // 2. Load global settings
       const global = await loadGlobalSettings();
       setMallId(global.mallId);
-      setFloor(global.floor);
 
       if (!global.setupCompleted) {
         setAppPhase("mall_select");
@@ -172,7 +171,10 @@ const App: React.FC = () => {
       // 3. Load per-mall settings
       await ensureMallSettingsFile(global.mallId);
       const ms = await loadMallSettings(global.mallId);
-      applyMallSettings(ms, global.floor);
+      const config = getMallConfig(global.mallId);
+      const loadedFloor = ms.floor ?? config.defaultFloor;
+      setFloor(loadedFloor);
+      applyMallSettings(ms, loadedFloor);
 
       logInfo("SYS_INIT", "Settings loaded successfully", {
         mallId: global.mallId,
@@ -214,14 +216,13 @@ const App: React.FC = () => {
   const handleInitialSetupSave = useCallback(
     async (mallSettings: MallSettingsFile, newFloor: FloorId) => {
       try {
-        // Save per-mall settings
-        await saveMallSettings(mallId, mallSettings);
+        // Save per-mall settings (includes floor)
+        await saveMallSettings(mallId, { ...mallSettings, floor: newFloor });
         applyMallSettings(mallSettings, newFloor);
 
         // Save global settings with setupCompleted = true
         await saveGlobalSettings({
           mallId,
-          floor: newFloor,
           setupCompleted: true,
         });
 
@@ -247,14 +248,13 @@ const App: React.FC = () => {
       newMallId: MallId,
     ) => {
       try {
-        // Save per-mall settings
-        await saveMallSettings(newMallId, mallSettings);
+        // Save per-mall settings (includes floor)
+        await saveMallSettings(newMallId, { ...mallSettings, floor: newFloor });
         applyMallSettings(mallSettings, newFloor);
 
         // Save global settings
         await saveGlobalSettings({
           mallId: newMallId,
-          floor: newFloor,
           setupCompleted: true,
         });
 

@@ -45,7 +45,6 @@ const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
 
 const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   mallId: 'sakaikitahanada',
-  floor: '1F',
   setupCompleted: false,
 };
 
@@ -55,7 +54,6 @@ export async function loadGlobalSettings(): Promise<GlobalSettings> {
     const raw = JSON.parse(json) as Partial<GlobalSettings>;
     return {
       mallId: raw.mallId ?? DEFAULT_GLOBAL_SETTINGS.mallId,
-      floor: raw.floor ?? DEFAULT_GLOBAL_SETTINGS.floor,
       setupCompleted: raw.setupCompleted ?? DEFAULT_GLOBAL_SETTINGS.setupCompleted,
     };
   } catch (error) {
@@ -90,6 +88,7 @@ function getMallSettingsFilename(mallId: MallId): string {
 function getDefaultMallSettingsFile(mallId: MallId): MallSettingsFile {
   const config = getMallConfig(mallId);
   return {
+    floor: config.defaultFloor,
     floorLayout: config.defaultFloorLayout,
     locationIcons: DEFAULT_LOCATION_ICON_SETTINGS,
     imageSettings: DEFAULT_IMAGE_SETTINGS,
@@ -108,6 +107,7 @@ export async function loadMallSettings(mallId: MallId): Promise<MallSettingsFile
     const defaults = getDefaultMallSettingsFile(mallId);
 
     return {
+      floor: raw.floor ?? defaults.floor,
       floorLayout: raw.floorLayout
         ? { ...defaults.floorLayout, ...raw.floorLayout }
         : defaults.floorLayout,
@@ -190,6 +190,23 @@ export async function migrateFromLegacyIfNeeded(): Promise<void> {
 
     // Already migrated if mallId exists
     if (raw.mallId !== undefined) {
+      // v2 migration: move floor from global to per-mall settings if still present
+      if (raw.floor !== undefined) {
+        const mid: MallId = raw.mallId;
+        try {
+          const ms = await loadMallSettings(mid);
+          if (ms.floor === undefined || ms.floor === getMallConfig(mid).defaultFloor) {
+            await saveMallSettings(mid, { ...ms, floor: raw.floor });
+          }
+        } catch { /* ignore */ }
+        // Remove floor from global settings
+        const { floor: _removed, ...rest } = raw;
+        await saveGlobalSettings({
+          mallId: rest.mallId ?? DEFAULT_GLOBAL_SETTINGS.mallId,
+          setupCompleted: rest.setupCompleted ?? false,
+        });
+        logInfo('CONFIG', 'Migrated floor from global to per-mall settings');
+      }
       return;
     }
 
@@ -202,6 +219,7 @@ export async function migrateFromLegacyIfNeeded(): Promise<void> {
     if (!exists) {
       // Extract mall-specific fields from old settings.json
       const mallSettings: MallSettingsFile = {
+        floor: raw.floor ?? '1F',
         floorLayout: raw.floorLayout,
         locationIcons: raw.locationIcons,
         imageSettings: raw.imageSettings,
@@ -217,7 +235,6 @@ export async function migrateFromLegacyIfNeeded(): Promise<void> {
     // Rewrite settings.json as GlobalSettings
     const globalSettings: GlobalSettings = {
       mallId,
-      floor: raw.floor ?? '1F',
       setupCompleted: true, // existing install = setup already done
     };
     await saveGlobalSettings(globalSettings);

@@ -179,7 +179,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
       await ensureMallSettingsFile(newMallId);
       const ms = await loadMallSettings(newMallId);
       const snapshot: MallLocalState = {
-        floor: config.defaultFloor,
+        floor: ms.floor ?? config.defaultFloor,
         floorLayout: ms.floorLayout ?? config.defaultFloorLayout,
         locationIconSettings: ms.locationIcons ?? initialLocationIconSettings,
         imageSettings: ms.imageSettings ?? {} as ImageSettings,
@@ -273,6 +273,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     try {
       setSaving(true);
       const mallSettings: MallSettingsFile = {
+        floor,
         floorLayout,
         locationIcons: locationIconSettings,
         imageSettings,

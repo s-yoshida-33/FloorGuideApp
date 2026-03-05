@@ -36,6 +36,7 @@ export interface MallConfig {
  * This is the runtime-editable state for each mall.
  */
 export interface MallSettingsFile {
+  floor?: FloorId;
   floorLayout?: FloorLayout;
   locationIcons?: import('./locationIcon').LocationIconSettings;
   imageSettings?: import('./imageSettings').ImageSettings;
@@ -51,6 +52,5 @@ export interface MallSettingsFile {
  */
 export interface GlobalSettings {
   mallId: MallId;
-  floor: FloorId;
   setupCompleted?: boolean;
 }
