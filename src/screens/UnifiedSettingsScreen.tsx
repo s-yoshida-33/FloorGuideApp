@@ -321,9 +321,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     { id: "image", label: "画像" },
     { id: "genre", label: "ジャンル表記" },
     { id: "shop", label: "ショップ別設定" },
-    ...(mallConfig.hasBlackScreen
-      ? [{ id: "blackScreen" as TabType, label: "ブラックスクリーン" }]
-      : []),
+    { id: "blackScreen", label: "ブラックスクリーン" },
   ];
 
   return (
@@ -614,7 +612,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               onChangeShopSettings={setShopSettings}
             />
           )}
-          {activeTab === "blackScreen" && mallConfig.hasBlackScreen && (
+          {activeTab === "blackScreen" && (
             <BlackScreenSettingsTab
               settings={blackScreenSettings}
               onChangeSettings={setBlackScreenSettings}

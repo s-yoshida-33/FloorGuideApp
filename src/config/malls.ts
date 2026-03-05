@@ -19,7 +19,6 @@ export const MALL_CONFIGS: Record<MallId, MallConfig> = {
     },
     videoOrientation: "vertical",
     hasOpenTimeImage: true,
-    hasBlackScreen: true,
     genreOrder: [
       "ファッション",
       "ファッション雑貨",
@@ -47,7 +46,6 @@ export const MALL_CONFIGS: Record<MallId, MallConfig> = {
     },
     videoOrientation: "horizontal",
     hasOpenTimeImage: false,
-    hasBlackScreen: false,
     genreOrder: [
       "ファッション",
       "ファッション雑貨",
