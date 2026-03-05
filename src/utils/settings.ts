@@ -4,8 +4,10 @@ import type { LocationIconSettings } from '../types/locationIcon';
 import type { ImageSettings } from '../types/imageSettings';
 import type { GenreMappings, GenreMemoSettings } from '../types/genreSettings';
 import type { ShopSettings } from '../types/shopSettings';
+import type { BlackScreenSettings } from '../types/blackScreenSettings';
 import { DEFAULT_IMAGE_SETTINGS } from '../types/imageSettings';
 import { DEFAULT_GENRE_MAPPINGS, DEFAULT_GENRE_MEMO_SETTINGS } from '../types/genreSettings';
+import { DEFAULT_BLACK_SCREEN_SETTINGS } from '../types/blackScreenSettings';
 import { DEFAULT_LOCATION_ICON_SETTINGS } from '../config';
 import { logInfo, logError } from '../logs/logging';
 
@@ -20,6 +22,7 @@ export interface GidoSettings {
   genreMappings?: GenreMappings;
   genreMemoSettings?: GenreMemoSettings;
   shopSettings?: ShopSettings;
+  blackScreenSettings?: BlackScreenSettings;
 }
 
 const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
@@ -54,6 +57,9 @@ export async function loadSettings(): Promise<GidoSettings> {
         ? { ...DEFAULT_GENRE_MEMO_SETTINGS, ...raw.genreMemoSettings }
         : DEFAULT_GENRE_MEMO_SETTINGS,
       shopSettings: raw.shopSettings ?? {},
+      blackScreenSettings: raw.blackScreenSettings
+        ? { ...DEFAULT_BLACK_SCREEN_SETTINGS, ...raw.blackScreenSettings }
+        : DEFAULT_BLACK_SCREEN_SETTINGS,
     };
   } catch (error) {
     logError('CONFIG', 'Failed to load settings', {
@@ -68,6 +74,7 @@ export async function loadSettings(): Promise<GidoSettings> {
       genreMappings: DEFAULT_GENRE_MAPPINGS,
       genreMemoSettings: DEFAULT_GENRE_MEMO_SETTINGS,
       shopSettings: {},
+      blackScreenSettings: DEFAULT_BLACK_SCREEN_SETTINGS,
     };
   }
 }
