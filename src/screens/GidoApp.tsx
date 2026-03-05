@@ -150,9 +150,11 @@ const GidoApp: React.FC<GidoAppProps> = ({
     }
   }, []);
 
+  // Initial shop data load (once on mount).
+  // Subsequent updates are driven by SSE events via useBridgeEvents.
   useEffect(() => {
     loadShops();
-  }, [loadShops, refreshKey]);
+  }, [loadShops]);
 
   useBridgeEvents(loadShops);
 
