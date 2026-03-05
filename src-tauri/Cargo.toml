@@ -1,6 +1,6 @@
 [package]
 name = "gido"
-version = "1.5.2"
+version = "1.5.3"
 description = "Floor guide display system"
 authors = ["Toei Techno International Inc."]
 license = "UNLICENSED"

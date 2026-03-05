@@ -4,7 +4,7 @@ import GidoApp from "./screens/GidoApp";
 import VersionInfoScreen from "./screens/VersionInfoScreen";
 import UnifiedSettingsScreen from "./screens/UnifiedSettingsScreen";
 import { ContextMenu } from "./components/ContextMenu";
-import { BootScreen } from "./screens/BootScreen";
+import { PatchScreen } from "./screens/PatchScreen";
 import { useHeartbeat } from "./hooks/useHeartbeat";
 import { DEFAULT_LOCATION_ICON_SETTINGS } from "./config";
 import type { LocationIconSettings } from "./types/locationIcon";
@@ -114,7 +114,7 @@ const App: React.FC = () => {
   // Soft reload: re-fetch data without restarting app / BootScreen
   useEffect(() => {
     const handleReload = () => {
-      logInfo("SYS_INIT", "Soft reload triggered via context menu");
+      logInfo("SYS_INIT", "Soft reload triggered via context menu (no PatchScreen restart)");
       setRefreshKey((prev) => prev + 1);
     };
     window.addEventListener('reload-current-view', handleReload);
@@ -224,11 +224,11 @@ const App: React.FC = () => {
   }, [imageSettings, imageUpdateTs]);
 
   // --- RENDER ---
-  // BootScreen is shown INSIDE JSX, never as an early return (hooks rule)
+  // PatchScreen is shown INSIDE JSX, never as an early return (hooks rule)
   if (!bootComplete) {
     return (
       <ErrorBoundary>
-        <BootScreen onBootComplete={() => setBootComplete(true)} />
+        <PatchScreen onComplete={() => setBootComplete(true)} />
       </ErrorBoundary>
     );
   }

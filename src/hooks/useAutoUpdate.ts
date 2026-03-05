@@ -1,5 +1,5 @@
 // src/hooks/useAutoUpdate.ts
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { check } from '@tauri-apps/plugin-updater';
 import type { Update, DownloadEvent } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -26,6 +26,9 @@ export interface UpdateStatus {
   status: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error' | 'uptodate';
   progress: number;
   message: string;
+  transferred?: number;  // bytes downloaded so far
+  total?: number;        // total bytes
+  speed?: number;        // bytes per second
 }
 
 export const useAutoUpdate = () => {
@@ -35,7 +38,15 @@ export const useAutoUpdate = () => {
     message: '',
   });
 
+  // Track whether update check has already been performed this session
+  const updateCheckPerformed = useRef(false);
+
   useEffect(() => {
+    // Only check for updates once per app session
+    if (updateCheckPerformed.current) {
+      return;
+    }
+
     const checkForUpdates = async () => {
       try {
         setUpdateStatus({ status: 'checking', progress: 0, message: 'アップデートを確認中...' });
@@ -61,7 +72,14 @@ export const useAutoUpdate = () => {
         setUpdateStatus({ status: 'error', progress: 0, message: 'アップデート確認に失敗しました' });
       }
     };
-    checkForUpdates();
+
+    // Wait 3 seconds before checking (allows app to fully initialize)
+    const timeout = setTimeout(() => {
+      checkForUpdates();
+      updateCheckPerformed.current = true;
+    }, 3000);
+
+    return () => clearTimeout(timeout);
   }, []);
 
   const downloadAndInstallUpdate = async (update: Update) => {
@@ -85,7 +103,7 @@ export const useAutoUpdate = () => {
             const sizeStr = contentLength > 0 ? `${formatBytes(downloaded)} / ${formatBytes(contentLength)}` : formatBytes(downloaded);
             const remainingStr = formatRemaining(remaining);
             const message = remainingStr ? `ダウンロード中... ${sizeStr} (${remainingStr})` : `ダウンロード中... ${sizeStr}`;
-            setUpdateStatus({ status: 'downloading', progress, message });
+            setUpdateStatus({ status: 'downloading', progress, message, transferred: downloaded, total: contentLength, speed });
             break;
           }
           case 'Finished':
