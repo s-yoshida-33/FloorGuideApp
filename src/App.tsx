@@ -341,9 +341,6 @@ const App: React.FC = () => {
     return processed;
   }, [imageSettings, imageUpdateTs]);
 
-  // Get mall config for active mall
-  const mallConfig = getMallConfig(mallId);
-
   // --- RENDER ---
 
   // Boot / PatchScreen
@@ -454,13 +451,11 @@ const App: React.FC = () => {
           shopSettings={shopSettings}
         />
 
-        {mallConfig.hasBlackScreen && (
-          <BlackScreenOverlay
-            settings={blackScreenSettings}
-            onOpenSettings={() => setIsSettingsVisible(true)}
-            isSettingsOpen={isSettingsVisible}
-          />
-        )}
+        <BlackScreenOverlay
+          settings={blackScreenSettings}
+          onOpenSettings={() => setIsSettingsVisible(true)}
+          isSettingsOpen={isSettingsVisible}
+        />
 
         {isSettingsVisible && (
           <UnifiedSettingsScreen

@@ -25,8 +25,6 @@ export interface MallConfig {
   videoOrientation: "vertical" | "horizontal";
   /** Whether you need the open-time image area */
   hasOpenTimeImage: boolean;
-  /** Whether black-screen overlay is supported */
-  hasBlackScreen: boolean;
   /** Genre display order */
   genreOrder: string[];
   /** Genre English mapping */
