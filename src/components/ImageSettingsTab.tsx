@@ -10,15 +10,17 @@ export interface ImageSettingsTabProps {
   onChangeFloor: (floor: FloorId) => void;
   imageSettings: ImageSettings;
   onChangeImageSettings: (settings: ImageSettings) => void;
+  floors?: FloorId[];
 }
 
-const FLOORS: FloorId[] = ["1F", "2F", "3F", "4F"];
+const DEFAULT_FLOORS: FloorId[] = ["1F", "2F", "3F", "4F"];
 
 export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
   floor,
   onChangeFloor,
   imageSettings,
   onChangeImageSettings,
+  floors: FLOORS = DEFAULT_FLOORS,
 }) => {
   const floorMapInputRef = useRef<HTMLInputElement>(null);
   const openTimeInputRef = useRef<HTMLInputElement>(null);

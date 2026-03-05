@@ -80,6 +80,26 @@ fn get_settings_path() -> Result<PathBuf, String> {
     Ok(dir.join("settings.json"))
 }
 
+/// Resolve a named settings file path inside the app data directory.
+/// Only alphanumeric, hyphen, underscore, and dot are allowed in the filename.
+fn get_named_settings_path(filename: &str) -> Result<PathBuf, String> {
+    // Validate filename to prevent path traversal
+    if filename.is_empty() {
+        return Err("Filename must not be empty".to_string());
+    }
+    if filename.contains("..") {
+        return Err("Filename must not contain '..'".to_string());
+    }
+    let valid = filename.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.');
+    if !valid {
+        return Err(format!("Invalid filename: {}", filename));
+    }
+    let dir = get_app_data_dir()?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create app data directory: {}", e))?;
+    Ok(dir.join(filename))
+}
+
 // ---------------------------------------------------------------------------
 // Slack Webhook sender
 // ---------------------------------------------------------------------------
@@ -230,6 +250,42 @@ fn save_settings(json: String) -> Result<String, String> {
         .map_err(|e| format!("Failed to write settings: {}", e))?;
 
     Ok(json)
+}
+
+// ---------------------------------------------------------------------------
+// Named settings commands (per-mall settings files)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn get_named_settings(filename: String) -> Result<String, String> {
+    let path = get_named_settings_path(&filename)?;
+
+    if !path.exists() {
+        return Ok("{}".to_string());
+    }
+
+    fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read named settings '{}': {}", filename, e))
+}
+
+#[tauri::command]
+fn save_named_settings(filename: String, json: String) -> Result<String, String> {
+    // Validate JSON before writing
+    let _: serde_json::Value = serde_json::from_str(&json)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    let path = get_named_settings_path(&filename)?;
+
+    fs::write(&path, &json)
+        .map_err(|e| format!("Failed to write named settings '{}': {}", filename, e))?;
+
+    Ok(json)
+}
+
+#[tauri::command]
+fn settings_file_exists(filename: String) -> Result<bool, String> {
+    let path = get_named_settings_path(&filename)?;
+    Ok(path.exists())
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +473,9 @@ fn main() {
             fetch_shops_proxy,
             get_settings,
             save_settings,
+            get_named_settings,
+            save_named_settings,
+            settings_file_exists,
             save_image_file,
             get_image_path,
             delete_image_file,

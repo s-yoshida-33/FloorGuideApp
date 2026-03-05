@@ -10,9 +10,16 @@ import { DEFAULT_GENRE_MAPPINGS, DEFAULT_GENRE_MEMO_SETTINGS } from '../types/ge
 import { DEFAULT_BLACK_SCREEN_SETTINGS } from '../types/blackScreenSettings';
 import { DEFAULT_LOCATION_ICON_SETTINGS } from '../config';
 import { logInfo, logError } from '../logs/logging';
+import type { MallId, GlobalSettings, MallSettingsFile } from '../types/mall';
+import { getMallConfig } from '../config/malls';
+
+// ============================================================================
+// Legacy GidoSettings type (kept for backward-compatibility during migration)
+// ============================================================================
 
 /**
  * Full settings structure persisted to disk.
+ * @deprecated Use GlobalSettings + MallSettingsFile instead.
  */
 export interface GidoSettings {
   floor?: FloorId;
@@ -31,6 +38,200 @@ const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
   '3F': { columns: 3, rowsPerCol: 20 },
   '4F': { columns: 2, rowsPerCol: 18 },
 };
+
+// ============================================================================
+// Global Settings (settings.json)
+// ============================================================================
+
+const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
+  mallId: 'sakaikitahanada',
+  floor: '1F',
+  setupCompleted: false,
+};
+
+export async function loadGlobalSettings(): Promise<GlobalSettings> {
+  try {
+    const json = await invoke<string>('get_settings');
+    const raw = JSON.parse(json) as Partial<GlobalSettings>;
+    return {
+      mallId: raw.mallId ?? DEFAULT_GLOBAL_SETTINGS.mallId,
+      floor: raw.floor ?? DEFAULT_GLOBAL_SETTINGS.floor,
+      setupCompleted: raw.setupCompleted ?? DEFAULT_GLOBAL_SETTINGS.setupCompleted,
+    };
+  } catch (error) {
+    logError('CONFIG', 'Failed to load global settings', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { ...DEFAULT_GLOBAL_SETTINGS };
+  }
+}
+
+export async function saveGlobalSettings(settings: GlobalSettings): Promise<void> {
+  try {
+    const json = JSON.stringify(settings, null, 2);
+    await invoke('save_settings', { json });
+    logInfo('CONFIG', 'Global settings saved', { mallId: settings.mallId });
+  } catch (error) {
+    logError('CONFIG', 'Failed to save global settings', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+// ============================================================================
+// Per-mall Settings ({mallId}-settings.json)
+// ============================================================================
+
+function getMallSettingsFilename(mallId: MallId): string {
+  return `${mallId}-settings.json`;
+}
+
+function getDefaultMallSettingsFile(mallId: MallId): MallSettingsFile {
+  const config = getMallConfig(mallId);
+  return {
+    floorLayout: config.defaultFloorLayout,
+    locationIcons: DEFAULT_LOCATION_ICON_SETTINGS,
+    imageSettings: DEFAULT_IMAGE_SETTINGS,
+    genreMappings: DEFAULT_GENRE_MAPPINGS,
+    genreMemoSettings: DEFAULT_GENRE_MEMO_SETTINGS,
+    shopSettings: {},
+    blackScreenSettings: DEFAULT_BLACK_SCREEN_SETTINGS,
+  };
+}
+
+export async function loadMallSettings(mallId: MallId): Promise<MallSettingsFile> {
+  try {
+    const filename = getMallSettingsFilename(mallId);
+    const json = await invoke<string>('get_named_settings', { filename });
+    const raw = JSON.parse(json) as Partial<MallSettingsFile>;
+    const defaults = getDefaultMallSettingsFile(mallId);
+
+    return {
+      floorLayout: raw.floorLayout
+        ? { ...defaults.floorLayout, ...raw.floorLayout }
+        : defaults.floorLayout,
+      locationIcons: mergeLocationIcons(raw.locationIcons),
+      imageSettings: raw.imageSettings
+        ? { ...DEFAULT_IMAGE_SETTINGS, ...raw.imageSettings }
+        : DEFAULT_IMAGE_SETTINGS,
+      genreMappings: raw.genreMappings
+        ? { ...DEFAULT_GENRE_MAPPINGS, ...raw.genreMappings }
+        : DEFAULT_GENRE_MAPPINGS,
+      genreMemoSettings: raw.genreMemoSettings
+        ? { ...DEFAULT_GENRE_MEMO_SETTINGS, ...raw.genreMemoSettings }
+        : DEFAULT_GENRE_MEMO_SETTINGS,
+      shopSettings: raw.shopSettings ?? {},
+      blackScreenSettings: raw.blackScreenSettings
+        ? { ...DEFAULT_BLACK_SCREEN_SETTINGS, ...raw.blackScreenSettings }
+        : DEFAULT_BLACK_SCREEN_SETTINGS,
+    };
+  } catch (error) {
+    logError('CONFIG', `Failed to load mall settings for ${mallId}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return getDefaultMallSettingsFile(mallId);
+  }
+}
+
+export async function saveMallSettings(
+  mallId: MallId,
+  settings: MallSettingsFile,
+): Promise<void> {
+  try {
+    const filename = getMallSettingsFilename(mallId);
+    const json = JSON.stringify(settings, null, 2);
+    await invoke('save_named_settings', { filename, json });
+    logInfo('CONFIG', `Mall settings saved for ${mallId}`);
+  } catch (error) {
+    logError('CONFIG', `Failed to save mall settings for ${mallId}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+export async function mallSettingsFileExists(mallId: MallId): Promise<boolean> {
+  try {
+    const filename = getMallSettingsFilename(mallId);
+    return await invoke<boolean>('settings_file_exists', { filename });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure a per-mall settings file exists. If not, create it with defaults.
+ */
+export async function ensureMallSettingsFile(mallId: MallId): Promise<void> {
+  const exists = await mallSettingsFileExists(mallId);
+  if (!exists) {
+    logInfo('CONFIG', `Creating default settings file for ${mallId}`);
+    const defaults = getDefaultMallSettingsFile(mallId);
+    await saveMallSettings(mallId, defaults);
+  }
+}
+
+// ============================================================================
+// Legacy single-file migration
+// ============================================================================
+
+/**
+ * Migrate from the old single-file settings (v1.x) to the new 2-layer model.
+ * Called once on startup. If the old settings.json contains mall-specific data
+ * (floorLayout, locationIcons, etc.) AND no per-mall file exists yet,
+ * move those fields into sakaikitahanada-settings.json and rewrite settings.json
+ * to the new GlobalSettings format.
+ */
+export async function migrateFromLegacyIfNeeded(): Promise<void> {
+  try {
+    const json = await invoke<string>('get_settings');
+    const raw = JSON.parse(json);
+
+    // Already migrated if mallId exists
+    if (raw.mallId !== undefined) {
+      return;
+    }
+
+    // Old format detected — migrate
+    logInfo('CONFIG', 'Migrating from legacy single-file settings');
+
+    const mallId: MallId = 'sakaikitahanada';
+    const exists = await mallSettingsFileExists(mallId);
+
+    if (!exists) {
+      // Extract mall-specific fields from old settings.json
+      const mallSettings: MallSettingsFile = {
+        floorLayout: raw.floorLayout,
+        locationIcons: raw.locationIcons,
+        imageSettings: raw.imageSettings,
+        genreMappings: raw.genreMappings,
+        genreMemoSettings: raw.genreMemoSettings,
+        shopSettings: raw.shopSettings,
+        blackScreenSettings: raw.blackScreenSettings,
+      };
+      await saveMallSettings(mallId, mallSettings);
+      logInfo('CONFIG', 'Legacy mall settings migrated to sakaikitahanada-settings.json');
+    }
+
+    // Rewrite settings.json as GlobalSettings
+    const globalSettings: GlobalSettings = {
+      mallId,
+      floor: raw.floor ?? '1F',
+      setupCompleted: true, // existing install = setup already done
+    };
+    await saveGlobalSettings(globalSettings);
+    logInfo('CONFIG', 'Legacy global settings migrated');
+  } catch (error) {
+    logError('CONFIG', 'Legacy migration failed (non-fatal)', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+// ============================================================================
+// Backward-compatible loadSettings / saveAllSettings
+// ============================================================================
 
 /**
  * Load all settings from disk via Rust backend.
@@ -65,7 +266,6 @@ export async function loadSettings(): Promise<GidoSettings> {
     logError('CONFIG', 'Failed to load settings', {
       error: error instanceof Error ? error.message : String(error),
     });
-    // Return full defaults on error
     return {
       floor: '1F',
       floorLayout: DEFAULT_FLOOR_LAYOUT,
