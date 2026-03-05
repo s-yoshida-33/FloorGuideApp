@@ -10,13 +10,16 @@ import { LocationSettingsTab } from "../components/LocationSettingsTab";
 import { ImageSettingsTab } from "../components/ImageSettingsTab";
 import { GenreSettingsTab } from "../components/GenreSettingsTab";
 import { ShopSettingsTab } from "../components/ShopSettingsTab";
+import { BlackScreenSettingsTab } from "../components/BlackScreenSettingsTab";
 import iconSvg from "../assets/icon.svg";
 import type { ImageSettings } from "../types/imageSettings";
 import type { GenreMappings, GenreMemoSettings } from "../types/genreSettings";
 import type { ShopSettings } from "../types/shopSettings";
+import type { BlackScreenSettings } from "../types/blackScreenSettings";
+import { DEFAULT_BLACK_SCREEN_SETTINGS } from "../types/blackScreenSettings";
 import type { GidoSettings } from "../utils/settings";
 
-type TabType = "floor" | "layout" | "location" | "image" | "genre" | "shop";
+type TabType = "floor" | "layout" | "location" | "image" | "genre" | "shop" | "blackScreen";
 
 interface UnifiedSettingsScreenProps {
   floor: FloorId;
@@ -26,6 +29,7 @@ interface UnifiedSettingsScreenProps {
   genreMappings: GenreMappings;
   genreMemoSettings: GenreMemoSettings;
   shopSettings: ShopSettings;
+  blackScreenSettings?: BlackScreenSettings;
   onSaveAll: (settings: GidoSettings) => Promise<void>;
   onClose: () => void;
 }
@@ -38,6 +42,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   genreMappings: initialGenreMappings,
   genreMemoSettings: initialGenreMemoSettings,
   shopSettings: initialShopSettings,
+  blackScreenSettings: initialBlackScreenSettings = DEFAULT_BLACK_SCREEN_SETTINGS,
   onSaveAll,
   onClose,
 }) => {
@@ -54,6 +59,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   const [genreMappings, setGenreMappings] = useState<GenreMappings>(initialGenreMappings);
   const [genreMemoSettings, setGenreMemoSettings] = useState<GenreMemoSettings>(initialGenreMemoSettings);
   const [shopSettings, setShopSettings] = useState<ShopSettings>(initialShopSettings);
+  const [blackScreenSettings, setBlackScreenSettings] = useState<BlackScreenSettings>(initialBlackScreenSettings);
 
   // Transform wrapper ref for programmatic control
   const transformRef = useRef<{
@@ -76,11 +82,12 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setGenreMappings(initialGenreMappings);
     setGenreMemoSettings(initialGenreMemoSettings);
     setShopSettings(initialShopSettings);
+    setBlackScreenSettings(initialBlackScreenSettings);
     setErrors({});
     if (transformRef.current) {
       transformRef.current.resetTransform();
     }
-  }, [initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings]);
+  }, [initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings, initialBlackScreenSettings]);
 
   const handleClose = () => {
     setErrors({});
@@ -96,6 +103,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setGenreMappings(initialGenreMappings);
     setGenreMemoSettings(initialGenreMemoSettings);
     setShopSettings(initialShopSettings);
+    setBlackScreenSettings(initialBlackScreenSettings);
     setErrors({});
     // Reset transform
     if (transformRef.current) {
@@ -168,6 +176,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         genreMappings,
         genreMemoSettings,
         shopSettings,
+        blackScreenSettings,
       });
       handleClose();
     } catch (e) {
@@ -333,6 +342,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               { id: "image" as TabType, label: "画像" },
               { id: "genre" as TabType, label: "ジャンル表記" },
               { id: "shop" as TabType, label: "ショップ別設定" },
+              { id: "blackScreen" as TabType, label: "ブラックスクリーン" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -533,6 +543,12 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               <ShopSettingsTab
                 shopSettings={shopSettings}
                 onChangeShopSettings={setShopSettings}
+              />
+            )}
+            {activeTab === "blackScreen" && (
+              <BlackScreenSettingsTab
+                settings={blackScreenSettings}
+                onChangeSettings={setBlackScreenSettings}
               />
             )}
           </div>

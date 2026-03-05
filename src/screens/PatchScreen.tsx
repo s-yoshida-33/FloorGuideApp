@@ -304,7 +304,7 @@ export function PatchScreen({ onComplete }: PatchScreenProps) {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div>Do not turn off your device while updating.</div>
-            <div>© 2025 Toei Techno International Inc.</div>
+            <div>&copy; 2026 Toei Techno International Inc.</div>
           </div>
 
           {/* Skip Button (only visible when waiting) */}

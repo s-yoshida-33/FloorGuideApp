@@ -5,6 +5,7 @@ import VersionInfoScreen from "./screens/VersionInfoScreen";
 import UnifiedSettingsScreen from "./screens/UnifiedSettingsScreen";
 import { ContextMenu } from "./components/ContextMenu";
 import { PatchScreen } from "./screens/PatchScreen";
+import BlackScreenOverlay from "./components/BlackScreenOverlay";
 import { useHeartbeat } from "./hooks/useHeartbeat";
 import { DEFAULT_LOCATION_ICON_SETTINGS } from "./config";
 import type { LocationIconSettings } from "./types/locationIcon";
@@ -16,6 +17,8 @@ import {
 } from "./types/genreSettings";
 import type { GenreMappings, GenreMemoSettings } from "./types/genreSettings";
 import type { ShopSettings } from "./types/shopSettings";
+import type { BlackScreenSettings } from "./types/blackScreenSettings";
+import { DEFAULT_BLACK_SCREEN_SETTINGS } from "./types/blackScreenSettings";
 import type { FloorId, FloorLayout } from "./types/floorLayout";
 import { sseClient } from "./api/sseClient";
 import type { SseConnectionStatus } from "./api/sseClient";
@@ -99,6 +102,9 @@ const App: React.FC = () => {
   const [genreMemoSettings, setGenreMemoSettings] =
     useState<GenreMemoSettings>(DEFAULT_GENRE_MEMO_SETTINGS);
   const [shopSettings, setShopSettings] = useState<ShopSettings>({});
+  const [blackScreenSettings, setBlackScreenSettings] = useState<BlackScreenSettings>(
+    DEFAULT_BLACK_SCREEN_SETTINGS
+  );
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -134,6 +140,7 @@ const App: React.FC = () => {
         if (settings.genreMemoSettings)
           setGenreMemoSettings(settings.genreMemoSettings);
         if (settings.shopSettings) setShopSettings(settings.shopSettings);
+        if (settings.blackScreenSettings) setBlackScreenSettings(settings.blackScreenSettings);
         logInfo("SYS_INIT", "Settings loaded successfully");
       } catch (e) {
         logError("CONFIG", "Failed to load initial settings", {
@@ -182,6 +189,7 @@ const App: React.FC = () => {
       if (settings.genreMemoSettings)
         setGenreMemoSettings(settings.genreMemoSettings);
       if (settings.shopSettings) setShopSettings(settings.shopSettings);
+      if (settings.blackScreenSettings) setBlackScreenSettings(settings.blackScreenSettings);
       logInfo("CONFIG", "All settings saved successfully");
     } catch (e) {
       logError("CONFIG", "Failed to save settings", {
@@ -273,6 +281,12 @@ const App: React.FC = () => {
           shopSettings={shopSettings}
         />
 
+        <BlackScreenOverlay
+          settings={blackScreenSettings}
+          onOpenSettings={() => setIsSettingsVisible(true)}
+          isSettingsOpen={isSettingsVisible}
+        />
+
         {isSettingsVisible && (
           <UnifiedSettingsScreen
             floor={floor}
@@ -282,6 +296,7 @@ const App: React.FC = () => {
             genreMappings={genreMappings}
             genreMemoSettings={genreMemoSettings}
             shopSettings={shopSettings}
+            blackScreenSettings={blackScreenSettings}
             onSaveAll={handleSaveAll}
             onClose={() => setIsSettingsVisible(false)}
           />
