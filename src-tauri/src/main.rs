@@ -6,9 +6,13 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use chrono::Local;
 use sysinfo::System;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Manager, RunEvent, WindowEvent};
 
 // ---------------------------------------------------------------------------
 // State management structure
@@ -64,6 +68,34 @@ fn get_log_file_path() -> Result<PathBuf, String> {
     let log_dir = get_log_dir()?;
     let today = Local::now().format("%Y-%m-%d").to_string();
     Ok(log_dir.join(format!("gido-{}.log", today)))
+}
+
+/// Delete log files older than `max_age_days` from the log directory.
+fn cleanup_old_logs(max_age_days: u64) {
+    let log_dir = match get_log_dir() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(max_age_days * 86400));
+    let cutoff = match cutoff {
+        Some(t) => t,
+        None => return,
+    };
+    if let Ok(entries) = fs::read_dir(&log_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("log") {
+                if let Ok(meta) = fs::metadata(&path) {
+                    if let Ok(modified) = meta.modified() {
+                        if modified < cutoff {
+                            let _ = fs::remove_file(&path);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn get_images_dir() -> Result<PathBuf, String> {
@@ -154,7 +186,10 @@ fn write_log(
 
     // State transition-based Slack alert management
     if alert_scopes.contains(&tag.as_str()) {
-        let mut alert_states = state.last_alert_state.lock().unwrap();
+        let mut alert_states = match state.last_alert_state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         let current_state = alert_states.get(&tag).cloned().unwrap_or_else(|| "ok".to_string());
         
         let is_error_level = upper_level == "WARN" || upper_level == "ERROR" || upper_level == "FATAL";
@@ -457,10 +492,188 @@ fn get_gpu_name() -> String {
 }
 
 // ---------------------------------------------------------------------------
+// WebView Watchdog: frontend pings Rust periodically; if no ping arrives
+// within the timeout the WebView is assumed dead and the app restarts.
+// ---------------------------------------------------------------------------
+
+static LAST_PING: OnceLock<AtomicI64> = OnceLock::new();
+static FORCE_QUIT: AtomicBool = AtomicBool::new(false);
+/// Set to true after the first successful webview_ping, so the restart
+/// counter file is only reset once per process lifetime.
+static WATCHDOG_COUNTER_RESET: AtomicBool = AtomicBool::new(false);
+
+/// Maximum consecutive watchdog-triggered restarts before giving up.
+/// Prevents infinite restart loops when the WebView cannot recover.
+const MAX_WATCHDOG_RESTARTS: i32 = 5;
+
+fn now_epoch_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+fn get_watchdog_counter_path() -> Result<PathBuf, String> {
+    get_app_data_dir().map(|d| d.join("watchdog_restart_count"))
+}
+
+fn read_watchdog_counter() -> i32 {
+    get_watchdog_counter_path()
+        .ok()
+        .and_then(|p| fs::read_to_string(&p).ok())
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+fn write_watchdog_counter(count: i32) {
+    if let Ok(path) = get_watchdog_counter_path() {
+        let _ = fs::write(&path, count.to_string());
+    }
+}
+
+#[tauri::command]
+fn webview_ping() -> Result<String, String> {
+    LAST_PING
+        .get_or_init(|| AtomicI64::new(now_epoch_secs()))
+        .store(now_epoch_secs(), Ordering::Relaxed);
+    // Reset restart counter once on first successful ping (WebView is healthy)
+    if !WATCHDOG_COUNTER_RESET.swap(true, Ordering::Relaxed) {
+        write_watchdog_counter(0);
+    }
+    Ok("pong".to_string())
+}
+
+fn start_webview_watchdog(app_handle: tauri::AppHandle) {
+    let handle = Arc::new(app_handle);
+    let timeout_secs: i64 = 60;
+
+    // Initialise the ping timestamp
+    LAST_PING.get_or_init(|| AtomicI64::new(now_epoch_secs()));
+
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(15));
+            let last = LAST_PING
+                .get()
+                .map(|a| a.load(Ordering::Relaxed))
+                .unwrap_or(now_epoch_secs());
+            let elapsed = now_epoch_secs() - last;
+
+            if elapsed > timeout_secs {
+                let count = read_watchdog_counter();
+                if count >= MAX_WATCHDOG_RESTARTS {
+                    let msg = format!(
+                        "Watchdog reached max restarts ({}). Stopping auto-restart. Manual intervention required.",
+                        MAX_WATCHDOG_RESTARTS
+                    );
+                    eprintln!("[WATCHDOG] {}", msg);
+                    write_to_log_file_direct("WATCHDOG", &msg);
+                    send_slack_notification("FATAL", "WATCHDOG", &msg, false, "");
+                    return; // Stop the watchdog thread
+                }
+                write_watchdog_counter(count + 1);
+
+                let msg = format!(
+                    "No WebView ping for {}s (timeout={}s). Restarting app. (attempt {}/{})",
+                    elapsed, timeout_secs, count + 1, MAX_WATCHDOG_RESTARTS
+                );
+                eprintln!("[WATCHDOG] {}", msg);
+                write_to_log_file_direct("WATCHDOG", &msg);
+                send_slack_notification("FATAL", "WATCHDOG", &msg, false, "");
+                handle.restart();
+            }
+        }
+    });
+}
+
+// ---------------------------------------------------------------------------
 // App entry point
 // ---------------------------------------------------------------------------
 
+/// Write a critical message directly to the log file (bypasses frontend IPC).
+/// Used by panic hook and watchdog where the frontend may be unavailable.
+fn write_to_log_file_direct(tag: &str, message: &str) {
+    if let Ok(path) = get_log_file_path() {
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+        let entry = format!("[{}] [FATAL] [{}] {}\n", timestamp, tag, message);
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
+            let _ = file.write_all(entry.as_bytes());
+        }
+    }
+}
+
+/// Install a custom panic hook that logs the panic to the log file and stderr
+/// before the process terminates.
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic payload".to_string()
+        };
+
+        let location = info.location().map_or_else(
+            || "unknown location".to_string(),
+            |loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()),
+        );
+
+        let message = format!("PANIC at {}: {}", location, payload);
+        eprintln!("[PANIC_HOOK] {}", message);
+        write_to_log_file_direct("PANIC", &message);
+
+        send_slack_notification("FATAL", "PANIC", &message, false, &location);
+
+        default_hook(info);
+    }));
+}
+
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    FORCE_QUIT.store(true, Ordering::Relaxed);
+    app.exit(0);
+}
+
+/// Create system tray icon with context menu.
+/// The tray keeps the process alive even when all windows are closed,
+/// allowing the watchdog to recreate the window after a crash.
+fn setup_system_tray(app: &tauri::App) -> Result<tauri::tray::TrayIcon, Box<dyn std::error::Error>> {
+    let show_item = MenuItem::with_id(app, "show", "表示", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+    let tray = TrayIconBuilder::new()
+        .icon(app.default_window_icon().cloned().unwrap())
+        .tooltip(app.config().product_name.as_deref().unwrap_or("Gido"))
+        .menu(&menu)
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "show" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+                "quit" => {
+                    FORCE_QUIT.store(true, Ordering::Relaxed);
+                    app.exit(0);
+                }
+                _ => {}
+            }
+        })
+        .build(app)?;
+
+    Ok(tray)
+}
+
 fn main() {
+    install_panic_hook();
+
+    // Clean up log files older than 30 days on startup
+    cleanup_old_logs(30);
+
     let builder = tauri::Builder::default()
         .manage(AppState::default())
         .plugin(tauri_plugin_fs::init())
@@ -468,6 +681,13 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .on_window_event(|_window, event| {
+            // Prevent window from closing — kiosk mode.
+            // The app can only be exited via the system tray "終了" menu.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             write_log,
             fetch_shops_proxy,
@@ -481,11 +701,33 @@ fn main() {
             delete_image_file,
             read_image_file,
             get_system_info,
+            quit_app,
+            webview_ping,
         ]);
 
     let app = builder
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|_app_handle, _event| {});
+    // Setup system tray — keeps process alive when window is closed/crashed
+    let _tray = match setup_system_tray(&app) {
+        Ok(tray) => Some(tray),
+        Err(e) => {
+            eprintln!("[TRAY] Failed to setup system tray: {}", e);
+            write_to_log_file_direct("TRAY", &format!("Failed to setup: {}", e));
+            None
+        }
+    };
+
+    start_webview_watchdog(app.handle().clone());
+
+    app.run(|_app_handle, event| {
+        // Prevent the app from exiting when the last window closes.
+        // Only FORCE_QUIT (set by tray "終了" or quit_app command) allows exit.
+        if let RunEvent::ExitRequested { api, .. } = &event {
+            if !FORCE_QUIT.load(Ordering::Relaxed) {
+                api.prevent_exit();
+            }
+        }
+    });
 }
