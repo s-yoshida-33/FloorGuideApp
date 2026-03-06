@@ -527,10 +527,13 @@ fn start_webview_watchdog(app_handle: tauri::AppHandle) {
             let elapsed = now_epoch_secs() - last;
 
             if elapsed > timeout_secs {
-                eprintln!(
-                    "[WATCHDOG] No WebView ping for {}s (timeout={}s). Restarting app.",
+                let msg = format!(
+                    "No WebView ping for {}s (timeout={}s). Restarting app.",
                     elapsed, timeout_secs
                 );
+                eprintln!("[WATCHDOG] {}", msg);
+                write_to_log_file_direct("WATCHDOG", &msg);
+                send_slack_notification("FATAL", "WATCHDOG", &msg, false, "");
                 handle.restart();
             }
         }
@@ -541,7 +544,49 @@ fn start_webview_watchdog(app_handle: tauri::AppHandle) {
 // App entry point
 // ---------------------------------------------------------------------------
 
+/// Write a critical message directly to the log file (bypasses frontend IPC).
+/// Used by panic hook and watchdog where the frontend may be unavailable.
+fn write_to_log_file_direct(tag: &str, message: &str) {
+    if let Ok(path) = get_log_file_path() {
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+        let entry = format!("[{}] [FATAL] [{}] {}\n", timestamp, tag, message);
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
+            let _ = file.write_all(entry.as_bytes());
+        }
+    }
+}
+
+/// Install a custom panic hook that logs the panic to the log file and stderr
+/// before the process terminates.
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic payload".to_string()
+        };
+
+        let location = info.location().map_or_else(
+            || "unknown location".to_string(),
+            |loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()),
+        );
+
+        let message = format!("PANIC at {}: {}", location, payload);
+        eprintln!("[PANIC_HOOK] {}", message);
+        write_to_log_file_direct("PANIC", &message);
+
+        send_slack_notification("FATAL", "PANIC", &message, false, &location);
+
+        default_hook(info);
+    }));
+}
+
 fn main() {
+    install_panic_hook();
+
     // Clean up log files older than 30 days on startup
     cleanup_old_logs(30);
 
