@@ -1,12 +1,15 @@
-; Grain Link - NSIS Installer Hooks for Tauri v2
-; タスクスケジューラへの登録・削除を行う
+; Gido - NSIS Installer Hooks for Tauri v2
 
 !macro NSIS_HOOK_POSTINSTALL
-  ; --- Windows起動時に自動で起動（ログオン後30秒遅延） ---
+  ; --- Windows auto-start on logon (30 second delay) ---
   ExecWait 'schtasks /create /tn "Gido Auto Start" /tr "\"$INSTDIR\gido.exe\"" /sc onlogon /delay 0000:30 /f'
+
+  ; --- Scheduled task for daily reboot at 03:00 ---
+  ExecWait 'schtasks /create /tn "Gido Daily Reboot" /tr "shutdown /r /t 0" /sc daily /st 03:00 /f'
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
-  ; --- アンインストール時にタスクを削除 ---
+  ; --- Remove auto-start task on uninstall ---
   ExecWait 'schtasks /delete /tn "Gido Auto Start" /f'
+  ExecWait 'schtasks /delete /tn "Gido Daily Reboot" /f'
 !macroend
