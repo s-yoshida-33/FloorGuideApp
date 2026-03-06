@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import appIcon from '../../build/icon.ico';
 import { useAutoUpdate } from '../hooks/useAutoUpdate';
 import { getVersion } from '@tauri-apps/api/app';
@@ -10,11 +10,6 @@ interface PatchScreenProps {
 export function PatchScreen({ onComplete }: PatchScreenProps) {
   const { updateStatus, installUpdate } = useAutoUpdate();
   const [appVersion, setAppVersion] = useState<string>('');
-
-  // 待機用ステート (when no update or error, wait before proceeding)
-  const [isWaiting, setIsWaiting] = useState(false);
-  const [waitProgress, setWaitProgress] = useState(0); // 0-100%
-  const [countdown, setCountdown] = useState(90);      // 秒数
 
   // Load app version from Tauri
   useEffect(() => {
@@ -33,51 +28,15 @@ export function PatchScreen({ onComplete }: PatchScreenProps) {
     }
   }, [updateStatus.status, installUpdate]);
 
-  // When no update available or error, enter waiting mode
+  // When no update available or error, proceed immediately
   useEffect(() => {
     if (updateStatus.status === 'uptodate' || updateStatus.status === 'error') {
-      setIsWaiting(true);
+      onComplete();
     }
-  }, [updateStatus.status]);
-
-  // Transition to main app via React state (no reload, no window API calls)
-  const finishWait = useCallback(() => {
-    onComplete();
-  }, [onComplete]);
-
-  // 90秒タイマーのロジック
-  useEffect(() => {
-    if (!isWaiting) return;
-
-    const startTime = Date.now();
-    const duration = 90 * 1000; // 90秒
-
-    const timer = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-
-      // 進捗率計算
-      const progress = Math.min(100, (elapsed / duration) * 100);
-      setWaitProgress(progress);
-
-      // 残り秒数計算
-      const remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
-      setCountdown(remaining);
-
-      // 完了時
-      if (elapsed >= duration) {
-        clearInterval(timer);
-        finishWait();
-      }
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, [isWaiting, finishWait]);
+  }, [updateStatus.status, onComplete]);
 
   // Map Tauri update status to display title
   const titleLabel = (() => {
-    if (isWaiting) {
-      return updateStatus.status === 'error' ? 'アップデートエラー' : '最新バージョンです';
-    }
     switch (updateStatus.status) {
       case 'idle':
       case 'checking':
@@ -96,15 +55,7 @@ export function PatchScreen({ onComplete }: PatchScreenProps) {
     }
   })();
 
-  // Map status message
-  const displayMessage = (() => {
-    if (isWaiting) {
-      return updateStatus.status === 'error'
-        ? 'アップデートの確認に失敗しました。\nそのまま起動します。'
-        : updateStatus.message;
-    }
-    return updateStatus.message || '起動しています…';
-  })();
+  const displayMessage = updateStatus.message || '起動しています…';
 
   const formatMB = (bytes: number | null | undefined) => {
     if (bytes == null || bytes <= 0) return '-';
@@ -116,9 +67,7 @@ export function PatchScreen({ onComplete }: PatchScreenProps) {
     return (bytesPerSec / (1024 * 1024)).toFixed(1) + ' MB/s';
   };
 
-  // UI描画用変数
-  // 待機中は待機進捗、それ以外はダウンロード進捗を表示
-  const displayPercent = isWaiting ? waitProgress : updateStatus.progress;
+  const displayPercent = updateStatus.progress;
 
   return (
     <div
@@ -209,9 +158,7 @@ export function PatchScreen({ onComplete }: PatchScreenProps) {
               whiteSpace: 'pre-line',
             }}
           >
-            {isWaiting 
-              ? `${displayMessage}\nあと ${countdown} 秒で起動します。`
-              : displayMessage}
+            {displayMessage}
           </p>
         </div>
 
@@ -228,7 +175,7 @@ export function PatchScreen({ onComplete }: PatchScreenProps) {
           }}
         >
           <div style={{ fontSize: 12, color: '#888888', marginBottom: 6 }}>
-            {isWaiting ? 'Startup Wait' : 'Download status'}
+            Download status
           </div>
 
           {/* Progress Bar */}
@@ -256,40 +203,36 @@ export function PatchScreen({ onComplete }: PatchScreenProps) {
           </div>
 
           <div style={{ fontSize: 12, textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>
-            {isWaiting 
-              ? `${countdown}s` 
-              : (updateStatus.progress > 0 ? `${updateStatus.progress.toFixed(1)}%` : '待機中…')}
+            {updateStatus.progress > 0 ? `${updateStatus.progress.toFixed(1)}%` : '待機中…'}
           </div>
 
           {/* Numeric Info */}
-          {!isWaiting && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                rowGap: 8,
-                columnGap: 16,
-                fontSize: 11,
-                paddingTop: 8,
-                borderTop: '1px solid #1a1a1a',
-              }}
-            >
-              <div style={{ color: '#888888' }}>Transferred</div>
-              <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(updateStatus.transferred)}</div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              rowGap: 8,
+              columnGap: 16,
+              fontSize: 11,
+              paddingTop: 8,
+              borderTop: '1px solid #1a1a1a',
+            }}
+          >
+            <div style={{ color: '#888888' }}>Transferred</div>
+            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(updateStatus.transferred)}</div>
 
-              <div style={{ color: '#888888' }}>Total</div>
-              <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(updateStatus.total)}</div>
+            <div style={{ color: '#888888' }}>Total</div>
+            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600 }}>{formatMB(updateStatus.total)}</div>
 
-              <div style={{ color: '#888888' }}>Speed</div>
-              <div style={{ textAlign: 'right', color: '#00ff88', fontWeight: 600 }}>{formatSpeed(updateStatus.speed)}</div>
+            <div style={{ color: '#888888' }}>Speed</div>
+            <div style={{ textAlign: 'right', color: '#00ff88', fontWeight: 600 }}>{formatSpeed(updateStatus.speed)}</div>
 
-              <div style={{ color: '#888888' }}>State</div>
-              <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600, textTransform: 'uppercase' }}>{updateStatus.status}</div>
-            </div>
-          )}
+            <div style={{ color: '#888888' }}>State</div>
+            <div style={{ textAlign: 'right', color: '#ffffff', fontWeight: 600, textTransform: 'uppercase' }}>{updateStatus.status}</div>
+          </div>
         </div>
 
-        {/* Footer with Skip Button */}
+        {/* Footer */}
         <div
           style={{
             display: 'flex',
@@ -306,34 +249,6 @@ export function PatchScreen({ onComplete }: PatchScreenProps) {
             <div>Do not turn off your device while updating.</div>
             <div>&copy; 2026 Toei Techno International Inc.</div>
           </div>
-
-          {/* Skip Button (only visible when waiting) */}
-          {isWaiting && (
-            <button
-              onClick={finishWait}
-              style={{
-                backgroundColor: '#333',
-                color: '#fff',
-                border: '1px solid #555',
-                borderRadius: 4,
-                padding: '6px 16px',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 600,
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#444';
-                e.currentTarget.style.borderColor = '#666';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#333';
-                e.currentTarget.style.borderColor = '#555';
-              }}
-            >
-              スキップして起動
-            </button>
-          )}
         </div>
       </div>
     </div>

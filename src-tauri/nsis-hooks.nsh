@@ -1,8 +1,8 @@
 ; Gido - NSIS Installer Hooks for Tauri v2
 
 !macro NSIS_HOOK_POSTINSTALL
-  ; --- Windows auto-start on logon (30 second delay) ---
-  ExecWait 'schtasks /create /tn "Gido Auto Start" /tr "\"$INSTDIR\gido.exe\"" /sc onlogon /delay 0000:30 /f'
+  ; --- Windows auto-start on logon (90 second delay) ---
+  ExecWait 'schtasks /create /tn "Gido Auto Start" /tr "\"$INSTDIR\gido.exe\"" /sc onlogon /delay 0001:30 /f'
 
   ; --- Scheduled task for daily reboot at 03:00 ---
   ExecWait 'schtasks /create /tn "Gido Daily Reboot" /tr "shutdown /r /t 0" /sc daily /st 03:00 /f'
