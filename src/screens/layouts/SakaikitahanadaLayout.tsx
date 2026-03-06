@@ -56,6 +56,8 @@ const SakaikitahanadaLayout: React.FC<LayoutProps> = ({
 }) => {
   const floorMapRef = useRef<HTMLImageElement>(null);
   const openTimeImageRef = useRef<HTMLImageElement>(null);
+  const floorMapLoggedRef = useRef(false);
+  const openTimeLoggedRef = useRef(false);
 
   const floorId = floor as FloorId;
   const customFloorMap = floorId
@@ -104,7 +106,10 @@ const SakaikitahanadaLayout: React.FC<LayoutProps> = ({
               objectFit: "contain",
             }}
             onLoad={() => {
-              logInfo("ASSET_CHECK", "Floor map rendered", { floor });
+              if (!floorMapLoggedRef.current) {
+                logInfo("ASSET_CHECK", "Floor map rendered", { floor });
+                floorMapLoggedRef.current = true;
+              }
             }}
             onError={(event) => {
               logError("ASSET_CHECK", "Floor map load failed", {
@@ -207,7 +212,6 @@ const SakaikitahanadaLayout: React.FC<LayoutProps> = ({
         >
           <img
             ref={openTimeImageRef}
-            key={`opentime-${refreshKey}`}
             src={imageSettings?.openTimeImage || openTimeImage}
             alt="Open Time"
             style={{
@@ -217,7 +221,10 @@ const SakaikitahanadaLayout: React.FC<LayoutProps> = ({
               padding: "1.4em",
             }}
             onLoad={() => {
-              logInfo("ASSET_CHECK", "Open-time image loaded");
+              if (!openTimeLoggedRef.current) {
+                logInfo("ASSET_CHECK", "Open-time image loaded");
+                openTimeLoggedRef.current = true;
+              }
             }}
             onError={(event) => {
               logError("ASSET_CHECK", "Failed to load open-time image");

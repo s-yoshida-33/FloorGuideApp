@@ -55,6 +55,7 @@ const SuzakaLayout: React.FC<LayoutProps> = ({
   error,
 }) => {
   const floorMapRef = useRef<HTMLImageElement>(null);
+  const floorMapLoggedRef = useRef(false);
 
   const floorId = floor as FloorId;
   const customFloorMap = floorId
@@ -185,7 +186,10 @@ const SuzakaLayout: React.FC<LayoutProps> = ({
             objectFit: "contain",
           }}
           onLoad={() => {
-            logInfo("ASSET_CHECK", "Floor map rendered", { floor });
+            if (!floorMapLoggedRef.current) {
+              logInfo("ASSET_CHECK", "Floor map rendered", { floor });
+              floorMapLoggedRef.current = true;
+            }
           }}
           onError={(event) => {
             logError("ASSET_CHECK", "Floor map load failed", {
