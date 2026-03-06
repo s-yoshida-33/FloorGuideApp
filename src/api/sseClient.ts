@@ -9,6 +9,9 @@ class SseClient {
   private eventSource: EventSource | null = null;
   private listeners: Map<string, Listener[]> = new Map();
   private reconnectTimeout: number | null = null;
+  private reconnectAttempt: number = 0;
+  private static readonly BASE_DELAY_MS = 3000;
+  private static readonly MAX_DELAY_MS = 60000;
 
   public get status(): SseConnectionStatus {
     return this._status;
@@ -58,6 +61,7 @@ class SseClient {
       this.eventSource = new EventSource(url);
 
       this.eventSource.onopen = () => {
+        this.reconnectAttempt = 0;
         this.setStatus('connected');
       };
 
@@ -65,12 +69,9 @@ class SseClient {
         this.setStatus('error');
         this.eventSource?.close();
         this.eventSource = null;
-        
-        // Auto-reconnect
-        if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-        this.reconnectTimeout = window.setTimeout(() => {
-            this.connect();
-        }, 5000);
+
+        // Auto-reconnect with exponential backoff + jitter
+        this.scheduleReconnect();
       };
 
       // Generic message handler if needed, or specific event listeners
@@ -93,12 +94,23 @@ class SseClient {
 
     } catch (e) {
       this.setStatus('error');
-      // Auto-reconnect
-      if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = window.setTimeout(() => {
-          this.connect();
-      }, 5000);
+      // Auto-reconnect with exponential backoff + jitter
+      this.scheduleReconnect();
     }
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+    const delay = Math.min(
+      SseClient.BASE_DELAY_MS * Math.pow(2, this.reconnectAttempt),
+      SseClient.MAX_DELAY_MS,
+    );
+    const jitter = Math.random() * delay * 0.3;
+    const finalDelay = Math.round(delay + jitter);
+    this.reconnectAttempt++;
+    this.reconnectTimeout = window.setTimeout(() => {
+      this.connect();
+    }, finalDelay);
   }
 
   public disconnect() {

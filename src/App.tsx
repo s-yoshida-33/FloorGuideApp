@@ -8,6 +8,7 @@ import { ContextMenu } from "./components/ContextMenu";
 import { PatchScreen } from "./screens/PatchScreen";
 import BlackScreenOverlay from "./components/BlackScreenOverlay";
 import { useHeartbeat } from "./hooks/useHeartbeat";
+import { useWebViewPing } from "./hooks/useWebViewPing";
 import { DEFAULT_LOCATION_ICON_SETTINGS } from "./config";
 import { getMallConfig } from "./config/malls";
 import type { MallId, MallSettingsFile } from "./types/mall";
@@ -129,6 +130,9 @@ const App: React.FC = () => {
 
   // Heartbeat
   useHeartbeat();
+
+  // WebView watchdog ping
+  useWebViewPing();
 
   // -----------------------------------------------------------------------
   // Apply a MallSettingsFile to local state

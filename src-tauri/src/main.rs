@@ -6,7 +6,8 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicI64, Ordering};
 use chrono::Local;
 use sysinfo::System;
 
@@ -64,6 +65,34 @@ fn get_log_file_path() -> Result<PathBuf, String> {
     let log_dir = get_log_dir()?;
     let today = Local::now().format("%Y-%m-%d").to_string();
     Ok(log_dir.join(format!("gido-{}.log", today)))
+}
+
+/// Delete log files older than `max_age_days` from the log directory.
+fn cleanup_old_logs(max_age_days: u64) {
+    let log_dir = match get_log_dir() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(max_age_days * 86400));
+    let cutoff = match cutoff {
+        Some(t) => t,
+        None => return,
+    };
+    if let Ok(entries) = fs::read_dir(&log_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("log") {
+                if let Ok(meta) = fs::metadata(&path) {
+                    if let Ok(modified) = meta.modified() {
+                        if modified < cutoff {
+                            let _ = fs::remove_file(&path);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn get_images_dir() -> Result<PathBuf, String> {
@@ -154,7 +183,10 @@ fn write_log(
 
     // State transition-based Slack alert management
     if alert_scopes.contains(&tag.as_str()) {
-        let mut alert_states = state.last_alert_state.lock().unwrap();
+        let mut alert_states = match state.last_alert_state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         let current_state = alert_states.get(&tag).cloned().unwrap_or_else(|| "ok".to_string());
         
         let is_error_level = upper_level == "WARN" || upper_level == "ERROR" || upper_level == "FATAL";
@@ -457,10 +489,62 @@ fn get_gpu_name() -> String {
 }
 
 // ---------------------------------------------------------------------------
+// WebView Watchdog: frontend pings Rust periodically; if no ping arrives
+// within the timeout the WebView is assumed dead and the app restarts.
+// ---------------------------------------------------------------------------
+
+static LAST_PING: OnceLock<AtomicI64> = OnceLock::new();
+
+fn now_epoch_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+#[tauri::command]
+fn webview_ping() -> Result<String, String> {
+    LAST_PING
+        .get_or_init(|| AtomicI64::new(now_epoch_secs()))
+        .store(now_epoch_secs(), Ordering::Relaxed);
+    Ok("pong".to_string())
+}
+
+fn start_webview_watchdog(app_handle: tauri::AppHandle) {
+    let handle = Arc::new(app_handle);
+    let timeout_secs: i64 = 60;
+
+    // Initialise the ping timestamp
+    LAST_PING.get_or_init(|| AtomicI64::new(now_epoch_secs()));
+
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(15));
+            let last = LAST_PING
+                .get()
+                .map(|a| a.load(Ordering::Relaxed))
+                .unwrap_or(now_epoch_secs());
+            let elapsed = now_epoch_secs() - last;
+
+            if elapsed > timeout_secs {
+                eprintln!(
+                    "[WATCHDOG] No WebView ping for {}s (timeout={}s). Restarting app.",
+                    elapsed, timeout_secs
+                );
+                handle.restart();
+            }
+        }
+    });
+}
+
+// ---------------------------------------------------------------------------
 // App entry point
 // ---------------------------------------------------------------------------
 
 fn main() {
+    // Clean up log files older than 30 days on startup
+    cleanup_old_logs(30);
+
     let builder = tauri::Builder::default()
         .manage(AppState::default())
         .plugin(tauri_plugin_fs::init())
@@ -481,11 +565,14 @@ fn main() {
             delete_image_file,
             read_image_file,
             get_system_info,
+            webview_ping,
         ]);
 
     let app = builder
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
+
+    start_webview_watchdog(app.handle().clone());
 
     app.run(|_app_handle, _event| {});
 }
