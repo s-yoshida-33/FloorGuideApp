@@ -7,9 +7,12 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use chrono::Local;
 use sysinfo::System;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Manager, RunEvent, WindowEvent};
 
 // ---------------------------------------------------------------------------
 // State management structure
@@ -494,6 +497,14 @@ fn get_gpu_name() -> String {
 // ---------------------------------------------------------------------------
 
 static LAST_PING: OnceLock<AtomicI64> = OnceLock::new();
+static FORCE_QUIT: AtomicBool = AtomicBool::new(false);
+/// Set to true after the first successful webview_ping, so the restart
+/// counter file is only reset once per process lifetime.
+static WATCHDOG_COUNTER_RESET: AtomicBool = AtomicBool::new(false);
+
+/// Maximum consecutive watchdog-triggered restarts before giving up.
+/// Prevents infinite restart loops when the WebView cannot recover.
+const MAX_WATCHDOG_RESTARTS: i32 = 5;
 
 fn now_epoch_secs() -> i64 {
     std::time::SystemTime::now()
@@ -502,11 +513,33 @@ fn now_epoch_secs() -> i64 {
         .as_secs() as i64
 }
 
+fn get_watchdog_counter_path() -> Result<PathBuf, String> {
+    get_app_data_dir().map(|d| d.join("watchdog_restart_count"))
+}
+
+fn read_watchdog_counter() -> i32 {
+    get_watchdog_counter_path()
+        .ok()
+        .and_then(|p| fs::read_to_string(&p).ok())
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+fn write_watchdog_counter(count: i32) {
+    if let Ok(path) = get_watchdog_counter_path() {
+        let _ = fs::write(&path, count.to_string());
+    }
+}
+
 #[tauri::command]
 fn webview_ping() -> Result<String, String> {
     LAST_PING
         .get_or_init(|| AtomicI64::new(now_epoch_secs()))
         .store(now_epoch_secs(), Ordering::Relaxed);
+    // Reset restart counter once on first successful ping (WebView is healthy)
+    if !WATCHDOG_COUNTER_RESET.swap(true, Ordering::Relaxed) {
+        write_watchdog_counter(0);
+    }
     Ok("pong".to_string())
 }
 
@@ -527,9 +560,22 @@ fn start_webview_watchdog(app_handle: tauri::AppHandle) {
             let elapsed = now_epoch_secs() - last;
 
             if elapsed > timeout_secs {
+                let count = read_watchdog_counter();
+                if count >= MAX_WATCHDOG_RESTARTS {
+                    let msg = format!(
+                        "Watchdog reached max restarts ({}). Stopping auto-restart. Manual intervention required.",
+                        MAX_WATCHDOG_RESTARTS
+                    );
+                    eprintln!("[WATCHDOG] {}", msg);
+                    write_to_log_file_direct("WATCHDOG", &msg);
+                    send_slack_notification("FATAL", "WATCHDOG", &msg, false, "");
+                    return; // Stop the watchdog thread
+                }
+                write_watchdog_counter(count + 1);
+
                 let msg = format!(
-                    "No WebView ping for {}s (timeout={}s). Restarting app.",
-                    elapsed, timeout_secs
+                    "No WebView ping for {}s (timeout={}s). Restarting app. (attempt {}/{})",
+                    elapsed, timeout_secs, count + 1, MAX_WATCHDOG_RESTARTS
                 );
                 eprintln!("[WATCHDOG] {}", msg);
                 write_to_log_file_direct("WATCHDOG", &msg);
@@ -584,6 +630,44 @@ fn install_panic_hook() {
     }));
 }
 
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    FORCE_QUIT.store(true, Ordering::Relaxed);
+    app.exit(0);
+}
+
+/// Create system tray icon with context menu.
+/// The tray keeps the process alive even when all windows are closed,
+/// allowing the watchdog to recreate the window after a crash.
+fn setup_system_tray(app: &tauri::App) -> Result<tauri::tray::TrayIcon, Box<dyn std::error::Error>> {
+    let show_item = MenuItem::with_id(app, "show", "表示", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+    let tray = TrayIconBuilder::new()
+        .icon(app.default_window_icon().cloned().unwrap())
+        .tooltip(app.config().product_name.as_deref().unwrap_or("Gido"))
+        .menu(&menu)
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "show" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+                "quit" => {
+                    FORCE_QUIT.store(true, Ordering::Relaxed);
+                    app.exit(0);
+                }
+                _ => {}
+            }
+        })
+        .build(app)?;
+
+    Ok(tray)
+}
+
 fn main() {
     install_panic_hook();
 
@@ -597,6 +681,13 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .on_window_event(|_window, event| {
+            // Prevent window from closing — kiosk mode.
+            // The app can only be exited via the system tray "終了" menu.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             write_log,
             fetch_shops_proxy,
@@ -610,6 +701,7 @@ fn main() {
             delete_image_file,
             read_image_file,
             get_system_info,
+            quit_app,
             webview_ping,
         ]);
 
@@ -617,7 +709,25 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
+    // Setup system tray — keeps process alive when window is closed/crashed
+    let _tray = match setup_system_tray(&app) {
+        Ok(tray) => Some(tray),
+        Err(e) => {
+            eprintln!("[TRAY] Failed to setup system tray: {}", e);
+            write_to_log_file_direct("TRAY", &format!("Failed to setup: {}", e));
+            None
+        }
+    };
+
     start_webview_watchdog(app.handle().clone());
 
-    app.run(|_app_handle, _event| {});
+    app.run(|_app_handle, event| {
+        // Prevent the app from exiting when the last window closes.
+        // Only FORCE_QUIT (set by tray "終了" or quit_app command) allows exit.
+        if let RunEvent::ExitRequested { api, .. } = &event {
+            if !FORCE_QUIT.load(Ordering::Relaxed) {
+                api.prevent_exit();
+            }
+        }
+    });
 }
