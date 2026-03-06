@@ -105,7 +105,7 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
     };
   }, [asset?.id, asset?.src]);
 
-  const attemptRecovery = React.useCallback((video: HTMLVideoElement) => {
+  const attemptRecovery = React.useCallback((_video: HTMLVideoElement) => {
     // First try: reload the video
     if (retryCountRef.current < MAX_RETRY_COUNT) {
       retryCountRef.current += 1;
