@@ -12,6 +12,9 @@ interface UseCurrentAssetResult {
 
 type AssetStatus = 'ok' | 'noAsset' | 'error' | null;
 
+const BASE_RETRY_DELAY_MS = 3000;
+const MAX_RETRY_DELAY_MS = 60000;
+
 /**
  * Convert a TimelineStreamEvent into a CurrentAsset.
  * Uses convertFileSrc for local paths (Tauri asset protocol).
@@ -45,14 +48,24 @@ function mapStreamEventToAsset(event: TimelineStreamEvent): CurrentAsset | null 
   };
 }
 
-export function useCurrentAsset(
-  retryIntervalMs: number = 3000,
-): UseCurrentAssetResult {
+/**
+ * Calculate retry delay with exponential backoff and jitter.
+ */
+function calcRetryDelay(attempt: number): number {
+  const exponential = BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
+  const capped = Math.min(exponential, MAX_RETRY_DELAY_MS);
+  // Add ±30% jitter to prevent thundering herd
+  const jitter = capped * (0.7 + Math.random() * 0.6);
+  return Math.round(jitter);
+}
+
+export function useCurrentAsset(): UseCurrentAssetResult {
   const [asset, setAsset] = useState<CurrentAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<number | undefined>(undefined);
+  const retryAttemptRef = useRef<number>(0);
   const isMountedRef = useRef<boolean>(true);
   const lastStatusRef = useRef<AssetStatus>(null);
   const lastAssetIdRef = useRef<string | undefined>(undefined);
@@ -86,7 +99,7 @@ export function useCurrentAsset(
 
   const connectSSE = useCallback(() => {
     const url = TIMELINE_STREAM_URL;
-    logDebug('CMS_DELIVERY', 'Connecting to timeline SSE', { url });
+    logDebug('CMS_DELIVERY', 'Connecting to timeline SSE', { url, attempt: retryAttemptRef.current });
 
     try {
       const es = new EventSource(url);
@@ -94,6 +107,7 @@ export function useCurrentAsset(
 
       es.onopen = () => {
         logDebug('CMS_DELIVERY', 'Timeline SSE connection established');
+        retryAttemptRef.current = 0; // Reset on successful connection
       };
 
       es.onerror = () => {
@@ -103,7 +117,13 @@ export function useCurrentAsset(
         es.close();
         eventSourceRef.current = null;
         if (isMountedRef.current) {
-          retryTimeoutRef.current = window.setTimeout(connectSSE, retryIntervalMs);
+          const delay = calcRetryDelay(retryAttemptRef.current);
+          logDebug('CMS_DELIVERY', `SSE reconnecting in ${delay}ms (attempt ${retryAttemptRef.current + 1})`, {
+            attempt: retryAttemptRef.current,
+            delay,
+          });
+          retryAttemptRef.current += 1;
+          retryTimeoutRef.current = window.setTimeout(connectSSE, delay);
         }
       };
 
@@ -124,10 +144,12 @@ export function useCurrentAsset(
         error: error instanceof Error ? error.message : String(error),
       });
       if (isMountedRef.current) {
-        retryTimeoutRef.current = window.setTimeout(connectSSE, retryIntervalMs);
+        const delay = calcRetryDelay(retryAttemptRef.current);
+        retryAttemptRef.current += 1;
+        retryTimeoutRef.current = window.setTimeout(connectSSE, delay);
       }
     }
-  }, [handleAssetUpdate, retryIntervalMs]);
+  }, [handleAssetUpdate]);
 
   useEffect(() => {
     isMountedRef.current = true;
