@@ -34,7 +34,10 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
       video.pause();
       video.removeAttribute('src');
       video.load();
-      // Reactが新しいsrcを属性として設定し直す
+      // useEffectはReactのDOM更新後に実行されるため、removeAttribute('src')は
+      // Reactが設定した新しいsrcを消してしまう。明示的に再設定する。
+      video.src = src;
+      video.load();
     }
     prevSrcRef.current = src;
   }, [src]);
