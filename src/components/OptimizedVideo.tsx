@@ -18,13 +18,25 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
     }
   }, [ref]);
 
-  // srcが変わった時の処理（属性設定のみ）
+  // srcが変わった時の処理
+  // Release decoded video frames before loading new src to prevent memory leak.
+  // Without this, Chromium accumulates decoded frame buffers across src changes.
+  const prevSrcRef = useRef<string>('');
   useEffect(() => {
     const video = innerRef.current;
     if (!video) return;
-    
+
     // CPU負荷軽減のための設定
     video.preload = 'metadata';
+
+    // 前のソースがある場合、デコード済みフレームを解放してから新しいソースをロード
+    if (prevSrcRef.current && prevSrcRef.current !== src) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      // Reactが新しいsrcを属性として設定し直す
+    }
+    prevSrcRef.current = src;
   }, [src]);
 
   // マウント/アンマウント時の処理（クリーンアップのみ）
