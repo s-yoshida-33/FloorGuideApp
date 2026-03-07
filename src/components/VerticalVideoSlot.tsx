@@ -140,15 +140,10 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   }, [asset?.id]);
 
   // Reset media element when asset changes
+  // Note: Video memory release is handled by OptimizedVideo's src change effect.
+  // We only need to handle image reset here.
   React.useEffect(() => {
     if (asset && asset.id !== prevAssetIdRef.current) {
-      // Release decoded video frames before loading new asset to prevent memory leak.
-      // Without this, Chromium accumulates decoded frame buffers across asset changes.
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.removeAttribute('src');
-        videoRef.current.load();
-      }
       if (imgRef.current) {
         imgRef.current.src = asset.src;
       }
