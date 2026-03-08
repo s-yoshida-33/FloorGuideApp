@@ -148,9 +148,14 @@ fn send_slack_notification(level: &str, tag: &str, message: &str, is_recovery: b
         format!("ALERT: {}", tag)
     };
 
+    let app_version = env!("CARGO_PKG_VERSION");
+    let hostname = hostname::get()
+        .map(|h| h.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "unknown".to_string());
+
     let payload = serde_json::json!({
         "text": format!(
-            "*{title}*\n*Level*: {level}\n*Scope*: {tag}\n*Message*: {message}\n*Context*: {context_str}"
+            "*{title}*\n*Level*: {level}\n*Scope*: {tag}\n*App*: Gido\n*Version*: {app_version}\n*Host*: {hostname}\n*Message*: {message}\n*Context*: {context_str}"
         )
     });
 
@@ -274,15 +279,25 @@ fn get_settings() -> Result<String, String> {
 }
 
 #[tauri::command]
+/// Atomic write: writes to a temporary file then renames to the target path.
+/// Prevents data corruption if the app crashes mid-write.
+fn atomic_write(path: &std::path::Path, data: &str) -> Result<(), String> {
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, data)
+        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+    fs::rename(&tmp, path)
+        .map_err(|e| format!("Failed to rename temp file: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
 fn save_settings(json: String) -> Result<String, String> {
     // Validate JSON before writing
     let _: serde_json::Value = serde_json::from_str(&json)
         .map_err(|e| format!("Invalid JSON: {}", e))?;
 
     let path = get_settings_path()?;
-
-    fs::write(&path, &json)
-        .map_err(|e| format!("Failed to write settings: {}", e))?;
+    atomic_write(&path, &json)?;
 
     Ok(json)
 }
@@ -310,9 +325,7 @@ fn save_named_settings(filename: String, json: String) -> Result<String, String>
         .map_err(|e| format!("Invalid JSON: {}", e))?;
 
     let path = get_named_settings_path(&filename)?;
-
-    fs::write(&path, &json)
-        .map_err(|e| format!("Failed to write named settings '{}': {}", filename, e))?;
+    atomic_write(&path, &json)?;
 
     Ok(json)
 }
@@ -473,19 +486,31 @@ fn get_gpu_name() -> String {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
-        let output = Command::new("wmic")
-            .args(["path", "win32_VideoController", "get", "name"])
-            .output();
-        if let Ok(out) = output {
-            let text = String::from_utf8_lossy(&out.stdout);
-            let name = text.lines()
-                .skip(1) // skip header "Name"
-                .find(|l| !l.trim().is_empty())
-                .map(|l| l.trim().to_string())
-                .unwrap_or_default();
-            if !name.is_empty() {
-                return name;
+        // Run wmic in a background thread with a 10-second timeout to avoid
+        // hanging the caller if the wmic process stalls.
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let result = Command::new("wmic")
+                .args(["path", "win32_VideoController", "get", "name"])
+                .output();
+            let _ = tx.send(result);
+        });
+        match rx.recv_timeout(std::time::Duration::from_secs(10)) {
+            Ok(Ok(out)) if out.status.success() => {
+                let text = String::from_utf8_lossy(&out.stdout);
+                let name = text.lines()
+                    .skip(1)
+                    .find(|l| !l.trim().is_empty())
+                    .map(|l| l.trim().to_string())
+                    .unwrap_or_default();
+                if !name.is_empty() {
+                    return name;
+                }
             }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                eprintln!("[SYSTEM_INFO] wmic timed out after 10s");
+            }
+            _ => {}
         }
     }
     "Unknown".to_string()
