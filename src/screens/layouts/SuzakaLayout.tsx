@@ -51,7 +51,6 @@ const SuzakaLayout: React.FC<LayoutProps> = ({
   genreMemoSettings = DEFAULT_GENRE_MEMO_SETTINGS,
   shopSettings,
   isPreview = false,
-  isBlackScreenActive = false,
   refreshKey,
   error,
 }) => {
@@ -158,7 +157,7 @@ const SuzakaLayout: React.FC<LayoutProps> = ({
                 (設定中は非表示)
               </div>
             ) : (
-              <VerticalVideoSlot key={refreshKey} muted={isBlackScreenActive} />
+              <VerticalVideoSlot key={refreshKey} />
             )}
           </div>
         </div>

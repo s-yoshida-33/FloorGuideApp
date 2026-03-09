@@ -3,10 +3,7 @@ import React from 'react';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
 import { logWarn, logError, logDebug } from '../logs/logging';
 import { OptimizedVideo } from './OptimizedVideo';
-
-interface VerticalVideoSlotProps {
-  muted?: boolean;
-}
+import { useAudioSettingsContext } from '../contexts/AudioSettingsContext';
 
 const MAX_RETRY_COUNT = 5;
 const INITIAL_RETRY_DELAY_MS = 1000;
@@ -14,7 +11,9 @@ const FREEZE_TIMEOUT_MS = 30000; // 30秒間 timeupdate が来なければフリ
 const HEALTH_CHECK_INTERVAL_MS = 60000; // 60秒間隔でヘルスチェック
 const MAX_RECREATE_COUNT = 3; // 動画要素の再生成上限
 
-const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) => {
+const VerticalVideoSlot: React.FC = () => {
+  const { audioSettings } = useAudioSettingsContext();
+  const muted = audioSettings.cmsMuted;
   const { asset, nextAsset, isLoading } = useCurrentAsset();
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const preloadVideoRef = React.useRef<HTMLVideoElement>(null);

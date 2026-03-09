@@ -8,6 +8,7 @@ import type { BlackScreenSettings } from '../types/blackScreenSettings';
 import { DEFAULT_IMAGE_SETTINGS } from '../types/imageSettings';
 import { DEFAULT_GENRE_MAPPINGS, DEFAULT_GENRE_MEMO_SETTINGS } from '../types/genreSettings';
 import { DEFAULT_BLACK_SCREEN_SETTINGS } from '../types/blackScreenSettings';
+import { DEFAULT_AUDIO_SETTINGS } from '../types/audioSettings';
 import { DEFAULT_LOCATION_ICON_SETTINGS } from '../config';
 import { logInfo, logError } from '../logs/logging';
 import type { MallId, GlobalSettings, MallSettingsFile } from '../types/mall';
@@ -96,6 +97,7 @@ function getDefaultMallSettingsFile(mallId: MallId): MallSettingsFile {
     genreMemoSettings: DEFAULT_GENRE_MEMO_SETTINGS,
     shopSettings: {},
     blackScreenSettings: DEFAULT_BLACK_SCREEN_SETTINGS,
+    audioSettings: DEFAULT_AUDIO_SETTINGS,
   };
 }
 
@@ -123,6 +125,9 @@ export async function loadMallSettings(mallId: MallId): Promise<MallSettingsFile
       blackScreenSettings: raw.blackScreenSettings
         ? { ...DEFAULT_BLACK_SCREEN_SETTINGS, ...raw.blackScreenSettings }
         : DEFAULT_BLACK_SCREEN_SETTINGS,
+      audioSettings: raw.audioSettings
+        ? { ...DEFAULT_AUDIO_SETTINGS, ...raw.audioSettings }
+        : DEFAULT_AUDIO_SETTINGS,
     };
   } catch (error) {
     logError('CONFIG', `Failed to load mall settings for ${mallId}`, {
