@@ -115,9 +115,7 @@ export async function loadMallSettings(mallId: MallId): Promise<MallSettingsFile
       imageSettings: raw.imageSettings
         ? { ...DEFAULT_IMAGE_SETTINGS, ...raw.imageSettings }
         : DEFAULT_IMAGE_SETTINGS,
-      genreMappings: raw.genreMappings
-        ? { ...DEFAULT_GENRE_MAPPINGS, ...raw.genreMappings }
-        : DEFAULT_GENRE_MAPPINGS,
+      genreMappings: raw.genreMappings ?? DEFAULT_GENRE_MAPPINGS,
       genreMemoSettings: raw.genreMemoSettings
         ? { ...DEFAULT_GENRE_MEMO_SETTINGS, ...raw.genreMemoSettings }
         : DEFAULT_GENRE_MEMO_SETTINGS,
@@ -268,9 +266,7 @@ export async function loadSettings(): Promise<GidoSettings> {
       imageSettings: raw.imageSettings
         ? { ...DEFAULT_IMAGE_SETTINGS, ...raw.imageSettings }
         : DEFAULT_IMAGE_SETTINGS,
-      genreMappings: raw.genreMappings
-        ? { ...DEFAULT_GENRE_MAPPINGS, ...raw.genreMappings }
-        : DEFAULT_GENRE_MAPPINGS,
+      genreMappings: raw.genreMappings ?? DEFAULT_GENRE_MAPPINGS,
       genreMemoSettings: raw.genreMemoSettings
         ? { ...DEFAULT_GENRE_MEMO_SETTINGS, ...raw.genreMemoSettings }
         : DEFAULT_GENRE_MEMO_SETTINGS,
