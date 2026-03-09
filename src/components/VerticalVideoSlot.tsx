@@ -144,6 +144,12 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   // We only need to handle image reset here.
   React.useEffect(() => {
     if (asset && asset.id !== prevAssetIdRef.current) {
+      // Guard: skip if src is empty (failed URL conversion) to prevent black screen
+      if (!asset.src) {
+        logWarn('CMS_DELIVERY', 'Asset has empty src, skipping media load', { assetId: asset.id });
+        prevAssetIdRef.current = asset.id;
+        return;
+      }
       if (imgRef.current) {
         imgRef.current.src = asset.src;
       }

@@ -29,6 +29,12 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
     // CPU負荷軽減のための設定
     video.preload = 'metadata';
 
+    // Guard: skip if src is empty to prevent black screen / error state
+    if (!src) {
+      prevSrcRef.current = src;
+      return;
+    }
+
     // 前のソースがある場合、デコード済みフレームを解放してから新しいソースをロード
     if (prevSrcRef.current && prevSrcRef.current !== src) {
       video.pause();
