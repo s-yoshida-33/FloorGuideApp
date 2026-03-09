@@ -32,7 +32,7 @@ interface AudioSettingsProviderProps {
 export const AudioSettingsProvider: React.FC<AudioSettingsProviderProps> = ({ mallId, externalAudioSettings, children }) => {
   const [audioSettings, setAudioSettings] = useState<AudioSettings>(externalAudioSettings ?? DEFAULT_AUDIO_SETTINGS);
   const [blackScreenActive, setBlackScreenActive] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
 
   // Sync with external state (App.tsx) whenever it changes (e.g. after settings save)
   useEffect(() => {
