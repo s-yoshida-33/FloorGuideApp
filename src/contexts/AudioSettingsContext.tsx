@@ -22,26 +22,24 @@ const AudioSettingsContext = createContext<AudioSettingsContextType>({
   isLoading: true,
 });
 
-export const AudioSettingsProvider: React.FC<{ mallId: MallId; children: React.ReactNode }> = ({ mallId, children }) => {
-  const [audioSettings, setAudioSettings] = useState<AudioSettings>(DEFAULT_AUDIO_SETTINGS);
-  const [blackScreenActive, setBlackScreenActive] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+interface AudioSettingsProviderProps {
+  mallId: MallId;
+  /** External audio settings kept in App.tsx — synced after settings-screen save */
+  externalAudioSettings?: AudioSettings;
+  children: React.ReactNode;
+}
 
-  // Load audio settings when mallId changes
+export const AudioSettingsProvider: React.FC<AudioSettingsProviderProps> = ({ mallId, externalAudioSettings, children }) => {
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(externalAudioSettings ?? DEFAULT_AUDIO_SETTINGS);
+  const [blackScreenActive, setBlackScreenActive] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Sync with external state (App.tsx) whenever it changes (e.g. after settings save)
   useEffect(() => {
-    const load = async () => {
-      try {
-        setIsLoading(true);
-        const mallSettings = await loadMallSettings(mallId);
-        setAudioSettings(mallSettings.audioSettings ?? DEFAULT_AUDIO_SETTINGS);
-      } catch (err) {
-        console.error('Failed to load audio settings', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    load();
-  }, [mallId]);
+    if (externalAudioSettings) {
+      setAudioSettings(externalAudioSettings);
+    }
+  }, [externalAudioSettings]);
 
   // Save audio settings to file and update state immediately
   const saveAudioSettings = useCallback(async (newSettings: AudioSettings) => {
