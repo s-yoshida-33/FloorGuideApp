@@ -7,6 +7,7 @@ import { logWarn, logError, logDebug } from '../logs/logging';
 
 interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
+  nextAsset: CurrentAsset | null;
   isLoading: boolean;
 }
 
@@ -48,6 +49,34 @@ function mapStreamEventToAsset(event: TimelineStreamEvent): CurrentAsset | null 
   };
 }
 
+function mapStreamEventToNextAsset(event: TimelineStreamEvent): CurrentAsset | null {
+  if (!event.next_media_id || !event.next_media_local_path) return null;
+
+  const localPath = event.next_media_local_path;
+  let src = '';
+  if (localPath) {
+    if (localPath.startsWith('http://') || localPath.startsWith('https://')) {
+      src = localPath;
+    } else {
+      const normalized = localPath.replace(/\\/g, '/');
+      src = convertFileSrc(normalized);
+    }
+  }
+
+  return {
+    id: event.next_media_id,
+    src,
+    duration: 0,
+    width: 0,
+    height: 0,
+    name: '',
+    startTime: '',
+    endTime: '',
+    mediaType: '',
+    type: '',
+  };
+}
+
 /**
  * Calculate retry delay with exponential backoff and jitter.
  */
@@ -61,6 +90,7 @@ function calcRetryDelay(attempt: number): number {
 
 export function useCurrentAsset(): UseCurrentAssetResult {
   const [asset, setAsset] = useState<CurrentAsset | null>(null);
+  const [nextAsset, setNextAsset] = useState<CurrentAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -70,7 +100,7 @@ export function useCurrentAsset(): UseCurrentAssetResult {
   const lastStatusRef = useRef<AssetStatus>(null);
   const lastAssetIdRef = useRef<string | undefined>(undefined);
 
-  const handleAssetUpdate = useCallback((next: CurrentAsset | null) => {
+  const handleAssetUpdate = useCallback((next: CurrentAsset | null, nextMedia: CurrentAsset | null) => {
     if (!isMountedRef.current) return;
 
     if (next) {
@@ -80,11 +110,13 @@ export function useCurrentAsset(): UseCurrentAssetResult {
           assetId: next.id,
           src: next.src,
           name: next.name,
+          nextMediaId: nextMedia?.id,
         });
       } else if (assetChanged) {
         logDebug('CMS_DELIVERY', 'Asset changed via SSE', {
           oldAssetId: lastAssetIdRef.current,
           newAssetId: next.id,
+          nextMediaId: nextMedia?.id,
         });
       }
       lastStatusRef.current = 'ok';
@@ -94,6 +126,15 @@ export function useCurrentAsset(): UseCurrentAssetResult {
 
     lastAssetIdRef.current = next?.id;
     setAsset(next);
+
+    setNextAsset(prevNext => {
+      if (!nextMedia) return null;
+      if (prevNext && prevNext.id === nextMedia.id && prevNext.src === nextMedia.src) {
+        return prevNext;
+      }
+      return nextMedia;
+    });
+
     setIsLoading(false);
   }, []);
 
@@ -132,7 +173,8 @@ export function useCurrentAsset(): UseCurrentAssetResult {
         try {
           const data: TimelineStreamEvent = JSON.parse(e.data);
           const newAsset = mapStreamEventToAsset(data);
-          handleAssetUpdate(newAsset);
+          const newNextAsset = mapStreamEventToNextAsset(data);
+          handleAssetUpdate(newAsset, newNextAsset);
         } catch (err) {
           logError('CMS_DELIVERY', 'Failed to parse item_changed event', {
             error: err instanceof Error ? err.message : String(err),
@@ -167,5 +209,5 @@ export function useCurrentAsset(): UseCurrentAssetResult {
     };
   }, [connectSSE]);
 
-  return { asset, isLoading };
+  return { asset, nextAsset, isLoading };
 }
