@@ -19,6 +19,8 @@ export interface LayoutProps {
   genreMemoSettings?: GenreMemoSettings;
   shopSettings?: ShopSettings;
   isPreview?: boolean;
+  /** ブラックスクリーン表示中（動画音声をミュートする） */
+  isBlackScreenActive?: boolean;
   refreshKey: number;
   error: string | null;
 }
