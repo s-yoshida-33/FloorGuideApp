@@ -74,17 +74,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             onChange={(checked) => onChangeAudioSettings({ ...audioSettings, cmsMuted: !checked })}
             label="CMS配信の音声を有効にする"
           />
-          <ToggleSwitch
-            checked={!audioSettings.localMediaMuted}
-            onChange={(checked) => onChangeAudioSettings({ ...audioSettings, localMediaMuted: !checked })}
-            label="ローカルメディアの音声を有効にする"
-          />
         </div>
         <p style={{ color: "#aaa", fontSize: 12, marginTop: 8 }}>
-          ※両方の音声を同時に有効にすることも可能です。
-        </p>
-        <p style={{ color: "#aaa", fontSize: 12, marginTop: 4 }}>
-          ※ブラックスクリーン表示中は自動的にすべての音声がミュートされます。
+          ※ブラックスクリーン表示中は自動的に音声がミュートされます。
         </p>
       </div>
     </div>
