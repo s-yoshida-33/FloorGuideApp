@@ -56,7 +56,6 @@ interface GidoAppProps {
   genreMappings?: GenreMappings;
   genreMemoSettings?: GenreMemoSettings;
   shopSettings?: ShopSettings;
-  isBlackScreenActive?: boolean;
 }
 
 const GidoApp: React.FC<GidoAppProps> = ({
@@ -69,7 +68,6 @@ const GidoApp: React.FC<GidoAppProps> = ({
   genreMappings = DEFAULT_GENRE_MAPPINGS,
   genreMemoSettings = DEFAULT_GENRE_MEMO_SETTINGS,
   shopSettings,
-  isBlackScreenActive = false,
 }) => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -174,7 +172,6 @@ const GidoApp: React.FC<GidoAppProps> = ({
       genreMemoSettings={genreMemoSettings}
       shopSettings={shopSettings}
       isPreview={isPreview}
-      isBlackScreenActive={isBlackScreenActive}
       refreshKey={refreshKey}
       error={error}
     />

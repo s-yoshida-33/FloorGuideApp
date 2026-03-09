@@ -34,6 +34,9 @@ import {
   ensureMallSettingsFile,
   migrateFromLegacyIfNeeded,
 } from "./utils/settings";
+import type { AudioSettings } from "./types/audioSettings";
+import { DEFAULT_AUDIO_SETTINGS } from "./types/audioSettings";
+import { AudioSettingsProvider } from "./contexts/AudioSettingsContext";
 import { logInfo, logError } from "./logs/logging";
 
 // ---------------------------------------------------------------------------
@@ -118,8 +121,9 @@ const App: React.FC = () => {
   const [blackScreenSettings, setBlackScreenSettings] =
     useState<BlackScreenSettings>(DEFAULT_BLACK_SCREEN_SETTINGS);
 
+  const [audioSettings, setAudioSettings] =
+    useState<AudioSettings>(DEFAULT_AUDIO_SETTINGS);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [isBlackScreenActive, setIsBlackScreenActive] = useState(false);
 
   // --- UI visibility ---
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
@@ -150,6 +154,7 @@ const App: React.FC = () => {
       if (ms.genreMemoSettings) setGenreMemoSettings(ms.genreMemoSettings);
       if (ms.shopSettings !== undefined) setShopSettings(ms.shopSettings ?? {});
       if (ms.blackScreenSettings) setBlackScreenSettings(ms.blackScreenSettings);
+      if (ms.audioSettings) setAudioSettings(ms.audioSettings);
       if (floorOverride) setFloor(floorOverride);
     },
     [],
@@ -403,6 +408,7 @@ const App: React.FC = () => {
           genreMemoSettings={genreMemoSettings}
           shopSettings={shopSettings}
           blackScreenSettings={blackScreenSettings}
+          audioSettings={audioSettings}
           isInitialSetup={true}
           onSaveAll={(ms, newFloor) =>
             handleInitialSetupSave(ms, newFloor)
@@ -416,6 +422,7 @@ const App: React.FC = () => {
   // Running (normal operation)
   return (
     <ErrorBoundary>
+      <AudioSettingsProvider mallId={mallId}>
       <ContextMenu
         onOpenSettings={() => setIsSettingsVisible(true)}
         onOpenVersionInfo={() => setIsVersionInfoVisible(true)}
@@ -454,14 +461,12 @@ const App: React.FC = () => {
           genreMappings={genreMappings}
           genreMemoSettings={genreMemoSettings}
           shopSettings={shopSettings}
-          isBlackScreenActive={isBlackScreenActive}
         />
 
         <BlackScreenOverlay
           settings={blackScreenSettings}
           onOpenSettings={() => setIsSettingsVisible(true)}
           isSettingsOpen={isSettingsVisible}
-          onBlackScreenChange={setIsBlackScreenActive}
         />
 
         {isSettingsVisible && (
@@ -475,6 +480,7 @@ const App: React.FC = () => {
             genreMemoSettings={genreMemoSettings}
             shopSettings={shopSettings}
             blackScreenSettings={blackScreenSettings}
+            audioSettings={audioSettings}
             onSaveAll={(ms, newFloor, newMallId) =>
               handleSaveAll(ms, newFloor, newMallId ?? mallId)
             }
@@ -486,6 +492,7 @@ const App: React.FC = () => {
           <VersionInfoScreen onClose={() => setIsVersionInfoVisible(false)} />
         )}
       </ContextMenu>
+      </AudioSettingsProvider>
     </ErrorBoundary>
   );
 };
