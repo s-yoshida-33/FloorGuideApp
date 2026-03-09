@@ -15,8 +15,9 @@ const HEALTH_CHECK_INTERVAL_MS = 60000; // 60秒間隔でヘルスチェック
 const MAX_RECREATE_COUNT = 3; // 動画要素の再生成上限
 
 const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) => {
-  const { asset, isLoading } = useCurrentAsset();
+  const { asset, nextAsset, isLoading } = useCurrentAsset();
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const preloadVideoRef = React.useRef<HTMLVideoElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const prevAssetIdRef = React.useRef<string | null>(null);
 
@@ -144,12 +145,39 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   // We only need to handle image reset here.
   React.useEffect(() => {
     if (asset && asset.id !== prevAssetIdRef.current) {
+      // Guard: skip if src is empty (failed URL conversion) to prevent black screen
+      if (!asset.src) {
+        logWarn('CMS_DELIVERY', 'Asset has empty src, skipping media load', { assetId: asset.id });
+        prevAssetIdRef.current = asset.id;
+        return;
+      }
       if (imgRef.current) {
         imgRef.current.src = asset.src;
       }
       prevAssetIdRef.current = asset.id;
     }
   }, [asset?.id, asset?.src]);
+
+  // Preload next asset for seamless transition
+  React.useEffect(() => {
+    const preloadVideo = preloadVideoRef.current;
+    if (!preloadVideo || !nextAsset?.src) return;
+
+    const isNextVideo = !nextAsset.src.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i);
+    if (!isNextVideo) return;
+
+    const currentPreloadSrc = decodeURIComponent(preloadVideo.src || '');
+    if (currentPreloadSrc.includes(nextAsset.id) || preloadVideo.src === nextAsset.src) return;
+
+    // Release previous preload buffer, then set new source
+    if (preloadVideo.src) {
+      preloadVideo.removeAttribute('src');
+      preloadVideo.load();
+    }
+    preloadVideo.src = nextAsset.src;
+    preloadVideo.load();
+    logDebug('CMS_DELIVERY', 'Preloading next CMS asset', { nextAssetId: nextAsset.id });
+  }, [nextAsset?.id, nextAsset?.src]);
 
   // No asset case
   if (!asset) {
@@ -210,65 +238,75 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
 
   // Render as video (default)
   return (
-    <OptimizedVideo
-      ref={videoRef}
-      key={`video-player-${videoKey}`}
-      src={asset.src}
-      autoPlay
-      loop={true}
-      playsInline
-      muted={muted}
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'block',
-        objectFit: 'cover',
-      }}
-      onTimeUpdate={() => {
-        lastTimeUpdateRef.current = Date.now();
-      }}
-      onLoadedData={() => {
-        retryCountRef.current = 0; // Reset retry count on successful load
-        lastTimeUpdateRef.current = Date.now();
-        logDebug('CMS_DELIVERY', 'Content video ready', {
-          assetId: asset.id,
-          src: asset.src,
-          type: 'VIDEO'
-        });
-      }}
-      onPlay={() => {
-        lastTimeUpdateRef.current = Date.now();
-        logDebug('CMS_DELIVERY', 'Video playback started', {
-          assetId: asset.id,
-        });
-      }}
-      onStalled={() => {
-        logWarn('CMS_DELIVERY', 'Video stalled (network throttle or buffer underrun)', {
-          assetId: asset.id,
-          src: asset.src,
-          readyState: videoRef.current?.readyState,
-          networkState: videoRef.current?.networkState,
-        });
-      }}
-      onEnded={() => {
-        logDebug('CMS_DELIVERY', 'Video playback ended (will loop)', {
-          assetId: asset.id,
-        });
-      }}
-      onError={() => {
-        logError('CMS_DELIVERY', 'Content video load failed', {
-          assetId: asset.id,
-          src: asset.src,
-          error: videoRef.current?.error?.message,
-          errorCode: videoRef.current?.error?.code,
-          networkState: videoRef.current?.networkState,
-          readyState: videoRef.current?.readyState,
-        });
-        if (videoRef.current) {
-          attemptRecovery(videoRef.current);
-        }
-      }}
-    />
+    <>
+      <OptimizedVideo
+        ref={videoRef}
+        key={`video-player-${videoKey}`}
+        src={asset.src}
+        autoPlay
+        loop={true}
+        playsInline
+        muted={muted}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          objectFit: 'cover',
+        }}
+        onTimeUpdate={() => {
+          lastTimeUpdateRef.current = Date.now();
+        }}
+        onLoadedData={() => {
+          retryCountRef.current = 0; // Reset retry count on successful load
+          lastTimeUpdateRef.current = Date.now();
+          logDebug('CMS_DELIVERY', 'Content video ready', {
+            assetId: asset.id,
+            src: asset.src,
+            type: 'VIDEO'
+          });
+        }}
+        onPlay={() => {
+          lastTimeUpdateRef.current = Date.now();
+          logDebug('CMS_DELIVERY', 'Video playback started', {
+            assetId: asset.id,
+          });
+        }}
+        onStalled={() => {
+          logWarn('CMS_DELIVERY', 'Video stalled (network throttle or buffer underrun)', {
+            assetId: asset.id,
+            src: asset.src,
+            readyState: videoRef.current?.readyState,
+            networkState: videoRef.current?.networkState,
+          });
+        }}
+        onEnded={() => {
+          logDebug('CMS_DELIVERY', 'Video playback ended (will loop)', {
+            assetId: asset.id,
+          });
+        }}
+        onError={() => {
+          logError('CMS_DELIVERY', 'Content video load failed', {
+            assetId: asset.id,
+            src: asset.src,
+            error: videoRef.current?.error?.message,
+            errorCode: videoRef.current?.error?.code,
+            networkState: videoRef.current?.networkState,
+            readyState: videoRef.current?.readyState,
+          });
+          if (videoRef.current) {
+            attemptRecovery(videoRef.current);
+          }
+        }}
+      />
+      {/* Hidden preload element for next CMS asset */}
+      <video
+        ref={preloadVideoRef}
+        muted
+        preload="metadata"
+        playsInline
+        style={{ display: 'none' }}
+      />
+    </>
   );
 };
 
