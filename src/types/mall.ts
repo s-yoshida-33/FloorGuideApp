@@ -44,6 +44,7 @@ export interface MallSettingsFile {
   genreMemoSettings?: import('./genreSettings').GenreMemoSettings;
   shopSettings?: import('./shopSettings').ShopSettings;
   blackScreenSettings?: import('./blackScreenSettings').BlackScreenSettings;
+  audioSettings?: import('./audioSettings').AudioSettings;
 }
 
 /**
