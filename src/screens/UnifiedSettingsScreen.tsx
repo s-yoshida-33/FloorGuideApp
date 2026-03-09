@@ -13,19 +13,22 @@ import { ImageSettingsTab } from "../components/ImageSettingsTab";
 import { GenreSettingsTab } from "../components/GenreSettingsTab";
 import { ShopSettingsTab } from "../components/ShopSettingsTab";
 import { BlackScreenSettingsTab } from "../components/BlackScreenSettingsTab";
+import { AudioSettingsTab } from "../components/AudioSettingsTab";
 import iconSvg from "../assets/icon.svg";
 import type { ImageSettings } from "../types/imageSettings";
 import type { GenreMappings, GenreMemoSettings } from "../types/genreSettings";
 import type { ShopSettings } from "../types/shopSettings";
 import type { BlackScreenSettings } from "../types/blackScreenSettings";
 import { DEFAULT_BLACK_SCREEN_SETTINGS } from "../types/blackScreenSettings";
+import type { AudioSettings } from "../types/audioSettings";
+import { DEFAULT_AUDIO_SETTINGS } from "../types/audioSettings";
 import { DEFAULT_GENRE_MEMO_SETTINGS } from "../types/genreSettings";
 import {
   ensureMallSettingsFile,
   loadMallSettings,
 } from "../utils/settings";
 
-type TabType = "floor" | "layout" | "location" | "image" | "genre" | "shop" | "blackScreen";
+type TabType = "floor" | "layout" | "location" | "image" | "genre" | "shop" | "blackScreen" | "audio";
 
 interface UnifiedSettingsScreenProps {
   mallId: MallId;
@@ -37,6 +40,7 @@ interface UnifiedSettingsScreenProps {
   genreMemoSettings: GenreMemoSettings;
   shopSettings: ShopSettings;
   blackScreenSettings?: BlackScreenSettings;
+  audioSettings?: AudioSettings;
   isInitialSetup?: boolean;
   onSaveAll: (
     mallSettings: MallSettingsFile,
@@ -56,6 +60,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   genreMemoSettings: initialGenreMemoSettings,
   shopSettings: initialShopSettings,
   blackScreenSettings: initialBlackScreenSettings = DEFAULT_BLACK_SCREEN_SETTINGS,
+  audioSettings: initialAudioSettings = DEFAULT_AUDIO_SETTINGS,
   isInitialSetup = false,
   onSaveAll,
   onClose,
@@ -77,6 +82,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   const [genreMemoSettings, setGenreMemoSettings] = useState<GenreMemoSettings>(initialGenreMemoSettings);
   const [shopSettings, setShopSettings] = useState<ShopSettings>(initialShopSettings);
   const [blackScreenSettings, setBlackScreenSettings] = useState<BlackScreenSettings>(initialBlackScreenSettings);
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(initialAudioSettings);
 
   // Per-mall state cache to prevent cross-contamination when switching malls
   type MallLocalState = {
@@ -88,6 +94,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     genreMemoSettings: GenreMemoSettings;
     shopSettings: ShopSettings;
     blackScreenSettings: BlackScreenSettings;
+    audioSettings: AudioSettings;
   };
   const mallStateCacheRef = useRef<Partial<Record<MallId, MallLocalState>>>({
     [initialMallId]: {
@@ -99,6 +106,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
       genreMemoSettings: initialGenreMemoSettings,
       shopSettings: initialShopSettings,
       blackScreenSettings: initialBlackScreenSettings,
+      audioSettings: initialAudioSettings,
     },
   });
 
@@ -113,6 +121,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
       genreMemoSettings,
       shopSettings,
       blackScreenSettings,
+      audioSettings,
     };
   };
 
@@ -126,6 +135,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setGenreMemoSettings(s.genreMemoSettings);
     setShopSettings(s.shopSettings);
     setBlackScreenSettings(s.blackScreenSettings);
+    setAudioSettings(s.audioSettings);
   };
 
   // Transform wrapper ref for programmatic control
@@ -154,11 +164,12 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setGenreMemoSettings(initialGenreMemoSettings);
     setShopSettings(initialShopSettings);
     setBlackScreenSettings(initialBlackScreenSettings);
+    setAudioSettings(initialAudioSettings);
     setErrors({});
     if (transformRef.current) {
       transformRef.current.resetTransform();
     }
-  }, [initialMallId, initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings, initialBlackScreenSettings]);
+  }, [initialMallId, initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings, initialBlackScreenSettings, initialAudioSettings]);
 
   // ---------- Mall switch handler ----------
   const handleMallChange = async (newMallId: MallId) => {
@@ -187,6 +198,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         genreMemoSettings: ms.genreMemoSettings ?? DEFAULT_GENRE_MEMO_SETTINGS,
         shopSettings: ms.shopSettings ?? {},
         blackScreenSettings: ms.blackScreenSettings ?? DEFAULT_BLACK_SCREEN_SETTINGS,
+        audioSettings: ms.audioSettings ?? DEFAULT_AUDIO_SETTINGS,
       };
       mallStateCacheRef.current[newMallId] = snapshot;
       applySnapshot(snapshot);
@@ -211,6 +223,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     setGenreMemoSettings(initialGenreMemoSettings);
     setShopSettings(initialShopSettings);
     setBlackScreenSettings(initialBlackScreenSettings);
+    setAudioSettings(initialAudioSettings);
     setErrors({});
     if (transformRef.current) {
       transformRef.current.resetTransform();
@@ -281,6 +294,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         genreMemoSettings,
         shopSettings,
         blackScreenSettings,
+        audioSettings,
       };
       await onSaveAll(mallSettings, floor, mallId);
       handleClose();
@@ -323,6 +337,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     { id: "genre", label: "ジャンル表記" },
     { id: "shop", label: "ショップ別設定" },
     { id: "blackScreen", label: "ブラックスクリーン" },
+    { id: "audio", label: "オーディオ" },
   ];
 
   return (
@@ -617,6 +632,12 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
             <BlackScreenSettingsTab
               settings={blackScreenSettings}
               onChangeSettings={setBlackScreenSettings}
+            />
+          )}
+          {activeTab === "audio" && (
+            <AudioSettingsTab
+              audioSettings={audioSettings}
+              onChangeAudioSettings={setAudioSettings}
             />
           )}
         </div>

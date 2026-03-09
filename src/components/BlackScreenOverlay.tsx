@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import type { BlackScreenSettings } from '../types/blackScreenSettings';
 import { shouldShowBlackScreen } from '../types/blackScreenSettings';
+import { useAudioSettingsContext } from '../contexts/AudioSettingsContext';
 
 interface BlackScreenOverlayProps {
   settings: BlackScreenSettings;
@@ -23,6 +24,7 @@ const BlackScreenOverlay: React.FC<BlackScreenOverlayProps> = ({
   onOpenSettings,
   isSettingsOpen,
 }) => {
+  const { setBlackScreenActive } = useAudioSettingsContext();
   const [isBlack, setIsBlack] = useState(false);
   const [isTemporarilyUnlocked, setIsTemporarilyUnlocked] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -85,6 +87,12 @@ const BlackScreenOverlay: React.FC<BlackScreenOverlayProps> = ({
 
   // 表示条件: 暗転すべき & 一時解除されていない & 設定画面が閉じている
   const shouldShow = isBlack && !isTemporarilyUnlocked && !isSettingsOpen;
+
+  // ブラックスクリーン表示状態をAudioSettingsContextに通知（音声ミュート連携用）
+  useEffect(() => {
+    setBlackScreenActive(shouldShow);
+    return () => setBlackScreenActive(false);
+  }, [shouldShow, setBlackScreenActive]);
 
   if (!shouldShow) {
     // 一時解除中の場合、再ロックボタンを表示
