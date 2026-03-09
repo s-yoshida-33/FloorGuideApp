@@ -119,6 +119,7 @@ const App: React.FC = () => {
     useState<BlackScreenSettings>(DEFAULT_BLACK_SCREEN_SETTINGS);
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isBlackScreenActive, setIsBlackScreenActive] = useState(false);
 
   // --- UI visibility ---
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
@@ -453,12 +454,14 @@ const App: React.FC = () => {
           genreMappings={genreMappings}
           genreMemoSettings={genreMemoSettings}
           shopSettings={shopSettings}
+          isBlackScreenActive={isBlackScreenActive}
         />
 
         <BlackScreenOverlay
           settings={blackScreenSettings}
           onOpenSettings={() => setIsSettingsVisible(true)}
           isSettingsOpen={isSettingsVisible}
+          onBlackScreenChange={setIsBlackScreenActive}
         />
 
         {isSettingsVisible && (

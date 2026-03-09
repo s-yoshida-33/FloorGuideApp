@@ -55,6 +55,13 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
     };
   }, []);
 
+  // Sync muted prop to video element (React doesn't reliably update muted attribute)
+  React.useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = muted;
+    }
+  }, [muted]);
+
   // Reset retry/recreation counts when asset changes
   React.useEffect(() => {
     retryCountRef.current = 0;
