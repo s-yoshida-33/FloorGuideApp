@@ -422,7 +422,7 @@ const App: React.FC = () => {
   // Running (normal operation)
   return (
     <ErrorBoundary>
-      <AudioSettingsProvider mallId={mallId}>
+      <AudioSettingsProvider mallId={mallId} externalAudioSettings={audioSettings}>
       <ContextMenu
         onOpenSettings={() => setIsSettingsVisible(true)}
         onOpenVersionInfo={() => setIsVersionInfoVisible(true)}
