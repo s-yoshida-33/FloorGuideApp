@@ -34,6 +34,27 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   const [videoKey, setVideoKey] = React.useState<number>(0);
   const recreateCountRef = React.useRef<number>(0);
 
+  // Cleanup all resources on unmount to prevent memory leaks
+  React.useEffect(() => {
+    return () => {
+      if (retryTimerRef.current !== undefined) {
+        window.clearTimeout(retryTimerRef.current);
+      }
+      if (freezeTimerRef.current !== undefined) {
+        window.clearInterval(freezeTimerRef.current);
+      }
+      if (healthCheckTimerRef.current !== undefined) {
+        window.clearInterval(healthCheckTimerRef.current);
+      }
+      // Release preload video buffer to prevent orphaned decoded frames
+      if (preloadVideoRef.current) {
+        preloadVideoRef.current.pause();
+        preloadVideoRef.current.removeAttribute('src');
+        preloadVideoRef.current.load();
+      }
+    };
+  }, []);
+
   // Reset retry/recreation counts when asset changes
   React.useEffect(() => {
     retryCountRef.current = 0;
@@ -140,9 +161,9 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
     }
   }, [asset?.id]);
 
-  // Reset media element when asset changes
-  // Note: Video memory release is handled by OptimizedVideo's src change effect.
-  // We only need to handle image reset here.
+  // Reset media element when asset changes.
+  // Video memory release is handled by OptimizedVideo's src change effect.
+  // Here we handle: transition logging, image reset, and preload buffer cleanup.
   React.useEffect(() => {
     if (asset && asset.id !== prevAssetIdRef.current) {
       // Guard: skip if src is empty (failed URL conversion) to prevent black screen
@@ -151,9 +172,28 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
         prevAssetIdRef.current = asset.id;
         return;
       }
+
+      logDebug('CMS_DELIVERY', 'CMS asset transition', {
+        from: prevAssetIdRef.current,
+        to: asset.id,
+        mediaType: asset.mediaType,
+      });
+
       if (imgRef.current) {
         imgRef.current.src = asset.src;
       }
+
+      // Release preload buffer if the preloaded asset matches the new current asset,
+      // since the main player now owns this content.
+      const preloadVideo = preloadVideoRef.current;
+      if (preloadVideo && preloadVideo.src) {
+        const preloadSrc = decodeURIComponent(preloadVideo.src);
+        if (preloadSrc.includes(asset.id) || preloadVideo.src === asset.src) {
+          preloadVideo.removeAttribute('src');
+          preloadVideo.load();
+        }
+      }
+
       prevAssetIdRef.current = asset.id;
     }
   }, [asset?.id, asset?.src]);
