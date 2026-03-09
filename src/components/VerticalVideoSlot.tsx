@@ -34,6 +34,27 @@ const VerticalVideoSlot: React.FC<VerticalVideoSlotProps> = ({ muted = false }) 
   const [videoKey, setVideoKey] = React.useState<number>(0);
   const recreateCountRef = React.useRef<number>(0);
 
+  // Cleanup all resources on unmount to prevent memory leaks
+  React.useEffect(() => {
+    return () => {
+      if (retryTimerRef.current !== undefined) {
+        window.clearTimeout(retryTimerRef.current);
+      }
+      if (freezeTimerRef.current !== undefined) {
+        window.clearInterval(freezeTimerRef.current);
+      }
+      if (healthCheckTimerRef.current !== undefined) {
+        window.clearInterval(healthCheckTimerRef.current);
+      }
+      // Release preload video buffer to prevent orphaned decoded frames
+      if (preloadVideoRef.current) {
+        preloadVideoRef.current.pause();
+        preloadVideoRef.current.removeAttribute('src');
+        preloadVideoRef.current.load();
+      }
+    };
+  }, []);
+
   // Reset retry/recreation counts when asset changes
   React.useEffect(() => {
     retryCountRef.current = 0;
