@@ -51,7 +51,6 @@ const SakaikitahanadaLayout: React.FC<LayoutProps> = ({
   genreMemoSettings = DEFAULT_GENRE_MEMO_SETTINGS,
   shopSettings,
   isPreview = false,
-  refreshKey,
   error,
 }) => {
   const floorMapRef = useRef<HTMLImageElement>(null);
