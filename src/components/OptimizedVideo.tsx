@@ -7,7 +7,7 @@ interface OptimizedVideoProps extends React.VideoHTMLAttributes<HTMLVideoElement
 export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(({ src, className, style, ...props }, ref) => {
   const innerRef = useRef<HTMLVideoElement>(null);
   
-  // 外部からのrefと内部のrefを同期させる
+  // Synchronize external ref with internal ref
   useEffect(() => {
     if (!ref) return;
     
@@ -18,7 +18,7 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
     }
   }, [ref]);
 
-  // srcが変わった時の処理
+  // Handle src changes
   // Release decoded video frames before loading new src to prevent memory leak.
   // Without this, Chromium accumulates decoded frame buffers across src changes.
   const prevSrcRef = useRef<string>('');
@@ -26,7 +26,7 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
     const video = innerRef.current;
     if (!video) return;
 
-    // CPU負荷軽減のための設定
+    // Settings to reduce CPU load
     video.preload = 'metadata';
 
     // Guard: skip if src is empty to prevent black screen / error state
@@ -35,31 +35,31 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
       return;
     }
 
-    // 前のソースがある場合、デコード済みフレームを解放してから新しいソースをロード
+    // If there is a previous source, release decoded frames before loading the new source
     if (prevSrcRef.current && prevSrcRef.current !== src) {
       video.pause();
       video.removeAttribute('src');
       video.load();
-      // useEffectはReactのDOM更新後に実行されるため、removeAttribute('src')は
-      // Reactが設定した新しいsrcを消してしまう。明示的に再設定する。
+      // Since useEffect runs after React's DOM update, removeAttribute('src') 
+      // will remove the new src set by React. Explicitly set it again.
       video.src = src;
       video.load();
     }
     prevSrcRef.current = src;
   }, [src]);
 
-  // マウント/アンマウント時の処理（クリーンアップのみ）
+  // Mount/unmount handling (cleanup only)
   useEffect(() => {
     const video = innerRef.current;
     if (!video) return;
 
-    // クリーンアップ処理: コンポーネントが完全に破棄される時だけ実行する
-    // ※srcの変更時には実行されないように依存配列を空にする
+    // Cleanup: execute only when the component is completely unmounted
+    // * Use empty dependency array to prevent execution on src change
     return () => {
       try {
         video.pause();
         video.removeAttribute('src');
-        video.load(); // 読み込みをリセットして完全に停止させる
+        video.load(); // Reset loading and completely stop playback
       } catch (e) {
         console.warn('Video cleanup failed:', e);
       }
@@ -75,7 +75,7 @@ export const OptimizedVideo = forwardRef<HTMLVideoElement, OptimizedVideoProps>(
       loop
       autoPlay
       playsInline
-      // CPU負荷軽減のための属性
+      // Attributes to reduce CPU load
       disablePictureInPicture
       disableRemotePlayback
       {...props}
