@@ -7,9 +7,9 @@ import { useAudioSettingsContext } from '../contexts/AudioSettingsContext';
 
 const MAX_RETRY_COUNT = 5;
 const INITIAL_RETRY_DELAY_MS = 1000;
-const FREEZE_TIMEOUT_MS = 30000; // 30秒間 timeupdate が来なければフリーズとみなす
-const HEALTH_CHECK_INTERVAL_MS = 60000; // 60秒間隔でヘルスチェック
-const MAX_RECREATE_COUNT = 3; // 動画要素の再生成上限
+const FREEZE_TIMEOUT_MS = 30000; // Consider as frozen if no timeupdate for 30 seconds
+const HEALTH_CHECK_INTERVAL_MS = 60000; // Health check interval of 60 seconds
+const MAX_RECREATE_COUNT = 3; // Maximum limit for recreating the video element
 
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
@@ -133,7 +133,7 @@ const VerticalVideoSlot: React.FC = () => {
     };
   }, [asset?.id, asset?.src]);
 
-  const attemptRecovery = React.useCallback((video: HTMLVideoElement) => {
+  const attemptRecovery = React.useCallback((_video: HTMLVideoElement) => {
     // First try: reload the video
     if (retryCountRef.current < MAX_RETRY_COUNT) {
       retryCountRef.current += 1;
@@ -243,7 +243,7 @@ const VerticalVideoSlot: React.FC = () => {
           fontSize: 12,
         }}
       >
-        {isLoading ? 'Loading…' : 'No conected.'}
+        {isLoading ? 'Loading...' : 'Not connected.'}
       </div>
     );
   }
