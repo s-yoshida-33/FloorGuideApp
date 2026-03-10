@@ -125,7 +125,15 @@ export function useCurrentAsset(): UseCurrentAssetResult {
     }
 
     lastAssetIdRef.current = next?.id;
-    setAsset(next);
+
+    // Set asset avoiding unnecessary state updates if data is identical
+    setAsset(prevAsset => {
+      if (!next) return null;
+      if (prevAsset && prevAsset.id === next.id && prevAsset.src === next.src) {
+        return prevAsset;
+      }
+      return next;
+    });
 
     setNextAsset(prevNext => {
       if (!nextMedia) return null;
