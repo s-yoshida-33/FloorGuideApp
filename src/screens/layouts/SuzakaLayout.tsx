@@ -157,7 +157,7 @@ const SuzakaLayout: React.FC<LayoutProps> = ({
                 (設定中は非表示)
               </div>
             ) : (
-              <VerticalVideoSlot key={refreshKey} />
+              <VerticalVideoSlot />
             )}
           </div>
         </div>
