@@ -9,12 +9,14 @@ interface UseCurrentAssetResult {
   asset: CurrentAsset | null;
   nextAsset: CurrentAsset | null;
   isLoading: boolean;
+  isScheduleTransitioning: boolean;
 }
 
 type AssetStatus = 'ok' | 'noAsset' | 'error' | null;
 
 const BASE_RETRY_DELAY_MS = 3000;
 const MAX_RETRY_DELAY_MS = 60000;
+const NULL_GRACE_PERIOD_MS = 5000;
 
 /**
  * Convert a TimelineStreamEvent into a CurrentAsset.
@@ -92,6 +94,7 @@ export function useCurrentAsset(): UseCurrentAssetResult {
   const [asset, setAsset] = useState<CurrentAsset | null>(null);
   const [nextAsset, setNextAsset] = useState<CurrentAsset | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isScheduleTransitioning, setIsScheduleTransitioning] = useState<boolean>(false);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<number | undefined>(undefined);
@@ -99,11 +102,22 @@ export function useCurrentAsset(): UseCurrentAssetResult {
   const isMountedRef = useRef<boolean>(true);
   const lastStatusRef = useRef<AssetStatus>(null);
   const lastAssetIdRef = useRef<string | undefined>(undefined);
+  const nullGraceTimerRef = useRef<number | undefined>(undefined);
+
+  const clearNullGraceTimer = useCallback(() => {
+    if (nullGraceTimerRef.current !== undefined) {
+      window.clearTimeout(nullGraceTimerRef.current);
+      nullGraceTimerRef.current = undefined;
+    }
+  }, []);
 
   const handleAssetUpdate = useCallback((next: CurrentAsset | null, nextMedia: CurrentAsset | null) => {
     if (!isMountedRef.current) return;
 
     if (next) {
+      clearNullGraceTimer();
+      setIsScheduleTransitioning(false);
+
       const assetChanged = lastAssetIdRef.current !== next.id;
       if (lastStatusRef.current !== 'ok') {
         logDebug('CMS_DELIVERY', 'Received current video asset via SSE', {
@@ -120,31 +134,75 @@ export function useCurrentAsset(): UseCurrentAssetResult {
         });
       }
       lastStatusRef.current = 'ok';
-    } else {
-      lastStatusRef.current = 'noAsset';
+      lastAssetIdRef.current = next.id;
+
+      setAsset(prevAsset => {
+        if (prevAsset && prevAsset.id === next.id && prevAsset.src === next.src) {
+          return prevAsset;
+        }
+        return next;
+      });
+
+      setNextAsset(prevNext => {
+        if (!nextMedia) return null;
+        if (prevNext && prevNext.id === nextMedia.id && prevNext.src === nextMedia.src) {
+          return prevNext;
+        }
+        return nextMedia;
+      });
+
+      setIsLoading(false);
+      return;
     }
 
-    lastAssetIdRef.current = next?.id;
+    // next is null: schedule recalculation in progress
+    if (lastAssetIdRef.current && nullGraceTimerRef.current === undefined) {
+      logDebug('CMS_DELIVERY', 'Received null asset during schedule recalculation, entering grace period', {
+        previousAssetId: lastAssetIdRef.current,
+        gracePeriodMs: NULL_GRACE_PERIOD_MS,
+        nextMediaId: nextMedia?.id,
+      });
+      setIsScheduleTransitioning(true);
 
-    // Set asset avoiding unnecessary state updates if data is identical
-    setAsset(prevAsset => {
-      if (!next) return null;
-      if (prevAsset && prevAsset.id === next.id && prevAsset.src === next.src) {
-        return prevAsset;
+      if (nextMedia) {
+        setNextAsset(prevNext => {
+          if (prevNext && prevNext.id === nextMedia.id && prevNext.src === nextMedia.src) {
+            return prevNext;
+          }
+          return nextMedia;
+        });
       }
-      return next;
-    });
 
-    setNextAsset(prevNext => {
-      if (!nextMedia) return null;
-      if (prevNext && prevNext.id === nextMedia.id && prevNext.src === nextMedia.src) {
-        return prevNext;
-      }
-      return nextMedia;
-    });
+      nullGraceTimerRef.current = window.setTimeout(() => {
+        nullGraceTimerRef.current = undefined;
+        if (!isMountedRef.current) return;
+        logWarn('CMS_DELIVERY', 'Null grace period expired, treating as no asset', {
+          previousAssetId: lastAssetIdRef.current,
+        });
+        setIsScheduleTransitioning(false);
+        lastStatusRef.current = 'noAsset';
+        lastAssetIdRef.current = undefined;
+        setAsset(null);
+        setNextAsset(null);
+        setIsLoading(false);
+      }, NULL_GRACE_PERIOD_MS);
+      return;
+    }
 
-    setIsLoading(false);
-  }, []);
+    // No previous asset or grace timer already running: fall through to original null behavior
+    if (!lastAssetIdRef.current) {
+      lastStatusRef.current = 'noAsset';
+      setAsset(null);
+      setNextAsset(prevNext => {
+        if (!nextMedia) return null;
+        if (prevNext && prevNext.id === nextMedia.id && prevNext.src === nextMedia.src) {
+          return prevNext;
+        }
+        return nextMedia;
+      });
+      setIsLoading(false);
+    }
+  }, [clearNullGraceTimer]);
 
   const connectSSE = useCallback(() => {
     const url = TIMELINE_STREAM_URL;
@@ -214,8 +272,9 @@ export function useCurrentAsset(): UseCurrentAssetResult {
       if (retryTimeoutRef.current !== undefined) {
         window.clearTimeout(retryTimeoutRef.current);
       }
+      clearNullGraceTimer();
     };
-  }, [connectSSE]);
+  }, [connectSSE, clearNullGraceTimer]);
 
-  return { asset, nextAsset, isLoading };
+  return { asset, nextAsset, isLoading, isScheduleTransitioning };
 }
