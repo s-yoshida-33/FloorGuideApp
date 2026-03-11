@@ -72,17 +72,37 @@ const VerticalVideoSlot: React.FC = () => {
     }
   }, [asset?.id, asset?.src]);
 
-  // Pause video during schedule recalculation (freeze on last frame)
+  // Pause video on last frame during CMS schedule recalculation.
+  // When a valid event arrives within the grace period, resume playback.
   React.useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !asset) return;
+
+    const isImage = asset.mediaType === 'image' ||
+      (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
+    if (isImage) return;
 
     if (isScheduleTransitioning) {
       if (!video.paused) {
         video.pause();
-        logDebug('CMS_DELIVERY', 'Paused video for schedule recalculation', {
-          assetId: asset?.id,
+        logDebug('CMS_DELIVERY', 'Paused video for schedule recalculation (holding last frame)', {
+          assetId: asset.id,
           currentTime: video.currentTime,
+        });
+      }
+    } else {
+      lastTimeUpdateRef.current = Date.now();
+      if (video.paused && video.readyState >= 2) {
+        video.play().then(() => {
+          logDebug('CMS_DELIVERY', 'Resumed video after schedule recalculation', {
+            assetId: asset.id,
+            currentTime: video.currentTime,
+          });
+        }).catch((err) => {
+          logError('CMS_DELIVERY', 'Failed to resume video after schedule recalculation', {
+            assetId: asset.id,
+            error: err?.message,
+          });
         });
       }
     }

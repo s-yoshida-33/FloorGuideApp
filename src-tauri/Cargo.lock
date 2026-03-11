@@ -1243,7 +1243,7 @@ dependencies = [
 
 [[package]]
 name = "gido"
-version = "1.7.12"
+version = "1.7.13"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
