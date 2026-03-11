@@ -14,7 +14,7 @@ const MAX_RECREATE_COUNT = 3; // Maximum limit for recreating the video element
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
   const muted = audioSettings.cmsMuted;
-  const { asset, nextAsset, isLoading } = useCurrentAsset();
+  const { asset, nextAsset, isLoading, isScheduleTransitioning } = useCurrentAsset();
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const preloadVideoRef = React.useRef<HTMLVideoElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
@@ -71,6 +71,22 @@ const VerticalVideoSlot: React.FC = () => {
       retryTimerRef.current = undefined;
     }
   }, [asset?.id, asset?.src]);
+
+  // Pause video during schedule recalculation (freeze on last frame)
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isScheduleTransitioning) {
+      if (!video.paused) {
+        video.pause();
+        logDebug('CMS_DELIVERY', 'Paused video for schedule recalculation', {
+          assetId: asset?.id,
+          currentTime: video.currentTime,
+        });
+      }
+    }
+  }, [isScheduleTransitioning, asset?.id]);
 
   // Freeze detection & health check
   React.useEffect(() => {

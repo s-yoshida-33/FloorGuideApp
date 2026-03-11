@@ -57,12 +57,12 @@ export interface WspMediaAsset {
    */
   export interface TimelineStreamEvent {
     event_type: 'item_changed';
-    current_media_id: string;
-    current_media_name: string;
-    current_media_type: string; // 'image' | 'video'
-    current_media_local_path: string;
-    next_media_id: string;
-    next_media_local_path: string;
+    current_media_id: string | null;
+    current_media_name: string | null;
+    current_media_type: string | null;
+    current_media_local_path: string | null;
+    next_media_id: string | null;
+    next_media_local_path: string | null;
     timeline_count: number;
     timestamp: string;
   }
