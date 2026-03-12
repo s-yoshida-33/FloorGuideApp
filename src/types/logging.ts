@@ -13,11 +13,11 @@ export type LogTag =
   // UI / Screen features
   | 'MAP'             // [ALERT] Floor map display / interaction errors
   | 'SHOPLIST'        // [ALERT] Shop list rendering errors
-  | 'VIDEO'           // [ALERT] Video player / CMS delivery errors
+  | 'VIDEO'           // [ALERT] Video/image playback state errors (load, stall, freeze, recovery)
 
   // Data fetching / communication
   | 'DATA_SYNC'       // [ALERT] Shop API data sync errors
-  | 'CMS_DELIVERY'    // [ALERT] CMS timeline delivery errors
+  | 'CMS_DELIVERY'    // [ALERT] CMS timeline delivery: SSE connection, event parsing, schedule management
   | 'SSE'             // [ALERT] SSE connection errors
 
   // Asset (file) management
