@@ -85,7 +85,7 @@ const VerticalVideoSlot: React.FC = () => {
     if (isScheduleTransitioning) {
       if (!video.paused) {
         video.pause();
-        logDebug('CMS_DELIVERY', 'Paused video for schedule recalculation (holding last frame)', {
+        logDebug('VIDEO', 'Paused video for schedule recalculation (holding last frame)', {
           assetId: asset.id,
           currentTime: video.currentTime,
         });
@@ -94,12 +94,12 @@ const VerticalVideoSlot: React.FC = () => {
       lastTimeUpdateRef.current = Date.now();
       if (video.paused && video.readyState >= 2) {
         video.play().then(() => {
-          logDebug('CMS_DELIVERY', 'Resumed video after schedule recalculation', {
+          logDebug('VIDEO', 'Resumed video after schedule recalculation', {
             assetId: asset.id,
             currentTime: video.currentTime,
           });
         }).catch((err) => {
-          logError('CMS_DELIVERY', 'Failed to resume video after schedule recalculation', {
+          logError('VIDEO', 'Failed to resume video after schedule recalculation', {
             assetId: asset.id,
             error: err?.message,
           });
@@ -123,7 +123,7 @@ const VerticalVideoSlot: React.FC = () => {
 
       const elapsed = Date.now() - lastTimeUpdateRef.current;
       if (elapsed > FREEZE_TIMEOUT_MS) {
-        logWarn('CMS_DELIVERY', 'Video freeze detected - no timeupdate for 30s, attempting recovery', {
+        logWarn('VIDEO', 'Video freeze detected - no timeupdate for 30s, attempting recovery', {
           assetId: asset.id,
           elapsed,
           readyState: video.readyState,
@@ -139,7 +139,7 @@ const VerticalVideoSlot: React.FC = () => {
       const video = videoRef.current;
       if (!video) return;
 
-      logDebug('CMS_DELIVERY', 'Video health check', {
+      logDebug('VIDEO', 'Video health check', {
         assetId: asset.id,
         paused: video.paused,
         readyState: video.readyState,
@@ -153,7 +153,7 @@ const VerticalVideoSlot: React.FC = () => {
       if (!video.paused && video.readyState < 2 && !video.error) {
         const elapsed = Date.now() - lastTimeUpdateRef.current;
         if (elapsed > FREEZE_TIMEOUT_MS) {
-          logWarn('CMS_DELIVERY', 'Video stuck in low readyState, attempting recovery', {
+          logWarn('VIDEO', 'Video stuck in low readyState, attempting recovery', {
             assetId: asset.id,
             readyState: video.readyState,
             elapsed,
@@ -174,7 +174,7 @@ const VerticalVideoSlot: React.FC = () => {
     if (retryCountRef.current < MAX_RETRY_COUNT) {
       retryCountRef.current += 1;
       const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, retryCountRef.current - 1);
-      logWarn('CMS_DELIVERY', `Attempting video recovery (${retryCountRef.current}/${MAX_RETRY_COUNT}), delay=${delay}ms`, {
+      logWarn('VIDEO', `Attempting video recovery (${retryCountRef.current}/${MAX_RETRY_COUNT}), delay=${delay}ms`, {
         assetId: asset?.id,
       });
 
@@ -189,13 +189,13 @@ const VerticalVideoSlot: React.FC = () => {
       // All retries exhausted - recreate the video element
       recreateCountRef.current += 1;
       retryCountRef.current = 0;
-      logWarn('CMS_DELIVERY', `Recreating video element (${recreateCountRef.current}/${MAX_RECREATE_COUNT})`, {
+      logWarn('VIDEO', `Recreating video element (${recreateCountRef.current}/${MAX_RECREATE_COUNT})`, {
         assetId: asset?.id,
       });
       lastTimeUpdateRef.current = Date.now();
       setVideoKey(prev => prev + 1);
     } else {
-      logError('CMS_DELIVERY', 'All video recovery attempts exhausted', {
+      logError('VIDEO', 'All video recovery attempts exhausted', {
         assetId: asset?.id,
         retryCount: retryCountRef.current,
         recreateCount: recreateCountRef.current,
@@ -210,7 +210,7 @@ const VerticalVideoSlot: React.FC = () => {
     if (asset && asset.id !== prevAssetIdRef.current) {
       // Guard: skip if src is empty (failed URL conversion) to prevent black screen
       if (!asset.src) {
-        logWarn('CMS_DELIVERY', 'Asset has empty src, skipping media load', { assetId: asset.id });
+        logWarn('VIDEO', 'Asset has empty src, skipping media load', { assetId: asset.id });
         prevAssetIdRef.current = asset.id;
         return;
       }
@@ -301,14 +301,14 @@ const VerticalVideoSlot: React.FC = () => {
           objectFit: 'cover',
         }}
         onLoad={() => {
-          logDebug('CMS_DELIVERY', 'Content image loaded', {
+          logDebug('VIDEO', 'Content image loaded', {
             assetId: asset.id,
             src: asset.src,
             type: 'IMAGE'
           });
         }}
         onError={() => {
-          logError('CMS_DELIVERY', 'Content image load failed', {
+          logError('VIDEO', 'Content image load failed', {
             assetId: asset.id,
             src: asset.src,
             reason: 'LOAD_ERROR'
@@ -341,20 +341,19 @@ const VerticalVideoSlot: React.FC = () => {
         onLoadedData={() => {
           retryCountRef.current = 0; // Reset retry count on successful load
           lastTimeUpdateRef.current = Date.now();
-          logDebug('CMS_DELIVERY', 'Content video ready', {
+          logDebug('VIDEO', 'Content video ready', {
             assetId: asset.id,
             src: asset.src,
-            type: 'VIDEO'
           });
         }}
         onPlay={() => {
           lastTimeUpdateRef.current = Date.now();
-          logDebug('CMS_DELIVERY', 'Video playback started', {
+          logDebug('VIDEO', 'Video playback started', {
             assetId: asset.id,
           });
         }}
         onStalled={() => {
-          logWarn('CMS_DELIVERY', 'Video stalled (network throttle or buffer underrun)', {
+          logWarn('VIDEO', 'Video stalled (network throttle or buffer underrun)', {
             assetId: asset.id,
             src: asset.src,
             readyState: videoRef.current?.readyState,
@@ -362,12 +361,12 @@ const VerticalVideoSlot: React.FC = () => {
           });
         }}
         onEnded={() => {
-          logDebug('CMS_DELIVERY', 'Video playback ended (will loop)', {
+          logDebug('VIDEO', 'Video playback ended (will loop)', {
             assetId: asset.id,
           });
         }}
         onError={() => {
-          logError('CMS_DELIVERY', 'Content video load failed', {
+          logError('VIDEO', 'Content video load failed', {
             assetId: asset.id,
             src: asset.src,
             error: videoRef.current?.error?.message,
