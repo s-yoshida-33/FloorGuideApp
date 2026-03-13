@@ -190,6 +190,7 @@ const SakaikitahanadaLayout: React.FC<LayoutProps> = ({
               rowsPerColumn={currentLayout.rowsPerCol}
               perColumnRows={currentLayout.perColumnRows}
               perColumnPadding={currentLayout.perColumnPadding}
+              genreGap={currentLayout.genreGap}
               genreMappings={genreMappings}
               genreMemoSettings={genreMemoSettings}
               shopSettings={shopSettings}

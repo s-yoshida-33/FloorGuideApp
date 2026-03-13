@@ -24,8 +24,9 @@ interface ShopListProps {
   floor: string;
   columnCount?: number;
   rowsPerColumn?: number;
-  perColumnRows?: number[]; // Column-by-column row overrides
-  perColumnPadding?: ColumnPadding[]; // Column-by-column padding
+  perColumnRows?: number[];
+  perColumnPadding?: ColumnPadding[];
+  genreGap?: number;
   genreMappings?: GenreMappings;
   genreMemoSettings?: GenreMemoSettings;
   shopSettings?: ShopSettings;
@@ -95,6 +96,7 @@ const ShopList: React.FC<ShopListProps> = ({
   rowsPerColumn,
   perColumnRows,
   perColumnPadding,
+  genreGap,
   genreMappings = DEFAULT_GENRE_MAPPINGS,
   genreMemoSettings = DEFAULT_GENRE_MEMO_SETTINGS,
   shopSettings,
@@ -312,7 +314,7 @@ const ShopList: React.FC<ShopListProps> = ({
                   "--genre-color-text": config.headerTextColor,
                   "--genre-color-border": config.headerBorderColor,
                   "--genre-color-row": config.rowBackgroundColor,
-                  marginBottom: "10px",
+                  marginBottom: genreGap !== undefined ? `${genreGap}px` : "10px",
                 } as React.CSSProperties;
 
                 return (
