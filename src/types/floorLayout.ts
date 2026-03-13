@@ -12,6 +12,7 @@ export type FloorLayoutPerFloor = {
   rowsPerCol: number;
   perColumnRows?: number[];
   perColumnPadding?: ColumnPadding[];
+  genreGap?: number;
 };
 
 export type FloorLayout = Record<string, FloorLayoutPerFloor>;

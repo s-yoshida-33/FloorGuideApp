@@ -73,6 +73,21 @@ export const LayoutSettingsTab: React.FC<LayoutSettingsTabProps> = ({
     onChangeFloorLayout(next);
   };
 
+  const handleGenreGapChange = (value: string) => {
+    const num = value === "" ? undefined : Number(value);
+    if (value !== "" && Number.isNaN(num)) return;
+
+    const next: FloorLayout = {
+      ...floorLayout,
+      [selectedFloor]: {
+        ...currentLayout,
+        genreGap: num,
+      },
+    };
+
+    onChangeFloorLayout(next);
+  };
+
   const handlePerColumnPaddingChange = (
     colIndex: number,
     side: "top" | "right" | "bottom" | "left",
@@ -287,6 +302,39 @@ export const LayoutSettingsTab: React.FC<LayoutSettingsTabProps> = ({
             </div>
           </div>
         )}
+
+        {/* Genre Gap */}
+        <div>
+          <label
+            style={{
+              display: "block",
+              color: "rgba(255, 255, 255, 0.8)",
+              fontSize: 13,
+              marginBottom: 8,
+              fontWeight: 500,
+            }}
+          >
+            ジャンル間の間隔 (px)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="200"
+            step="1"
+            value={currentLayout.genreGap !== undefined ? currentLayout.genreGap : ""}
+            onChange={(e) => handleGenreGapChange(e.target.value)}
+            placeholder="デフォルト: 10"
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              backgroundColor: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: 6,
+              color: "#ffffff",
+              fontSize: 14,
+            }}
+          />
+        </div>
 
         {/* Per Column Padding */}
         {currentLayout.columns > 0 && (
