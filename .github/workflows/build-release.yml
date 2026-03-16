@@ -79,9 +79,6 @@ jobs:
             release/latest.json
             release/GidoSetup-x64-*.exe
             release/GidoSetup-x64-*.exe.sig
-            release/GidoSetup-x64-*.msi
-            release/GidoSetup-x64-*.msi.sig
-            release/*.zip
           token: ${{ secrets.GITHUB_TOKEN }}
 
   notify:
