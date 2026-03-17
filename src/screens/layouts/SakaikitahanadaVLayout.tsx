@@ -9,7 +9,6 @@ import ShopList from "../../components/ShopList";
 import VerticalVideoSlot from "../../components/VerticalVideoSlot";
 import { LocationIconsOverlay } from "../../components/LocationIconsOverlay";
 
-import floorMap1F from "../../assets/malls/sakaikitahanada/floor-1F-map.webp";
 import floorMap2F from "../../assets/malls/sakaikitahanada/floor-2F-map.webp";
 import floorMap3F from "../../assets/malls/sakaikitahanada/floor-3F-map.webp";
 import floorMap4F from "../../assets/malls/sakaikitahanada/floor-4F-map.webp";
@@ -28,14 +27,12 @@ const LIST_HEIGHT_VH = APP_CONFIG.listHeightVh;
 const TOP_HEIGHT_VH = 100 - LIST_HEIGHT_VH;
 
 const FLOOR_MAPS: Record<string, string> = {
-  "1F": floorMap1F,
   "2F": floorMap2F,
   "3F": floorMap3F,
   "4F": floorMap4F,
 };
 
 const DEFAULT_FLOOR_LAYOUT = {
-  "1F": { columns: 3, rowsPerCol: 20 },
   "2F": { columns: 2, rowsPerCol: 19 },
   "3F": { columns: 3, rowsPerCol: 20 },
   "4F": { columns: 2, rowsPerCol: 18 },
@@ -62,7 +59,7 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
   const customFloorMap = floorId
     ? imageSettings?.floorMaps?.[floorId]
     : undefined;
-  const floorMap = customFloorMap || FLOOR_MAPS[floor] || floorMap1F;
+  const floorMap = customFloorMap || FLOOR_MAPS[floor] || floorMap2F;
 
   const videoWidthVh = TOP_HEIGHT_VH * (9 / 16);
   const listWidthVh = 100 - videoWidthVh;
