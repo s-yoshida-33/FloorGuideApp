@@ -5,7 +5,7 @@ import type { FloorId, FloorLayout } from './floorLayout';
  * Supported mall identifiers.
  * Each ID maps to a unique layout, asset set, and per-mall settings file.
  */
-export type MallId = "sakaikitahanada" | "suzaka";
+export type MallId = "sakaikitahanada" | "sakaikitahanada-v" | "suzaka";
 
 /**
  * Static configuration for a mall (defined in config/malls.ts).

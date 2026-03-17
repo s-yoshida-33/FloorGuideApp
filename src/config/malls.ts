@@ -34,6 +34,33 @@ export const MALL_CONFIGS: Record<MallId, MallConfig> = {
       "サービス": "Services",
     },
   },
+  "sakaikitahanada-v": {
+    id: "sakaikitahanada-v",
+    name: "堺北花田（縦）",
+    floors: ["2F", "3F", "4F"],
+    defaultFloor: "3F",
+    defaultFloorLayout: {
+      "2F": { columns: 2, rowsPerCol: 19 },
+      "3F": { columns: 3, rowsPerCol: 20 },
+      "4F": { columns: 2, rowsPerCol: 18 },
+    },
+    videoOrientation: "vertical",
+    hasOpenTimeImage: true,
+    genreOrder: [
+      "ファッション",
+      "ファッション雑貨",
+      "雑貨",
+      "飲食店・食品",
+      "サービス",
+    ],
+    genreEnglish: {
+      "ファッション": "Fashion",
+      "ファッション雑貨": "Fashion Goods",
+      "雑貨": "Goods",
+      "飲食店・食品": "Food & Beverage",
+      "サービス": "Services",
+    },
+  },
   suzaka: {
     id: "suzaka",
     name: "須坂",
