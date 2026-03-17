@@ -668,6 +668,166 @@ fn start_webview_watchdog(app_handle: tauri::AppHandle) {
 }
 
 // ---------------------------------------------------------------------------
+// Focus guard: EVENT_SYSTEM_FOREGROUND hook (Windows only)
+// Restores the Gido window to the foreground when another TOPMOST window
+// (e.g. a stale RustDesk overlay) steals focus.
+// ---------------------------------------------------------------------------
+
+#[cfg(target_os = "windows")]
+mod focus_guard {
+    use std::sync::atomic::{AtomicIsize, AtomicBool, Ordering};
+
+    // Win32 type aliases
+    type HWND = isize;
+    type HWINEVENTHOOK = isize;
+    type DWORD = u32;
+    type UINT = u32;
+    type LONG = i32;
+    type BOOL = i32;
+    type WPARAM = usize;
+    type LPARAM = isize;
+
+    // Win32 constants
+    const EVENT_SYSTEM_FOREGROUND: DWORD = 0x0003;
+    const WINEVENT_OUTOFCONTEXT: DWORD = 0x0000;
+    const HWND_TOPMOST: HWND = -1;
+    const SWP_NOMOVE: UINT = 0x0002;
+    const SWP_NOSIZE: UINT = 0x0001;
+    const SWP_SHOWWINDOW: UINT = 0x0040;
+
+    #[repr(C)]
+    #[allow(non_snake_case)]
+    struct MSG {
+        hwnd: HWND,
+        message: UINT,
+        wParam: WPARAM,
+        lParam: LPARAM,
+        time: DWORD,
+        pt_x: LONG,
+        pt_y: LONG,
+    }
+
+    type WINEVENTPROC = unsafe extern "system" fn(
+        HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD,
+    );
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn SetWinEventHook(
+            event_min: DWORD,
+            event_max: DWORD,
+            hmod_win_event_proc: isize,
+            pfn_win_event_proc: WINEVENTPROC,
+            id_process: DWORD,
+            id_thread: DWORD,
+            dw_flags: DWORD,
+        ) -> HWINEVENTHOOK;
+        fn GetForegroundWindow() -> HWND;
+        fn SetForegroundWindow(hwnd: HWND) -> BOOL;
+        fn SetWindowPos(
+            hwnd: HWND,
+            hwnd_insert_after: HWND,
+            x: i32, y: i32, cx: i32, cy: i32,
+            u_flags: UINT,
+        ) -> BOOL;
+        fn GetMessageW(
+            msg: *mut MSG,
+            hwnd: HWND,
+            msg_filter_min: UINT,
+            msg_filter_max: UINT,
+        ) -> BOOL;
+        fn DispatchMessageW(msg: *const MSG) -> isize;
+    }
+
+    /// HWND of the Gido main window (set once at startup).
+    static OWN_HWND: AtomicIsize = AtomicIsize::new(0);
+    /// Guards against spawning multiple restore threads concurrently.
+    static RESTORE_PENDING: AtomicBool = AtomicBool::new(false);
+
+    /// Seconds to wait before restoring focus.
+    /// Short-lived popups (e.g. RustDesk connection toast) will have
+    /// disappeared by this time, so we only act on persistent windows.
+    const RESTORE_DELAY_SECS: u64 = 3;
+
+    unsafe extern "system" fn hook_proc(
+        _hook: HWINEVENTHOOK,
+        _event: DWORD,
+        hwnd: HWND,
+        _id_object: LONG,
+        _id_child: LONG,
+        _event_thread: DWORD,
+        _event_time: DWORD,
+    ) {
+        let own = OWN_HWND.load(Ordering::Relaxed);
+        // Ignore if we haven't initialised yet, or it's our own window
+        if own == 0 || hwnd == own {
+            return;
+        }
+
+        // Only one pending restore at a time
+        if RESTORE_PENDING.swap(true, Ordering::Relaxed) {
+            return;
+        }
+
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(RESTORE_DELAY_SECS));
+
+            unsafe {
+                let fg = GetForegroundWindow();
+                if fg != own {
+                    SetWindowPos(
+                        own, HWND_TOPMOST,
+                        0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+                    );
+                    SetForegroundWindow(own);
+                    super::write_to_log_file_direct(
+                        "FOCUS_GUARD",
+                        "Restored foreground focus (another window was on top)",
+                    );
+                }
+            }
+
+            RESTORE_PENDING.store(false, Ordering::Relaxed);
+        });
+    }
+
+    /// Start the foreground event hook on a dedicated thread with its own
+    /// Windows message pump.
+    pub fn start(hwnd: isize) {
+        OWN_HWND.store(hwnd, Ordering::Relaxed);
+
+        std::thread::spawn(|| {
+            unsafe {
+                let hook = SetWinEventHook(
+                    EVENT_SYSTEM_FOREGROUND,
+                    EVENT_SYSTEM_FOREGROUND,
+                    0,
+                    hook_proc,
+                    0, 0,
+                    WINEVENT_OUTOFCONTEXT,
+                );
+
+                if hook == 0 {
+                    eprintln!("[FOCUS_GUARD] Failed to set foreground event hook");
+                    super::write_to_log_file_direct(
+                        "FOCUS_GUARD",
+                        "Failed to set SetWinEventHook for EVENT_SYSTEM_FOREGROUND",
+                    );
+                    return;
+                }
+
+                // Message pump — required for out-of-context event hooks
+                let mut msg: MSG = std::mem::zeroed();
+                while GetMessageW(&mut msg, 0, 0, 0) > 0 {
+                    DispatchMessageW(&msg);
+                }
+            }
+        });
+    }
+}
+
+// ---------------------------------------------------------------------------
 // App entry point
 // ---------------------------------------------------------------------------
 
@@ -803,6 +963,26 @@ fn main() {
     };
 
     start_webview_watchdog(app.handle().clone());
+
+    // Start foreground focus guard (Windows only).
+    // Detects when another window steals focus and restores the Gido window
+    // after a short delay. Prevents stale RustDesk overlays from persisting.
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(window) = app.get_webview_window("main") {
+            match window.hwnd() {
+                Ok(hwnd) => {
+                    focus_guard::start(hwnd.0 as isize);
+                    write_to_log_file_direct("FOCUS_GUARD", "Foreground event hook started");
+                }
+                Err(e) => {
+                    let msg = format!("Failed to get main window HWND: {}", e);
+                    eprintln!("[FOCUS_GUARD] {}", msg);
+                    write_to_log_file_direct("FOCUS_GUARD", &msg);
+                }
+            }
+        }
+    }
 
     app.run(|_app_handle, event| {
         // Prevent the app from exiting when the last window closes.
