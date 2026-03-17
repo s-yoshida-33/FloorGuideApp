@@ -25,7 +25,7 @@ import type { ShopSettings } from "../types/shopSettings";
 
 import { logInfo, logError } from "../logs/logging";
 
-import { SakaikitahanadaLayout, SuzakaLayout } from "./layouts";
+import { SakaikitahanadaLayout, SakaikitahanadaVLayout, SuzakaLayout } from "./layouts";
 import type { LayoutProps } from "./layouts";
 
 // --------------------------------------------------------------------------
@@ -33,6 +33,7 @@ import type { LayoutProps } from "./layouts";
 // --------------------------------------------------------------------------
 const LAYOUT_MAP: Record<MallId, React.FC<LayoutProps>> = {
   sakaikitahanada: SakaikitahanadaLayout,
+  "sakaikitahanada-v": SakaikitahanadaVLayout,
   suzaka: SuzakaLayout,
 };
 
