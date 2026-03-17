@@ -37,10 +37,9 @@ export const MALL_CONFIGS: Record<MallId, MallConfig> = {
   "sakaikitahanada-v": {
     id: "sakaikitahanada-v",
     name: "堺北花田（縦）",
-    floors: ["1F", "2F", "3F", "4F"],
+    floors: ["2F", "3F", "4F"],
     defaultFloor: "3F",
     defaultFloorLayout: {
-      "1F": { columns: 3, rowsPerCol: 20 },
       "2F": { columns: 2, rowsPerCol: 19 },
       "3F": { columns: 3, rowsPerCol: 20 },
       "4F": { columns: 2, rowsPerCol: 18 },
