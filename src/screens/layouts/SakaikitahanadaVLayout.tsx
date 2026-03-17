@@ -1,7 +1,6 @@
 // src/screens/layouts/SakaikitahanadaVLayout.tsx
-// Layout for 堺北花田（縦） mall
-// TODO: レイアウト詳細が共有され次第、カスタマイズ予定
-// 現時点では堺北花田レイアウトのコピー
+// Layout for 堺北花田（縦） mall — 縦長3列レイアウト
+// Left: shop list | Center: vertical floor map | Right: video + open-time image
 
 import React, { useRef } from "react";
 
@@ -9,9 +8,9 @@ import ShopList from "../../components/ShopList";
 import VerticalVideoSlot from "../../components/VerticalVideoSlot";
 import { LocationIconsOverlay } from "../../components/LocationIconsOverlay";
 
-import floorMap2F from "../../assets/malls/sakaikitahanada/floor-2F-map.webp";
-import floorMap3F from "../../assets/malls/sakaikitahanada/floor-3F-map.webp";
-import floorMap4F from "../../assets/malls/sakaikitahanada/floor-4F-map.webp";
+import floorMap2F from "../../assets/malls/sakaikitahanada/floor-v-2F-map.webp";
+import floorMap3F from "../../assets/malls/sakaikitahanada/floor-v-3F-map.webp";
+import floorMap4F from "../../assets/malls/sakaikitahanada/floor-v-4F-map.webp";
 import openTimeImage from "../../assets/malls/sakaikitahanada/open-time.webp";
 
 import { APP_CONFIG } from "../../config";
@@ -38,6 +37,11 @@ const DEFAULT_FLOOR_LAYOUT = {
   "4F": { columns: 2, rowsPerCol: 18 },
 };
 
+// Column width ratios based on 3840x2160 (4K) target display
+// Left (shop list): 960px, Center (map): 2115px, Right (video+open-time): 765px
+const SHOP_LIST_WIDTH_VW = (960 / 3840) * 100;   // 25%
+const MAP_WIDTH_VW = (2115 / 3840) * 100;         // ~55.08%
+
 const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
   shops,
   floor,
@@ -61,13 +65,10 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
     : undefined;
   const floorMap = customFloorMap || FLOOR_MAPS[floor] || floorMap2F;
 
-  const videoWidthVh = TOP_HEIGHT_VH * (9 / 16);
-  const listWidthVh = 100 - videoWidthVh;
-
   const currentLayout =
     floorLayout[floor] ??
     DEFAULT_FLOOR_LAYOUT[floor as keyof typeof DEFAULT_FLOOR_LAYOUT] ??
-    DEFAULT_FLOOR_LAYOUT["1F"];
+    DEFAULT_FLOOR_LAYOUT["2F"];
 
   return (
     <div
@@ -75,58 +76,96 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
         width: "100vw",
         height: "100vh",
         overflow: "hidden",
+        display: "flex",
         fontFamily: "'Rounded Mplus 1c', sans-serif",
         fontWeight: 700,
       }}
     >
-      {/* Top: map + video area */}
-      <div style={{ display: "flex", height: `${TOP_HEIGHT_VH}vh` }}>
-        {/* Floor map */}
-        <div
-          style={{
-            flex: 2,
-            position: "relative",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <img
-            ref={floorMapRef}
-            src={floorMap}
-            alt={`Floor map ${floor}`}
-            draggable={false}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "100%",
-              objectFit: "contain",
-            }}
-            onLoad={() => {
-              if (!floorMapLoggedRef.current) {
-                logInfo("ASSET_CHECK", "Floor map rendered", { floor });
-                floorMapLoggedRef.current = true;
-              }
-            }}
-            onError={(event) => {
-              logError("ASSET_CHECK", "Floor map load failed", {
-                floor,
-                reason: "FILE_NOT_FOUND_OR_CORRUPT",
-              });
-              (event.target as HTMLImageElement).style.visibility = "hidden";
-            }}
+      {/* Left: shop list (full height) */}
+      <div
+        style={{
+          width: `${SHOP_LIST_WIDTH_VW}vw`,
+          height: "100vh",
+          flexShrink: 0,
+        }}
+      >
+        {error ? (
+          <div style={{ padding: "16px 32px", color: "red" }}>
+            Error: {error}
+          </div>
+        ) : (
+          <ShopList
+            shops={shops}
+            floor={floor}
+            columnCount={currentLayout.columns}
+            rowsPerColumn={currentLayout.rowsPerCol}
+            perColumnRows={currentLayout.perColumnRows}
+            perColumnPadding={currentLayout.perColumnPadding}
+            genreGap={currentLayout.genreGap}
+            genreMappings={genreMappings}
+            genreMemoSettings={genreMemoSettings}
+            shopSettings={shopSettings}
           />
-          <LocationIconsOverlay settings={locationIconSettings} />
-        </div>
+        )}
+      </div>
 
+      {/* Center: floor map (full height) */}
+      <div
+        style={{
+          width: `${MAP_WIDTH_VW}vw`,
+          height: "100vh",
+          position: "relative",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          flexShrink: 0,
+        }}
+      >
+        <img
+          ref={floorMapRef}
+          src={floorMap}
+          alt={`Floor map ${floor}`}
+          draggable={false}
+          style={{
+            maxWidth: "100%",
+            maxHeight: "100%",
+            objectFit: "contain",
+          }}
+          onLoad={() => {
+            if (!floorMapLoggedRef.current) {
+              logInfo("ASSET_CHECK", "Floor map rendered", { floor });
+              floorMapLoggedRef.current = true;
+            }
+          }}
+          onError={(event) => {
+            logError("ASSET_CHECK", "Floor map load failed", {
+              floor,
+              reason: "FILE_NOT_FOUND_OR_CORRUPT",
+            });
+            (event.target as HTMLImageElement).style.visibility = "hidden";
+          }}
+        />
+        <LocationIconsOverlay settings={locationIconSettings} />
+      </div>
+
+      {/* Right: video (top) + open-time image (bottom) — unchanged */}
+      <div
+        style={{
+          flex: 1,
+          height: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+        }}
+      >
         {/* Video area (vertical 9:16) */}
         <div
           style={{
-            width: `${videoWidthVh}vh`,
+            height: `${TOP_HEIGHT_VH}vh`,
             background: "#000",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            flexShrink: 0,
           }}
         >
           <div
@@ -158,53 +197,15 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
             )}
           </div>
         </div>
-      </div>
-
-      {/* Bottom: shop list + open-time image */}
-      <div
-        style={{
-          height: `${LIST_HEIGHT_VH}vh`,
-          display: "flex",
-          flexDirection: "row",
-        }}
-      >
-        <div
-          style={{
-            flex: 2,
-            width: `${listWidthVh}vh`,
-            height: `${LIST_HEIGHT_VH}vh`,
-          }}
-        >
-          {error ? (
-            <div style={{ padding: "16px 32px", color: "red" }}>
-              Error: {error}
-            </div>
-          ) : (
-            <ShopList
-              shops={shops}
-              floor={floor}
-              columnCount={currentLayout.columns}
-              rowsPerColumn={currentLayout.rowsPerCol}
-              perColumnRows={currentLayout.perColumnRows}
-              perColumnPadding={currentLayout.perColumnPadding}
-              genreGap={currentLayout.genreGap}
-              genreMappings={genreMappings}
-              genreMemoSettings={genreMemoSettings}
-              shopSettings={shopSettings}
-            />
-          )}
-        </div>
 
         {/* Open-time image */}
         <div
           style={{
-            width: `${videoWidthVh}vh`,
             height: `${LIST_HEIGHT_VH}vh`,
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
             background: "#fff",
-            margin: "0 auto",
           }}
         >
           <img
