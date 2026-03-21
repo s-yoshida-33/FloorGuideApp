@@ -5,10 +5,28 @@
 param()
 
 # Set UTF-8 encoding
+chcp 65001 | Out-Null
+$OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
 
 # Stop on error
 $ErrorActionPreference = "Stop"
+
+# Get new version from user (shown first on startup)
+Write-Host "New version (format: 0.2.1): " -NoNewline
+$newVersion = Read-Host
+
+if (-not $newVersion) {
+    Write-Host "[!] Error: Version cannot be empty" -ForegroundColor Red
+    exit 1
+}
+
+# Validate version format (basic)
+if ($newVersion -notmatch '^\d+\.\d+\.\d+$') {
+    Write-Host "[!] Error: Invalid version format. Use X.Y.Z" -ForegroundColor Red
+    exit 1
+}
 
 Write-Host ""
 Write-Host "========================================"  -ForegroundColor Cyan
@@ -49,21 +67,7 @@ Write-Host ""
 # Get current versions
 $packageJson = Get-Content $packageJsonPath | ConvertFrom-Json
 $currentVersion = $packageJson.version
-Write-Host "[*] Current version in package.json: $currentVersion" -ForegroundColor Yellow
-
-# Get new version from user
-$newVersion = Read-Host 'Enter new version (format: 1.5.1)'
-
-if (-not $newVersion) {
-    Write-Host "[!] Error: Version cannot be empty" -ForegroundColor Red
-    exit 1
-}
-
-# Validate version format (basic)
-if ($newVersion -notmatch '^\d+\.\d+\.\d+$') {
-    Write-Host "[!] Error: Invalid version format. Use X.Y.Z" -ForegroundColor Red
-    exit 1
-}
+Write-Host "[*] Current version: $currentVersion" -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "[*] Updating version from $currentVersion to $newVersion" -ForegroundColor Cyan
