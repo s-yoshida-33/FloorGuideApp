@@ -90,7 +90,7 @@ try {
 
 # --- 6. Construct latest.json ---
 $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-$baseUrl = "https://github.com/s-yoshida-33/Gido/releases/download/v${version}"
+$baseUrl = "https://dl.tti.ninja/gido/releases"
 
 $jsonObj = @{
     version = $version

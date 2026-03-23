@@ -12,12 +12,11 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  create-release:
+  build:
     runs-on: windows-latest
     permissions:
       contents: write
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       release_version: ${{ steps.get_version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
@@ -28,25 +27,6 @@ jobs:
           $version = (Get-Content package.json | Select-String '"version": "([^"]*)"' | ForEach-Object { $_.Matches.Groups[1].Value })
           echo "version=$version" >> $env:GITHUB_OUTPUT
           echo "Version: $version"
-
-      - name: Create Release (if tag exists)
-        id: create_release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v1
-        with:
-          name: "Release v${{ steps.get_version.outputs.version }}"
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  build:
-    needs: create-release
-    runs-on: windows-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -71,18 +51,94 @@ jobs:
       - name: List release artifacts
         run: Get-ChildItem -Path release -File | Format-Table Name, Length
 
-      - name: Upload artifacts to release
+      - name: Download existing S3 artifacts for archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+        run: |
+          S3_PREFIX="public/gido/releases"
+          mkdir -p s3-archive
+          echo "Downloading existing S3 artifacts for archive..."
+          aws s3 sync "s3://${S3_BUCKET}/${S3_PREFIX}/" s3-archive/ --exclude "latest.json" || echo "No existing artifacts found (first release)"
+          ls -la s3-archive/ || echo "Archive directory is empty"
+
+      - name: Upload S3 archive as workflow artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: s3-archive-before-v${{ steps.get_version.outputs.version }}
+          path: s3-archive/
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Clean up old artifacts from S3
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+        run: |
+          S3_PREFIX="public/gido/releases"
+          echo "Cleaning up old versioned artifacts from S3 (keeping latest.json)..."
+          aws s3 rm "s3://${S3_BUCKET}/${S3_PREFIX}/" --recursive --exclude "latest.json" || echo "No existing artifacts to clean up"
+          echo "S3 cleanup complete."
+
+      - name: Upload artifacts to S3
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          S3_PREFIX="public/gido/releases"
+
+          echo "Uploading release artifacts to s3://${S3_BUCKET}/${S3_PREFIX}/"
+
+          # Upload installer (.exe)
+          aws s3 cp \
+            "release/GidoSetup-x64-${VERSION}.exe" \
+            "s3://${S3_BUCKET}/${S3_PREFIX}/GidoSetup-x64-${VERSION}.exe" \
+            --content-type "application/octet-stream"
+
+          # Upload signature (.exe.sig)
+          aws s3 cp \
+            "release/GidoSetup-x64-${VERSION}.exe.sig" \
+            "s3://${S3_BUCKET}/${S3_PREFIX}/GidoSetup-x64-${VERSION}.exe.sig" \
+            --content-type "text/plain"
+
+          # Upload latest.json (no-cache: apps must always get the latest version)
+          aws s3 cp \
+            "release/latest.json" \
+            "s3://${S3_BUCKET}/${S3_PREFIX}/latest.json" \
+            --content-type "application/json" \
+            --cache-control "no-cache, max-age=0"
+
+          echo "Upload complete."
+          echo "  https://dl.tti.ninja/${S3_PREFIX}/GidoSetup-x64-${VERSION}.exe"
+          echo "  https://dl.tti.ninja/${S3_PREFIX}/GidoSetup-x64-${VERSION}.exe.sig"
+          echo "  https://dl.tti.ninja/${S3_PREFIX}/latest.json"
+
+      - name: Create GitHub Release (changelog only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            release/latest.json
-            release/GidoSetup-x64-*.exe
-            release/GidoSetup-x64-*.exe.sig
+          name: "Release v${{ steps.get_version.outputs.version }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
   notify:
-    needs: [create-release, build]
+    needs: [build]
     runs-on: windows-latest
     if: always()
     steps:
@@ -90,7 +146,7 @@ jobs:
         run: |
           if ("${{ needs.build.result }}" -eq "success") {
             Write-Output "[+] Build completed successfully"
-            Write-Output "[+] Release version: ${{ needs.create-release.outputs.release_version }}"
+            Write-Output "[+] Release version: ${{ needs.build.outputs.release_version }}"
           } else {
             Write-Output "[-] Build failed"
             exit 1

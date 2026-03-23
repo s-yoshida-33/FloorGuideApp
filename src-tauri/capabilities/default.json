@@ -17,9 +17,10 @@
     {
       "identifier": "http:default",
       "allow": [
-        "https://api.github.com/**",
-        "https://github.com/**",
-        "https://*.githubusercontent.com/**"
+        { "url": "https://api.github.com/**" },
+        { "url": "https://github.com/**" },
+        { "url": "https://*.githubusercontent.com/**" },
+        { "url": "https://dl.tti.ninja/**" }
       ]
     }
   ]
