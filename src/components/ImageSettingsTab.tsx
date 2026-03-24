@@ -5,6 +5,7 @@ import type { ImageSettings } from "../types/imageSettings";
 import { saveImageFile, deleteImageFile } from "../utils/settings";
 import { logInfo, logError } from "../logs/logging";
 import { useMapForceFetch } from "../hooks/useMapForceFetch";
+import { useOpenTimeForceFetch } from "../hooks/useOpenTimeForceFetch";
 
 export interface ImageSettingsTabProps {
   floor: FloorId;
@@ -15,6 +16,7 @@ export interface ImageSettingsTabProps {
   mallId?: string;
   hostname?: string;
   onMapsFetchedFromS3?: () => void;
+  onOpenTimeFetchedFromS3?: () => void;
 }
 
 const DEFAULT_FLOORS: FloorId[] = ["1F", "2F", "3F", "4F"];
@@ -28,12 +30,14 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
   mallId = '',
   hostname = '',
   onMapsFetchedFromS3,
+  onOpenTimeFetchedFromS3,
 }) => {
   const floorMapInputRef = useRef<HTMLInputElement>(null);
   const openTimeInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { status: fetchStatus, fetchMaps, reset: resetFetch } = useMapForceFetch();
+  const { status: openTimeFetchStatus, fetchOpenTime, reset: resetOpenTimeFetch } = useOpenTimeForceFetch();
 
   const handleFetchMapsFromS3 = async () => {
     resetFetch();
@@ -46,7 +50,19 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
     onMapsFetchedFromS3?.();
   };
 
+  const handleFetchOpenTimeFromS3 = async () => {
+    resetOpenTimeFetch();
+    const assetUrl = await fetchOpenTime(mallId);
+    if (!assetUrl) return;
+    onChangeImageSettings({
+      ...imageSettings,
+      openTimeImage: assetUrl,
+    });
+    onOpenTimeFetchedFromS3?.();
+  };
+
   const isFetching = fetchStatus.status === 'fetching';
+  const isOpenTimeFetching = openTimeFetchStatus.status === 'fetching';
 
   /**
    * Handle file selection: read as bytes, save via Rust, store asset URL.
@@ -357,6 +373,67 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
         >
           営業時間画像
         </label>
+        {/* S3 Open-time Fetch */}
+        <div style={{ marginBottom: 12 }}>
+          <button
+            onClick={handleFetchOpenTimeFromS3}
+            disabled={isOpenTimeFetching || !mallId}
+            style={{
+              width: "100%",
+              padding: "10px 16px",
+              backgroundColor: isOpenTimeFetching ? "#2E7D32" : "#388E3C",
+              border: "none",
+              borderRadius: 4,
+              color: isOpenTimeFetching || !mallId ? "#9E9E9E" : "#ffffff",
+              cursor: isOpenTimeFetching || !mallId ? "not-allowed" : "pointer",
+              fontSize: 14,
+              fontWeight: 500,
+            }}
+            title={!mallId ? "モールIDを先に設定してください" : undefined}
+          >
+            {isOpenTimeFetching ? "取得中..." : "最新の営業時間を取得"}
+          </button>
+
+          {openTimeFetchStatus.status !== 'idle' && (
+            <div style={{ marginTop: 8 }}>
+              {isOpenTimeFetching && (
+                <div
+                  style={{
+                    height: 4,
+                    backgroundColor: "#2A3F55",
+                    borderRadius: 2,
+                    marginBottom: 6,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${openTimeFetchStatus.progress}%`,
+                      backgroundColor: "#4A9EFF",
+                      borderRadius: 2,
+                      transition: "width 0.3s ease",
+                    }}
+                  />
+                </div>
+              )}
+              <div
+                style={{
+                  fontSize: 12,
+                  color:
+                    openTimeFetchStatus.status === 'error'
+                      ? "#EF9A9A"
+                      : openTimeFetchStatus.status === 'done'
+                      ? "#A5D6A7"
+                      : "#9E9E9E",
+                }}
+              >
+                {openTimeFetchStatus.message}
+              </div>
+            </div>
+          )}
+        </div>
+
         <input
           ref={openTimeInputRef}
           type="file"
