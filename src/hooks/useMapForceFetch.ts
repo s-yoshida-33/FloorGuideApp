@@ -1,12 +1,19 @@
 // src/hooks/useMapForceFetch.ts
-// Force-fetch maps from S3 for all floors, bypassing version comparison.
+// Force-fetch a map from S3, bypassing version comparison.
 // Used by the "最新のマップ画像を取得" button in ImageSettingsTab.
 
 import { useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logInfo, logError } from '../logs/logging';
 import type { FloorId } from '../types/floorLayout';
+
+interface MapDownloadProgressPayload {
+  phase: string;
+  percent: number;
+  message: string;
+}
 
 export interface MapForceFetchStatus {
   status: 'idle' | 'fetching' | 'done' | 'error';
@@ -15,15 +22,20 @@ export interface MapForceFetchStatus {
 }
 
 const S3_MAPS_BASE = 'https://dl.tti.ninja/gido/medias/maps';
-const ALL_FLOORS: FloorId[] = ['1F', '2F', '3F', '4F'];
 
 interface LatestJson {
   file: string;
   updated_at: string;
 }
 
-async function fetchFloorLatest(mallId: string, hostname: string, floor: FloorId): Promise<LatestJson | null> {
-  const url = `${S3_MAPS_BASE}/${mallId}/${hostname}/${floor}-latest.json?_=${Date.now()}`;
+function parseFloorFromFilename(filename: string): FloorId | null {
+  const m = filename.match(/^(\dF)-map/);
+  if (!m) return null;
+  return m[1] as FloorId;
+}
+
+async function fetchLatestJson(mallId: string, hostname: string): Promise<LatestJson | null> {
+  const url = `${S3_MAPS_BASE}/${mallId}/${hostname}/latest.json?_=${Date.now()}`;
   try {
     const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
     const response = await tauriFetch(url, {
@@ -34,12 +46,6 @@ async function fetchFloorLatest(mallId: string, hostname: string, floor: FloorId
   } catch {
     return null;
   }
-}
-
-function parseFloorFromFilename(filename: string): FloorId | null {
-  const m = filename.match(/^(\dF)-map/);
-  if (!m) return null;
-  return m[1] as FloorId;
 }
 
 export function useMapForceFetch() {
@@ -63,72 +69,62 @@ export function useMapForceFetch() {
         return null;
       }
 
-      setStatus({ status: 'fetching', progress: 5, message: 'S3からマップ情報を確認中...' });
+      setStatus({ status: 'fetching', progress: 5, message: 'S3からマップ情報を取得中...' });
 
-      // Discover which floors have a latest.json on S3
-      const available: Array<{ floor: FloorId; latest: LatestJson }> = [];
-      for (const floor of ALL_FLOORS) {
-        const latest = await fetchFloorLatest(mallId, hostname, floor);
-        if (latest?.file) available.push({ floor, latest });
-      }
-
-      if (available.length === 0) {
+      const latest = await fetchLatestJson(mallId, hostname);
+      if (!latest?.file) {
         setStatus({ status: 'error', progress: 0, message: 'S3上にマップデータが見つかりませんでした' });
         return null;
       }
 
-      const floorMaps: Partial<Record<FloorId, string>> = {};
-      const total = available.length;
+      const fileUrl = `${S3_MAPS_BASE}/${mallId}/${hostname}/${latest.file}`;
+      setStatus({ status: 'fetching', progress: 10, message: 'マップデータをダウンロード中...' });
 
-      for (let i = 0; i < available.length; i++) {
-        const { floor, latest } = available[i];
-        const fileUrl = `${S3_MAPS_BASE}/${mallId}/${hostname}/${latest.file}`;
-        const baseProgress = Math.round(10 + (i / total) * 85);
-
-        setStatus({
-          status: 'fetching',
-          progress: baseProgress,
-          message: `${floor} マップをダウンロード中... (${i + 1}/${total})`,
+      let unlisten: UnlistenFn | null = null;
+      let absPath: string;
+      try {
+        unlisten = await listen<MapDownloadProgressPayload>('map-download-progress', (event) => {
+          const { percent, message } = event.payload;
+          setStatus({
+            status: 'fetching',
+            progress: Math.min(95, 10 + Math.round(percent * 0.85)),
+            message,
+          });
         });
 
-        try {
-          const absPath = await invoke<string>('sync_map_from_s3', {
-            mallId,
-            hostname,
-            fileUrl,
-            filename: latest.file,
-          });
-
-          if (absPath) {
-            floorMaps[floor] = convertFileSrc(absPath);
-          }
-        } catch (e) {
-          logError('MAP_FORCE_FETCH', 'Failed to download floor map', {
-            floor,
-            error: e instanceof Error ? e.message : String(e),
-          });
-        }
+        absPath = await invoke<string>('sync_map_from_s3', {
+          mallId,
+          hostname,
+          fileUrl,
+          filename: latest.file,
+        });
+      } finally {
+        if (unlisten) unlisten();
       }
 
-      if (Object.keys(floorMaps).length === 0) {
-        setStatus({ status: 'error', progress: 0, message: 'マップ画像の取得に失敗しました' });
+      if (!absPath) {
+        setStatus({ status: 'error', progress: 0, message: 'マップ画像の読み込みに失敗しました' });
         return null;
       }
 
-      // Supplement with any already-present local maps not yet in floorMaps
+      // Load ALL local floors (other floors survive thanks to per-floor cleanup in Rust)
       const localMaps = await invoke<Array<{ filename: string; abs_path: string }>>(
         'list_local_maps', { mallId, hostname }
       ).catch(() => []);
 
+      const floorMaps: Partial<Record<FloorId, string>> = {};
       for (const entry of localMaps) {
         const f = parseFloorFromFilename(entry.filename);
-        if (f && !floorMaps[f]) {
-          floorMaps[f] = convertFileSrc(entry.abs_path);
-        }
+        if (f) floorMaps[f] = convertFileSrc(entry.abs_path);
+      }
+      // Ensure the just-downloaded file is always included
+      const downloadedFloor = parseFloorFromFilename(latest.file);
+      if (downloadedFloor && !floorMaps[downloadedFloor]) {
+        floorMaps[downloadedFloor] = convertFileSrc(absPath);
       }
 
-      logInfo('MAP_FORCE_FETCH', 'Maps updated from S3', {
-        mallId, hostname, floors: Object.keys(floorMaps),
+      logInfo('MAP_FORCE_FETCH', 'Map updated from S3', {
+        mallId, hostname, file: latest.file, floors: Object.keys(floorMaps),
       });
       setStatus({
         status: 'done',
