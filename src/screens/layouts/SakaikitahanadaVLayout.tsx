@@ -131,7 +131,8 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
             maxHeight: "100%",
             objectFit: "contain",
           }}
-          onLoad={() => {
+          onLoad={(event) => {
+            (event.target as HTMLImageElement).style.visibility = "";
             if (!floorMapLoggedRef.current) {
               logInfo("ASSET_CHECK", "Floor map rendered", { floor });
               floorMapLoggedRef.current = true;
@@ -218,7 +219,8 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
               objectFit: "contain",
               padding: "1.4em",
             }}
-            onLoad={() => {
+            onLoad={(event) => {
+              (event.target as HTMLImageElement).style.visibility = "";
               if (!openTimeLoggedRef.current) {
                 logInfo("ASSET_CHECK", "Open-time image loaded");
                 openTimeLoggedRef.current = true;
