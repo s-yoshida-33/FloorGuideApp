@@ -32,6 +32,8 @@ out/
 *.deb
 *.dmg
 
+medias/
+
 # Tauri build output
 src-tauri/target/
 
