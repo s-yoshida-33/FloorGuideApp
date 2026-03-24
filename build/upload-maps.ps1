@@ -36,8 +36,7 @@
 
 param(
     [string]$MallId    = "",
-    [ValidateSet("maps", "open-times")]
-    [string]$MediaType = "maps"
+    [string]$MediaType = ""
 )
 
 chcp 65001 | Out-Null
@@ -53,6 +52,21 @@ if ([string]::IsNullOrWhiteSpace($MallId)) {
     $MallId = Read-Host
     if ([string]::IsNullOrWhiteSpace($MallId)) {
         Write-Host "Error: Mall ID is required." -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Require MediaType
+$validMediaTypes = @("maps", "open-times", "all")
+if ([string]::IsNullOrWhiteSpace($MediaType) -or $MediaType -notin $validMediaTypes) {
+    Write-Host "Media type? [maps / open-times / all] (default: maps): " -NoNewline
+    $input = Read-Host
+    if ([string]::IsNullOrWhiteSpace($input)) {
+        $MediaType = "maps"
+    } elseif ($input -in $validMediaTypes) {
+        $MediaType = $input
+    } else {
+        Write-Host "Error: Invalid media type '$input'. Choose from: maps, open-times, all." -ForegroundColor Red
         exit 1
     }
 }
@@ -114,7 +128,7 @@ function Upload-WebpToS3 {
 # ---------------------------------------------------------------------------
 # maps
 # ---------------------------------------------------------------------------
-if ($MediaType -eq "maps") {
+if ($MediaType -eq "maps" -or $MediaType -eq "all") {
     $mapsDir = Join-Path $mediasRoot "maps\$MallId"
 
     if (-not (Test-Path $mapsDir)) {
@@ -163,7 +177,7 @@ if ($MediaType -eq "maps") {
 # ---------------------------------------------------------------------------
 # open-times
 # ---------------------------------------------------------------------------
-if ($MediaType -eq "open-times") {
+if ($MediaType -eq "open-times" -or $MediaType -eq "all") {
     $openTimesDir = Join-Path $mediasRoot "open-times\$MallId"
     $srcFile      = Join-Path $openTimesDir "open-time.webp"
 
