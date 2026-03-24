@@ -81,15 +81,19 @@ $today      = Get-Date -Format "yyyy-MM-dd-HH-mm-ss"
 function Upload-WebpToS3 {
     param(
         [string]$LocalFile,
-        [string]$UploadName,
+        [string]$UploadName,   # e.g. "2F-map-2026-03-24-14-00-00.webp"
         [string]$S3Base,
-        [string]$UpdatedAt
+        [string]$UpdatedAt,
+        [string]$BaseName      # e.g. "2F-map"  (used for per-floor cleanup and latest.json name)
     )
 
+    # Per-floor latest.json name: "2F-map-latest.json"
+    $latestJsonName = "$BaseName-latest.json"
+
     if (Get-Command aws -ErrorAction SilentlyContinue) {
-        # Remove old timestamped files from S3 (keep latest.json)
-        Write-Host "  Cleaning old timestamped files from S3..." -ForegroundColor Cyan
-        aws s3 rm "$S3Base/" --recursive --exclude "latest.json" 2>&1 | Out-Null
+        # Remove only old timestamped files for THIS floor (keep other floors and latest.json files)
+        Write-Host "  Cleaning old $BaseName-*.webp from S3..." -ForegroundColor Cyan
+        aws s3 rm "$S3Base/" --recursive --exclude "*" --include "$BaseName-*.webp" 2>&1 | Out-Null
 
         # Upload new file
         try {
@@ -102,26 +106,26 @@ function Upload-WebpToS3 {
             return
         }
 
-        # Generate and upload latest.json
+        # Generate and upload per-floor latest.json
         $latestJson = @{ file = $UploadName; updated_at = $UpdatedAt } | ConvertTo-Json -Compress
         $tmpJson    = [System.IO.Path]::GetTempFileName()
         [System.IO.File]::WriteAllText($tmpJson, $latestJson, [System.Text.Encoding]::UTF8)
 
         try {
-            aws s3 cp $tmpJson "$S3Base/latest.json" `
+            aws s3 cp $tmpJson "$S3Base/$latestJsonName" `
                 --content-type "application/json" `
                 --cache-control "no-cache, no-store"
-            Write-Host "  Uploaded: latest.json (file=$UploadName, updated_at=$UpdatedAt)" -ForegroundColor Green
+            Write-Host "  Uploaded: $latestJsonName (file=$UploadName, updated_at=$UpdatedAt)" -ForegroundColor Green
         } catch {
-            Write-Host "  Failed to upload latest.json: $_" -ForegroundColor Red
+            Write-Host "  Failed to upload $latestJsonName`: $_" -ForegroundColor Red
         } finally {
             Remove-Item $tmpJson -Force -ErrorAction SilentlyContinue
         }
     } else {
         Write-Host "  [INFO] AWS CLI not found. Upload manually:" -ForegroundColor Yellow
-        Write-Host "    aws s3 rm `"$S3Base/`" --recursive --exclude latest.json" -ForegroundColor Gray
+        Write-Host "    aws s3 rm `"$S3Base/`" --recursive --exclude `"*`" --include `"$BaseName-*.webp`"" -ForegroundColor Gray
         Write-Host "    aws s3 cp `"$LocalFile`" `"$S3Base/$UploadName`" --content-type image/webp" -ForegroundColor Gray
-        Write-Host "    # Then upload latest.json: { `"file`": `"$UploadName`", `"updated_at`": `"$UpdatedAt`" }" -ForegroundColor Gray
+        Write-Host "    # Then upload $latestJsonName`: { `"file`": `"$UploadName`", `"updated_at`": `"$UpdatedAt`" }" -ForegroundColor Gray
     }
 }
 
@@ -167,7 +171,7 @@ if ($MediaType -eq "maps" -or $MediaType -eq "all") {
             $updatedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
             Write-Host "  File: $($webpFile.Name) -> $uploadName" -ForegroundColor Green
-            Upload-WebpToS3 -LocalFile $webpFile.FullName -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt
+            Upload-WebpToS3 -LocalFile $webpFile.FullName -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt -BaseName $baseName
         }
 
         Write-Host "  Done: $hn" -ForegroundColor Green
@@ -193,7 +197,7 @@ if ($MediaType -eq "open-times" -or $MediaType -eq "all") {
 
     Write-Host "Processing open-time image for mall: $MallId" -ForegroundColor Cyan
     Write-Host "  File: open-time.webp -> $uploadName" -ForegroundColor Green
-    Upload-WebpToS3 -LocalFile $srcFile -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt
+    Upload-WebpToS3 -LocalFile $srcFile -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt -BaseName "open-time"
 }
 
 Write-Host "`nDone!" -ForegroundColor Green
