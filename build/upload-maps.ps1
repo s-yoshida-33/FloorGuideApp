@@ -87,11 +87,10 @@ function Upload-WebpToS3 {
         [string]$BaseName      # e.g. "2F-map"  (used for per-floor cleanup and latest.json name)
     )
 
-    # Per-floor latest.json name: "2F-map-latest.json"
-    $latestJsonName = "$BaseName-latest.json"
+    $latestJsonName = "latest.json"
 
     if (Get-Command aws -ErrorAction SilentlyContinue) {
-        # Remove only old timestamped files for THIS floor (keep other floors and latest.json files)
+        # Remove only old timestamped files for THIS floor (keep other floors and latest.json)
         Write-Host "  Cleaning old $BaseName-*.webp from S3..." -ForegroundColor Cyan
         aws s3 rm "$S3Base/" --recursive --exclude "*" --include "$BaseName-*.webp" 2>&1 | Out-Null
 
@@ -106,7 +105,7 @@ function Upload-WebpToS3 {
             return
         }
 
-        # Generate and upload per-floor latest.json
+        # Generate and upload latest.json
         $latestJson = @{ file = $UploadName; updated_at = $UpdatedAt } | ConvertTo-Json -Compress
         $tmpJson    = [System.IO.Path]::GetTempFileName()
         [System.IO.File]::WriteAllText($tmpJson, $latestJson, [System.Text.Encoding]::UTF8)
