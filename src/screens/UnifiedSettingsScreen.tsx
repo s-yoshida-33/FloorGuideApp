@@ -298,10 +298,6 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
     try {
       setSaving(true);
 
-      // Save hostname to global settings
-      const globalSettings = await loadGlobalSettings();
-      await saveGlobalSettings({ ...globalSettings, hostname });
-
       const mallSettings: MallSettingsFile = {
         floor,
         floorLayout,
@@ -314,6 +310,11 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
         audioSettings,
       };
       await onSaveAll(mallSettings, floor, mallId);
+
+      // Save hostname AFTER onSaveAll so it is not overwritten by App.tsx's saveGlobalSettings call
+      const globalSettings = await loadGlobalSettings();
+      await saveGlobalSettings({ ...globalSettings, hostname });
+
       handleClose();
     } catch (e) {
       console.error("Failed to save settings", e);
