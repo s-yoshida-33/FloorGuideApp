@@ -18,36 +18,47 @@ try {
 Write-Host "[*] Starting Tauri signed build..." -ForegroundColor Cyan
 $rootDir = Split-Path -Parent $PSScriptRoot
 
-# --- Key Setup ---
-$keyPaths = @(
-    (Join-Path $PSScriptRoot "..\~\TAURI_KEY_PASSWORD.sh"),
-    (Join-Path $env:USERPROFILE "TAURI_KEY_PASSWORD.sh"),
-    (Join-Path $env:USERPROFILE ".ssh\TAURI_KEY_PASSWORD.sh")
-)
-$keyPath = $null
-foreach ($path in $keyPaths) { if (Test-Path $path) { $keyPath = $path; break } }
-if (-not $keyPath) { Write-Host "[!] Error: Private key not found" -ForegroundColor Red; exit 1 }
+# --- Key & Password Setup ---
+# CI: environment variables are pre-set by GitHub Actions secrets
+# Local: read key from file and password from env or prompt
+if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+    Write-Host "[+] Using signing key from environment variable (CI mode)" -ForegroundColor Green
+} else {
+    # Find private key file
+    $keyPaths = @(
+        (Join-Path $PSScriptRoot "..\~\TAURI_KEY_PASSWORD.sh"),
+        (Join-Path $env:USERPROFILE "TAURI_KEY_PASSWORD.sh"),
+        (Join-Path $env:USERPROFILE ".ssh\TAURI_KEY_PASSWORD.sh")
+    )
+    $keyPath = $null
+    foreach ($path in $keyPaths) { if (Test-Path $path) { $keyPath = $path; break } }
+    if (-not $keyPath) { Write-Host "[!] Error: Private key not found" -ForegroundColor Red; exit 1 }
 
-# --- Password Setup ---
-if (-not $Password) {
-    $userPassword = [Environment]::GetEnvironmentVariable('TAURI_SIGNING_PRIVATE_KEY_PASSWORD')
-    if (-not $userPassword) { $userPassword = [Environment]::GetEnvironmentVariable('TAURI_SIGNING_PASSWORD_OVERRIDE', 'User') }
-
-    if ($userPassword) {
-        $plainPassword = $userPassword
-        Write-Host "[+] Using password from environment variable" -ForegroundColor Green
-    } else {
-        Write-Host "[?] Enter private key password:" -ForegroundColor Yellow
-        $securePassword = Read-Host -AsSecureString
-        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    }
+    $keyContent = Get-Content $keyPath -Raw
+    $env:TAURI_SIGNING_PRIVATE_KEY = $keyContent
+    Write-Host "[+] Loaded key from: $keyPath" -ForegroundColor Green
 }
-$keyContent = Get-Content $keyPath -Raw
-$env:TAURI_SIGNING_PRIVATE_KEY = $keyContent
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $plainPassword
-$plainPassword = $null # Cleanup
+
+if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+    if (-not $Password) {
+        $userPassword = [Environment]::GetEnvironmentVariable('TAURI_SIGNING_PASSWORD_OVERRIDE', 'User')
+
+        if ($userPassword) {
+            $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $userPassword
+            Write-Host "[+] Using password from environment variable" -ForegroundColor Green
+        } else {
+            Write-Host "[?] Enter private key password:" -ForegroundColor Yellow
+            $securePassword = Read-Host -AsSecureString
+            $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+            $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+            $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $plainPassword
+            $plainPassword = $null
+        }
+    }
+} else {
+    Write-Host "[+] Using password from environment variable (CI mode)" -ForegroundColor Green
+}
 
 # --- Build Cleanup & Execution ---
 Write-Host "[*] Cleaning up..." -ForegroundColor Cyan
