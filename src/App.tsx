@@ -115,7 +115,6 @@ const App: React.FC = () => {
   );
   const [imageSettings, setImageSettings] =
     useState<ImageSettings>(DEFAULT_IMAGE_SETTINGS);
-  const [imageUpdateTs, setImageUpdateTs] = useState(Date.now());
   const [genreMappings, setGenreMappings] =
     useState<GenreMappings>(DEFAULT_GENRE_MAPPINGS);
   const [genreMemoSettings, setGenreMemoSettings] =
@@ -149,7 +148,6 @@ const App: React.FC = () => {
         ...prev,
         floorMaps: { ...prev.floorMaps, ...floorMaps },
       }));
-      setImageUpdateTs(Date.now());
     },
     [],
   );
@@ -159,7 +157,6 @@ const App: React.FC = () => {
   const handleOpenTimeUpdated = useCallback(
     (assetUrl: string) => {
       setImageSettings((prev) => ({ ...prev, openTimeImage: assetUrl }));
-      setImageUpdateTs(Date.now());
     },
     [],
   );
@@ -174,7 +171,6 @@ const App: React.FC = () => {
       if (ms.locationIcons) setLocationSettings(ms.locationIcons);
       if (ms.imageSettings) {
         setImageSettings(ms.imageSettings);
-        setImageUpdateTs(Date.now());
       }
       if (ms.genreMappings) setGenreMappings(ms.genreMappings);
       if (ms.genreMemoSettings) setGenreMemoSettings(ms.genreMemoSettings);
@@ -350,33 +346,11 @@ const App: React.FC = () => {
   // -----------------------------------------------------------------------
   // Image settings with cache-bust
   // -----------------------------------------------------------------------
+  // Local asset:// URLs already have unique timestamped filenames — no ?v= needed.
+  // Using ?v= on asset:// URLs breaks Tauri's asset protocol file lookup.
   const displayImageSettings = React.useMemo(() => {
-    const processed = {
-      ...imageSettings,
-      floorMaps: { ...imageSettings.floorMaps },
-    };
-    (
-      Object.keys(processed.floorMaps) as Array<
-        keyof typeof processed.floorMaps
-      >
-    ).forEach((key) => {
-      const val = processed.floorMaps[key];
-      if (
-        val &&
-        (val.startsWith("asset:") || val.startsWith("https://asset."))
-      ) {
-        processed.floorMaps[key] = `${val}?v=${imageUpdateTs}`;
-      }
-    });
-    if (
-      processed.openTimeImage &&
-      (processed.openTimeImage.startsWith("asset:") ||
-        processed.openTimeImage.startsWith("https://asset."))
-    ) {
-      processed.openTimeImage = `${processed.openTimeImage}?v=${imageUpdateTs}`;
-    }
-    return processed;
-  }, [imageSettings, imageUpdateTs]);
+    return imageSettings;
+  }, [imageSettings]);
 
   // --- RENDER ---
 
