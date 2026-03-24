@@ -525,11 +525,23 @@ async fn sync_map_from_s3(
     .await
     .map_err(|e| format!("Task join error: {}", e))??;
 
-    // Remove old .webp files in this directory before saving the new one
+    // Remove old .webp files for the SAME floor only (e.g. "2F-map-*.webp"),
+    // preserving other floors' files.
+    // The floor prefix is the first dash-separated token: "2F" from "2F-map-2026-03-24.webp".
+    let floor_prefix = safe_name.split('-').next().unwrap_or("").to_string();
+    let delete_prefix = if floor_prefix.is_empty() {
+        String::new()
+    } else {
+        format!("{}-map-", floor_prefix)
+    };
     if let Ok(entries) = fs::read_dir(&maps_dir) {
         for entry in entries.flatten() {
-            if entry.path().extension().and_then(|e| e.to_str()) == Some("webp") {
-                let _ = fs::remove_file(entry.path());
+            let p = entry.path();
+            if p.extension().and_then(|e| e.to_str()) == Some("webp") {
+                let fname = p.file_name().unwrap_or_default().to_str().unwrap_or("").to_string();
+                if delete_prefix.is_empty() || fname.starts_with(&delete_prefix) {
+                    let _ = fs::remove_file(&p);
+                }
             }
         }
     }
