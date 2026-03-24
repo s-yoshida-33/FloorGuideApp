@@ -9,6 +9,7 @@ import { PatchScreen } from "./screens/PatchScreen";
 import BlackScreenOverlay from "./components/BlackScreenOverlay";
 import { useHeartbeat } from "./hooks/useHeartbeat";
 import { useWebViewPing } from "./hooks/useWebViewPing";
+import { useMapSync } from "./hooks/useMapSync";
 import { DEFAULT_LOCATION_ICON_SETTINGS } from "./config";
 import { getMallConfig } from "./config/malls";
 import type { MallId, MallSettingsFile } from "./types/mall";
@@ -102,6 +103,7 @@ const App: React.FC = () => {
 
   // --- Mall ---
   const [mallId, setMallId] = useState<MallId>("sakaikitahanada");
+  const [hostname, setHostname] = useState<string>('');
 
   // --- Per-mall settings state ---
   const [locationSettings, setLocationSettings] =
@@ -139,6 +141,19 @@ const App: React.FC = () => {
   // WebView watchdog ping
   useWebViewPing();
 
+  // S3 map sync on startup
+  const handleMapUpdated = useCallback(
+    (floorMaps: Partial<Record<FloorId, string>>) => {
+      setImageSettings((prev) => ({
+        ...prev,
+        floorMaps: { ...prev.floorMaps, ...floorMaps },
+      }));
+      setImageUpdateTs(Date.now());
+    },
+    [],
+  );
+  useMapSync(mallId, hostname, { onMapUpdated: handleMapUpdated });
+
   // -----------------------------------------------------------------------
   // Apply a MallSettingsFile to local state
   // -----------------------------------------------------------------------
@@ -172,6 +187,7 @@ const App: React.FC = () => {
       // 2. Load global settings
       const global = await loadGlobalSettings();
       setMallId(global.mallId);
+      setHostname(global.hostname ?? '');
 
       if (!global.setupCompleted) {
         setAppPhase("mall_select");

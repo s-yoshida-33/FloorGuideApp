@@ -434,6 +434,158 @@ fn read_image_file(file_path: String) -> Result<Vec<u8>, String> {
 }
 
 // ---------------------------------------------------------------------------
+// S3 map sync commands
+// ---------------------------------------------------------------------------
+
+/// Validate a path component (mall_id or hostname) to prevent traversal.
+fn validate_path_component(s: &str, label: &str) -> Result<String, String> {
+    if s.is_empty() {
+        return Err(format!("{} must not be empty", label));
+    }
+    // Allow alphanumeric, hyphen, underscore, dot (no slashes, no spaces, no ..)
+    if !s.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        return Err(format!("{} contains invalid characters: {}", label, s));
+    }
+    if s == ".." || s.contains("..") {
+        return Err(format!("{} must not contain '..': {}", label, s));
+    }
+    Ok(s.to_string())
+}
+
+/// Returns and creates the local medias/maps directory for a given mall + hostname.
+fn get_maps_dir_inner(mall_id: &str, hostname: &str) -> Result<PathBuf, String> {
+    let safe_mall = validate_path_component(mall_id, "mall_id")?;
+    let safe_host = validate_path_component(hostname, "hostname")?;
+    let dir = get_app_data_dir()?
+        .join("medias").join("maps")
+        .join(&safe_mall).join(&safe_host);
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create maps dir: {}", e))?;
+    Ok(dir)
+}
+
+#[derive(Serialize)]
+struct LocalMapEntry {
+    /// Filename only (e.g. "1F-map-2026-03-24-14-07-21.webp")
+    filename: String,
+    /// Absolute path on disk
+    abs_path: String,
+}
+
+/// Download a single .webp map image from S3 and save it locally.
+/// Emits "map-download-progress" events: { phase, percent, message }
+/// Old .webp files in the same directory are removed on success.
+/// Returns the absolute path of the saved file.
+#[tauri::command]
+async fn sync_map_from_s3(
+    app: tauri::AppHandle,
+    mall_id: String,
+    hostname: String,
+    file_url: String,
+    filename: String,
+) -> Result<String, String> {
+    // Validate filename – only simple webp files allowed
+    let safe_name = std::path::Path::new(&filename)
+        .file_name()
+        .ok_or_else(|| "Invalid filename".to_string())?
+        .to_string_lossy()
+        .to_string();
+
+    if !safe_name.ends_with(".webp") {
+        return Err(format!("Only .webp files are supported, got: {}", safe_name));
+    }
+
+    let maps_dir = get_maps_dir_inner(&mall_id, &hostname)?;
+
+    let _ = app.emit("map-download-progress", serde_json::json!({
+        "phase": "started", "percent": 0,
+        "message": format!("マップ画像をダウンロード中: {}", safe_name)
+    }));
+
+    // Download in a blocking thread so we don't block the async executor
+    let url = file_url.clone();
+    let bytes = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .user_agent("Gido-MediaUpdater/1.0")
+            .build()
+            .map_err(|e| format!("HTTP client error: {}", e))?;
+
+        let response = client.get(&url).send()
+            .map_err(|e| format!("Request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("HTTP {}: {}", response.status(), url));
+        }
+
+        response.bytes()
+            .map(|b| b.to_vec())
+            .map_err(|e| format!("Failed to read response body: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))??;
+
+    // Remove old .webp files in this directory before saving the new one
+    if let Ok(entries) = fs::read_dir(&maps_dir) {
+        for entry in entries.flatten() {
+            if entry.path().extension().and_then(|e| e.to_str()) == Some("webp") {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
+    }
+
+    let target_path = maps_dir.join(&safe_name);
+    fs::write(&target_path, &bytes)
+        .map_err(|e| format!("Failed to write map file: {}", e))?;
+
+    let abs_path = target_path
+        .canonicalize()
+        .unwrap_or(target_path)
+        .to_string_lossy()
+        .to_string();
+
+    let _ = app.emit("map-download-progress", serde_json::json!({
+        "phase": "finished", "percent": 100,
+        "message": "ダウンロード完了"
+    }));
+
+    Ok(abs_path)
+}
+
+/// Return all .webp files present in the local medias/maps/{mall_id}/{hostname}/ directory.
+/// Used after `sync_map_from_s3` to get the asset path for rendering.
+#[tauri::command]
+fn list_local_maps(mall_id: String, hostname: String) -> Result<Vec<LocalMapEntry>, String> {
+    let maps_dir = match get_maps_dir_inner(&mall_id, &hostname) {
+        Ok(d) => d,
+        Err(_) => return Ok(vec![]),
+    };
+
+    let mut entries: Vec<LocalMapEntry> = vec![];
+
+    if let Ok(read_dir) = fs::read_dir(&maps_dir) {
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("webp") {
+                let filename = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                let abs_path = path
+                    .canonicalize()
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string();
+                entries.push(LocalMapEntry { filename, abs_path });
+            }
+        }
+    }
+
+    Ok(entries)
+}
+
+// ---------------------------------------------------------------------------
 // System info command (CPU, memory, GPU, OS)
 // ---------------------------------------------------------------------------
 
@@ -1015,6 +1167,8 @@ fn main() {
             webview_ping,
             pause_watchdog,
             resume_watchdog,
+            sync_map_from_s3,
+            list_local_maps,
         ]);
 
     let app = builder

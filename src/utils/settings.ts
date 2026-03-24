@@ -47,6 +47,7 @@ const DEFAULT_FLOOR_LAYOUT: FloorLayout = {
 const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   mallId: 'sakaikitahanada',
   setupCompleted: false,
+  hostname: '',
 };
 
 export async function loadGlobalSettings(): Promise<GlobalSettings> {
@@ -56,6 +57,7 @@ export async function loadGlobalSettings(): Promise<GlobalSettings> {
     return {
       mallId: raw.mallId ?? DEFAULT_GLOBAL_SETTINGS.mallId,
       setupCompleted: raw.setupCompleted ?? DEFAULT_GLOBAL_SETTINGS.setupCompleted,
+      hostname: raw.hostname ?? '',
     };
   } catch (error) {
     logError('CONFIG', 'Failed to load global settings', {
@@ -69,7 +71,7 @@ export async function saveGlobalSettings(settings: GlobalSettings): Promise<void
   try {
     const json = JSON.stringify(settings, null, 2);
     await invoke('save_settings', { json });
-    logInfo('CONFIG', 'Global settings saved', { mallId: settings.mallId });
+    logInfo('CONFIG', 'Global settings saved', { mallId: settings.mallId, hostname: settings.hostname });
   } catch (error) {
     logError('CONFIG', 'Failed to save global settings', {
       error: error instanceof Error ? error.message : String(error),
