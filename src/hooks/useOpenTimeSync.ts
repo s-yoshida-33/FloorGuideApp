@@ -129,9 +129,21 @@ export function useOpenTimeSync(
     }
   }, [mallId, onOpenTimeUpdated]);
 
+  // Phase 1: immediately load any locally cached open-time image.
   useEffect(() => {
     if (!mallId) return;
-    const tid = setTimeout(() => { runSync(); }, 5000);
+    invoke<Array<{ filename: string; abs_path: string }>>('list_local_open_times', { mallId })
+      .then((files) => {
+        if (files.length > 0) onOpenTimeUpdated(convertFileSrc(files[0].abs_path));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mallId]);
+
+  // Phase 2: check S3 for updates; short delay to avoid competing with boot I/O.
+  useEffect(() => {
+    if (!mallId) return;
+    const tid = setTimeout(() => { runSync(); }, 1000);
     return () => clearTimeout(tid);
   }, [mallId, runSync]);
 }
