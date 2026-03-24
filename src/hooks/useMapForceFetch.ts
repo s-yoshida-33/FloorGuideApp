@@ -23,7 +23,6 @@ export interface MapForceFetchStatus {
 }
 
 const S3_MAPS_BASE = 'https://dl.tti.ninja/gido/medias/maps';
-const CHECK_TIMEOUT_MS = 10_000;
 
 interface LatestJson {
   file: string;
@@ -38,19 +37,14 @@ function parseFloorFromFilename(filename: string): FloorId | null {
 
 async function fetchLatestJson(mallId: string, hostname: string): Promise<LatestJson | null> {
   const url = `${S3_MAPS_BASE}/${mallId}/${hostname}/latest.json?_=${Date.now()}`;
-  const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache' },
+    const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+    const response = await tauriFetch(url, {
+      headers: { 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' },
     });
-    clearTimeout(tid);
-    if (!res.ok) return null;
-    return await res.json() as LatestJson;
+    if (!response.ok) return null;
+    return await response.json() as LatestJson;
   } catch {
-    clearTimeout(tid);
     return null;
   }
 }
