@@ -1,6 +1,13 @@
-# Map image S3 upload script for Gido
-# Usage: powershell -ExecutionPolicy Bypass -File .\build\upload-maps.ps1 -MallId "sakaikitahanada"
+# Map / open-time image S3 upload script for Gido
+# Usage:
+#   # Upload maps (default)
+#   powershell -ExecutionPolicy Bypass -File .\build\upload-maps.ps1 -MallId "sakaikitahanada"
+#   powershell -ExecutionPolicy Bypass -File .\build\upload-maps.ps1 -MallId "sakaikitahanada" -MediaType maps
 #
+#   # Upload open-time image
+#   powershell -ExecutionPolicy Bypass -File .\build\upload-maps.ps1 -MallId "sakaikitahanada" -MediaType open-times
+#
+# --- maps ---
 # For each hostname directory under medias/maps/{MallId}/{hostname}/:
 #   - Reads the .webp map file(s)
 #   - Uploads with timestamp: {floor}F-map-{timestamp}.webp
@@ -13,9 +20,24 @@
 # S3 output layout:
 #   s3://tti-distribution/public/gido/medias/maps/{MallId}/{hostname}/{floor}F-map-{timestamp}.webp
 #   s3://tti-distribution/public/gido/medias/maps/{MallId}/{hostname}/latest.json
+#
+# --- open-times ---
+# Reads medias/open-times/{MallId}/open-time.webp
+#   - Uploads with timestamp: open-time-{timestamp}.webp
+#   - Generates latest.json: { "file": "...", "updated_at": "..." }
+#   - Uploads to S3: s3://tti-distribution/public/gido/medias/open-times/{MallId}/
+#
+# Local source layout:
+#   medias/open-times/{MallId}/open-time.webp
+#
+# S3 output layout:
+#   s3://tti-distribution/public/gido/medias/open-times/{MallId}/open-time-{timestamp}.webp
+#   s3://tti-distribution/public/gido/medias/open-times/{MallId}/latest.json
 
 param(
-    [string]$MallId = ""
+    [string]$MallId    = "",
+    [ValidateSet("maps", "open-times")]
+    [string]$MediaType = "maps"
 )
 
 chcp 65001 | Out-Null
@@ -37,88 +59,127 @@ if ([string]::IsNullOrWhiteSpace($MallId)) {
 
 $rootDir    = Split-Path -Parent $PSScriptRoot
 $mediasRoot = Join-Path $rootDir "medias"
-$mapsDir    = Join-Path $mediasRoot "maps\$MallId"
 $today      = Get-Date -Format "yyyy-MM-dd-HH-mm-ss"
 
-if (-not (Test-Path $mapsDir)) {
-    Write-Host "Error: Maps directory not found: $mapsDir" -ForegroundColor Red
-    exit 1
-}
+# ---------------------------------------------------------------------------
+# Helper: upload a single .webp + latest.json to an S3 prefix
+# ---------------------------------------------------------------------------
+function Upload-WebpToS3 {
+    param(
+        [string]$LocalFile,
+        [string]$UploadName,
+        [string]$S3Base,
+        [string]$UpdatedAt
+    )
 
-$hostnameDirs = Get-ChildItem -Path $mapsDir -Directory -ErrorAction SilentlyContinue
+    if (Get-Command aws -ErrorAction SilentlyContinue) {
+        # Remove old timestamped files from S3 (keep latest.json)
+        Write-Host "  Cleaning old timestamped files from S3..." -ForegroundColor Cyan
+        aws s3 rm "$S3Base/" --recursive --exclude "latest.json" 2>&1 | Out-Null
 
-if ($hostnameDirs.Count -eq 0) {
-    Write-Host "No hostname directories found under: $mapsDir" -ForegroundColor Yellow
-    exit 0
-}
-
-Write-Host "Processing maps for mall: $MallId" -ForegroundColor Cyan
-Write-Host "Found $($hostnameDirs.Count) hostname dir(s): $($hostnameDirs.Name -join ', ')" -ForegroundColor Green
-
-foreach ($hostnameDir in $hostnameDirs) {
-    $hn     = $hostnameDir.Name
-    $srcDir = $hostnameDir.FullName
-    $s3Base = "s3://tti-distribution/public/gido/medias/maps/$MallId/$hn"
-
-    Write-Host "`n[HOSTNAME: $hn]" -ForegroundColor Magenta
-
-    # Find .webp files (e.g. 1F-map.webp, 2F-map.webp)
-    $webpFiles = Get-ChildItem -Path $srcDir -Filter "*F-map.webp" -File -ErrorAction SilentlyContinue
-
-    if ($webpFiles.Count -eq 0) {
-        Write-Host "  No *F-map.webp files found. Skipping." -ForegroundColor Yellow
-        continue
-    }
-
-    # Upload each .webp file with a timestamp
-    foreach ($webpFile in $webpFiles) {
-        # Derive base name (e.g. "1F-map" from "1F-map.webp")
-        $baseName    = [System.IO.Path]::GetFileNameWithoutExtension($webpFile.Name)
-        $uploadName  = "$baseName-$today.webp"
-        $updatedAt   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-        Write-Host "  File: $($webpFile.Name) -> $uploadName" -ForegroundColor Green
-
-        if (Get-Command aws -ErrorAction SilentlyContinue) {
-            # Remove old timestamped files from S3 (keep latest.json)
-            Write-Host "  Cleaning old timestamped files from S3..." -ForegroundColor Cyan
-            aws s3 rm "$s3Base/" --recursive --exclude "latest.json" 2>&1 | Out-Null
-
-            # Upload new file
-            try {
-                aws s3 cp $webpFile.FullName "$s3Base/$uploadName" --content-type "image/webp"
-                Write-Host "  Uploaded: $uploadName" -ForegroundColor Green
-            } catch {
-                Write-Host "  Upload failed: $_" -ForegroundColor Red
-                Write-Host "  Please upload manually:" -ForegroundColor Yellow
-                Write-Host "    aws s3 cp `"$($webpFile.FullName)`" `"$s3Base/$uploadName`" --content-type image/webp" -ForegroundColor Gray
-                continue
-            }
-
-            # Generate and upload latest.json
-            $latestJson = @{ file = $uploadName; updated_at = $updatedAt } | ConvertTo-Json -Compress
-            $tmpJson    = [System.IO.Path]::GetTempFileName()
-            [System.IO.File]::WriteAllText($tmpJson, $latestJson, [System.Text.Encoding]::UTF8)
-
-            try {
-                aws s3 cp $tmpJson "$s3Base/latest.json" `
-                    --content-type "application/json" `
-                    --cache-control "no-cache, no-store"
-                Write-Host "  Uploaded: latest.json (file=$uploadName, updated_at=$updatedAt)" -ForegroundColor Green
-            } catch {
-                Write-Host "  Failed to upload latest.json: $_" -ForegroundColor Red
-            } finally {
-                Remove-Item $tmpJson -Force -ErrorAction SilentlyContinue
-            }
-        } else {
-            Write-Host "  [INFO] AWS CLI not found. Upload manually:" -ForegroundColor Yellow
-            Write-Host "    aws s3 rm `"$s3Base/`" --recursive --exclude latest.json" -ForegroundColor Gray
-            Write-Host "    aws s3 cp `"$($webpFile.FullName)`" `"$s3Base/$uploadName`" --content-type image/webp" -ForegroundColor Gray
-            Write-Host "    # Then upload latest.json: { `"file`": `"$uploadName`", `"updated_at`": `"$updatedAt`" }" -ForegroundColor Gray
+        # Upload new file
+        try {
+            aws s3 cp $LocalFile "$S3Base/$UploadName" --content-type "image/webp"
+            Write-Host "  Uploaded: $UploadName" -ForegroundColor Green
+        } catch {
+            Write-Host "  Upload failed: $_" -ForegroundColor Red
+            Write-Host "  Please upload manually:" -ForegroundColor Yellow
+            Write-Host "    aws s3 cp `"$LocalFile`" `"$S3Base/$UploadName`" --content-type image/webp" -ForegroundColor Gray
+            return
         }
+
+        # Generate and upload latest.json
+        $latestJson = @{ file = $UploadName; updated_at = $UpdatedAt } | ConvertTo-Json -Compress
+        $tmpJson    = [System.IO.Path]::GetTempFileName()
+        [System.IO.File]::WriteAllText($tmpJson, $latestJson, [System.Text.Encoding]::UTF8)
+
+        try {
+            aws s3 cp $tmpJson "$S3Base/latest.json" `
+                --content-type "application/json" `
+                --cache-control "no-cache, no-store"
+            Write-Host "  Uploaded: latest.json (file=$UploadName, updated_at=$UpdatedAt)" -ForegroundColor Green
+        } catch {
+            Write-Host "  Failed to upload latest.json: $_" -ForegroundColor Red
+        } finally {
+            Remove-Item $tmpJson -Force -ErrorAction SilentlyContinue
+        }
+    } else {
+        Write-Host "  [INFO] AWS CLI not found. Upload manually:" -ForegroundColor Yellow
+        Write-Host "    aws s3 rm `"$S3Base/`" --recursive --exclude latest.json" -ForegroundColor Gray
+        Write-Host "    aws s3 cp `"$LocalFile`" `"$S3Base/$UploadName`" --content-type image/webp" -ForegroundColor Gray
+        Write-Host "    # Then upload latest.json: { `"file`": `"$UploadName`", `"updated_at`": `"$UpdatedAt`" }" -ForegroundColor Gray
+    }
+}
+
+# ---------------------------------------------------------------------------
+# maps
+# ---------------------------------------------------------------------------
+if ($MediaType -eq "maps") {
+    $mapsDir = Join-Path $mediasRoot "maps\$MallId"
+
+    if (-not (Test-Path $mapsDir)) {
+        Write-Host "Error: Maps directory not found: $mapsDir" -ForegroundColor Red
+        exit 1
     }
 
-    Write-Host "  Done: $hn" -ForegroundColor Green
+    $hostnameDirs = Get-ChildItem -Path $mapsDir -Directory -ErrorAction SilentlyContinue
+
+    if ($hostnameDirs.Count -eq 0) {
+        Write-Host "No hostname directories found under: $mapsDir" -ForegroundColor Yellow
+        exit 0
+    }
+
+    Write-Host "Processing maps for mall: $MallId" -ForegroundColor Cyan
+    Write-Host "Found $($hostnameDirs.Count) hostname dir(s): $($hostnameDirs.Name -join ', ')" -ForegroundColor Green
+
+    foreach ($hostnameDir in $hostnameDirs) {
+        $hn     = $hostnameDir.Name
+        $srcDir = $hostnameDir.FullName
+        $s3Base = "s3://tti-distribution/public/gido/medias/maps/$MallId/$hn"
+
+        Write-Host "`n[HOSTNAME: $hn]" -ForegroundColor Magenta
+
+        # Find .webp files (e.g. 1F-map.webp, 2F-map.webp)
+        $webpFiles = Get-ChildItem -Path $srcDir -Filter "*F-map.webp" -File -ErrorAction SilentlyContinue
+
+        if ($webpFiles.Count -eq 0) {
+            Write-Host "  No *F-map.webp files found. Skipping." -ForegroundColor Yellow
+            continue
+        }
+
+        foreach ($webpFile in $webpFiles) {
+            $baseName   = [System.IO.Path]::GetFileNameWithoutExtension($webpFile.Name)
+            $uploadName = "$baseName-$today.webp"
+            $updatedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+            Write-Host "  File: $($webpFile.Name) -> $uploadName" -ForegroundColor Green
+            Upload-WebpToS3 -LocalFile $webpFile.FullName -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt
+        }
+
+        Write-Host "  Done: $hn" -ForegroundColor Green
+    }
+}
+
+# ---------------------------------------------------------------------------
+# open-times
+# ---------------------------------------------------------------------------
+if ($MediaType -eq "open-times") {
+    $openTimesDir = Join-Path $mediasRoot "open-times\$MallId"
+    $srcFile      = Join-Path $openTimesDir "open-time.webp"
+
+    if (-not (Test-Path $srcFile)) {
+        Write-Host "Error: open-time.webp not found: $srcFile" -ForegroundColor Red
+        Write-Host "Place the file at: medias\open-times\$MallId\open-time.webp" -ForegroundColor Yellow
+        exit 1
+    }
+
+    $uploadName = "open-time-$today.webp"
+    $updatedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $s3Base     = "s3://tti-distribution/public/gido/medias/open-times/$MallId"
+
+    Write-Host "Processing open-time image for mall: $MallId" -ForegroundColor Cyan
+    Write-Host "  File: open-time.webp -> $uploadName" -ForegroundColor Green
+    Upload-WebpToS3 -LocalFile $srcFile -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt
 }
 
 Write-Host "`nDone!" -ForegroundColor Green

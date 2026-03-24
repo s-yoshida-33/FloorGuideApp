@@ -10,6 +10,7 @@ import BlackScreenOverlay from "./components/BlackScreenOverlay";
 import { useHeartbeat } from "./hooks/useHeartbeat";
 import { useWebViewPing } from "./hooks/useWebViewPing";
 import { useMapSync } from "./hooks/useMapSync";
+import { useOpenTimeSync } from "./hooks/useOpenTimeSync";
 import { DEFAULT_LOCATION_ICON_SETTINGS } from "./config";
 import { getMallConfig } from "./config/malls";
 import type { MallId, MallSettingsFile } from "./types/mall";
@@ -153,6 +154,16 @@ const App: React.FC = () => {
     [],
   );
   useMapSync(mallId, hostname, { onMapUpdated: handleMapUpdated });
+
+  // S3 open-time sync on startup
+  const handleOpenTimeUpdated = useCallback(
+    (assetUrl: string) => {
+      setImageSettings((prev) => ({ ...prev, openTimeImage: assetUrl }));
+      setImageUpdateTs(Date.now());
+    },
+    [],
+  );
+  useOpenTimeSync(mallId, { onOpenTimeUpdated: handleOpenTimeUpdated });
 
   // -----------------------------------------------------------------------
   // Apply a MallSettingsFile to local state

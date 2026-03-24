@@ -552,6 +552,131 @@ async fn sync_map_from_s3(
     Ok(abs_path)
 }
 
+// ---------------------------------------------------------------------------
+// Open-time image sync (medias/open-times/{mall_id}/)
+// ---------------------------------------------------------------------------
+
+/// Returns and creates the local medias/open-times directory for a given mall.
+fn get_open_time_dir_inner(mall_id: &str) -> Result<PathBuf, String> {
+    let safe_mall = validate_path_component(mall_id, "mall_id")?;
+    let dir = get_app_data_dir()?
+        .join("medias").join("open-times")
+        .join(&safe_mall);
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create open-times dir: {}", e))?;
+    Ok(dir)
+}
+
+/// Download a single .webp open-time image from S3 and save it locally.
+/// Emits "open-time-download-progress" events: { phase, percent, message }
+/// Old .webp files in the same directory are removed on success.
+/// Returns the absolute path of the saved file.
+#[tauri::command]
+async fn sync_open_time_from_s3(
+    app: tauri::AppHandle,
+    mall_id: String,
+    file_url: String,
+    filename: String,
+) -> Result<String, String> {
+    let safe_name = std::path::Path::new(&filename)
+        .file_name()
+        .ok_or_else(|| "Invalid filename".to_string())?
+        .to_string_lossy()
+        .to_string();
+
+    if !safe_name.ends_with(".webp") {
+        return Err(format!("Only .webp files are supported, got: {}", safe_name));
+    }
+
+    let open_time_dir = get_open_time_dir_inner(&mall_id)?;
+
+    let _ = app.emit("open-time-download-progress", serde_json::json!({
+        "phase": "started", "percent": 0,
+        "message": format!("営業時間画像をダウンロード中: {}", safe_name)
+    }));
+
+    let url = file_url.clone();
+    let bytes = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .user_agent("Gido-MediaUpdater/1.0")
+            .build()
+            .map_err(|e| format!("HTTP client error: {}", e))?;
+
+        let response = client.get(&url).send()
+            .map_err(|e| format!("Request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("HTTP {}: {}", response.status(), url));
+        }
+
+        response.bytes()
+            .map(|b| b.to_vec())
+            .map_err(|e| format!("Failed to read response body: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))??;
+
+    // Remove old .webp files before saving the new one
+    if let Ok(entries) = fs::read_dir(&open_time_dir) {
+        for entry in entries.flatten() {
+            if entry.path().extension().and_then(|e| e.to_str()) == Some("webp") {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
+    }
+
+    let target_path = open_time_dir.join(&safe_name);
+    fs::write(&target_path, &bytes)
+        .map_err(|e| format!("Failed to write open-time file: {}", e))?;
+
+    let abs_path = target_path
+        .canonicalize()
+        .unwrap_or(target_path)
+        .to_string_lossy()
+        .to_string();
+
+    let _ = app.emit("open-time-download-progress", serde_json::json!({
+        "phase": "finished", "percent": 100,
+        "message": "ダウンロード完了"
+    }));
+
+    Ok(abs_path)
+}
+
+/// Return the .webp file present in the local medias/open-times/{mall_id}/ directory.
+/// Used after `sync_open_time_from_s3` to get the asset path for rendering.
+#[tauri::command]
+fn list_local_open_times(mall_id: String) -> Result<Vec<LocalMapEntry>, String> {
+    let open_time_dir = match get_open_time_dir_inner(&mall_id) {
+        Ok(d) => d,
+        Err(_) => return Ok(vec![]),
+    };
+
+    let mut entries: Vec<LocalMapEntry> = vec![];
+
+    if let Ok(read_dir) = fs::read_dir(&open_time_dir) {
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("webp") {
+                let filename = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                let abs_path = path
+                    .canonicalize()
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string();
+                entries.push(LocalMapEntry { filename, abs_path });
+            }
+        }
+    }
+
+    Ok(entries)
+}
+
 /// Return all .webp files present in the local medias/maps/{mall_id}/{hostname}/ directory.
 /// Used after `sync_map_from_s3` to get the asset path for rendering.
 #[tauri::command]
@@ -1169,6 +1294,8 @@ fn main() {
             resume_watchdog,
             sync_map_from_s3,
             list_local_maps,
+            sync_open_time_from_s3,
+            list_local_open_times,
         ]);
 
     let app = builder
