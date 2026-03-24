@@ -181,7 +181,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
           }}
           title={!hostname ? "ホスト名を先に設定してください" : undefined}
         >
-          {isFetching ? "取得中..." : "S3からマップ取得"}
+          {isFetching ? "取得中..." : "最新のマップ画像を取得"}
         </button>
 
         {fetchStatus.status !== 'idle' && (
