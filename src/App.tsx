@@ -1,5 +1,7 @@
 // src/App.tsx
 import React, { useEffect, useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import GidoApp from "./screens/GidoApp";
 import MallSelectScreen from "./screens/MallSelectScreen";
 import VersionInfoScreen from "./screens/VersionInfoScreen";
@@ -207,6 +209,36 @@ const App: React.FC = () => {
       const config = getMallConfig(global.mallId);
       const loadedFloor = ms.floor ?? config.defaultFloor;
       setFloor(loadedFloor);
+
+      // 4. Overlay locally cached map/open-time files so the first render
+      //    already has the correct images (no white flash).
+      const hostname = global.hostname ?? '';
+      if (global.mallId && hostname) {
+        try {
+          const localMaps = await invoke<Array<{ filename: string; abs_path: string }>>(
+            'list_local_maps', { mallId: global.mallId, hostname }
+          );
+          const floorMaps: Record<string, string> = {};
+          for (const entry of localMaps) {
+            const m = entry.filename.match(/^(\dF)-map/);
+            if (m) floorMaps[m[1]] = convertFileSrc(entry.abs_path);
+          }
+          if (Object.keys(floorMaps).length > 0) {
+            ms.imageSettings = { ...ms.imageSettings, floorMaps: { ...ms.imageSettings?.floorMaps, ...floorMaps } };
+          }
+        } catch { /* offline or no maps yet — skip */ }
+      }
+      if (global.mallId) {
+        try {
+          const localOpenTimes = await invoke<Array<{ filename: string; abs_path: string }>>(
+            'list_local_open_times', { mallId: global.mallId }
+          );
+          if (localOpenTimes.length > 0) {
+            ms.imageSettings = { ...ms.imageSettings, openTimeImage: convertFileSrc(localOpenTimes[0].abs_path) };
+          }
+        } catch { /* offline or no open-time yet — skip */ }
+      }
+
       applyMallSettings(ms, loadedFloor);
 
       logInfo("SYS_INIT", "Settings loaded successfully", {

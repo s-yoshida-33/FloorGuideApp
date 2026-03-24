@@ -151,17 +151,7 @@ export function useMapSync(
     }
   }, [mallId, hostname, onMapUpdated]);
 
-  // Phase 1: immediately load any locally cached floor maps so the screen
-  //           shows something right away (no white flash on startup).
-  useEffect(() => {
-    if (!mallId || !hostname) return;
-    buildFloorMapsFromLocal(mallId, hostname).then((floorMaps) => {
-      if (Object.keys(floorMaps).length > 0) onMapUpdated(floorMaps);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mallId, hostname]);
-
-  // Phase 2: check S3 for updates; short delay to avoid competing with boot I/O.
+  // Check S3 for updates; short delay to avoid competing with boot I/O.
   useEffect(() => {
     if (!mallId || !hostname) return;
     const tid = setTimeout(() => { runSync(); }, 1000);
