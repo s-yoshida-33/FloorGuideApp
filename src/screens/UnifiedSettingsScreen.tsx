@@ -26,6 +26,8 @@ import { DEFAULT_GENRE_MEMO_SETTINGS } from "../types/genreSettings";
 import {
   ensureMallSettingsFile,
   loadMallSettings,
+  loadGlobalSettings,
+  saveGlobalSettings,
 } from "../utils/settings";
 
 type TabType = "floor" | "layout" | "location" | "image" | "genre" | "shop" | "blackScreen" | "audio";
@@ -68,6 +70,9 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
   const [activeTab, setActiveTab] = useState<TabType>("floor");
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Hostname for S3 map fetching (global setting, not per-mall)
+  const [hostname, setHostname] = useState<string>('');
 
   // Mall selection (editable in settings)
   const [mallId, setMallId] = useState<MallId>(initialMallId);
@@ -170,6 +175,13 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
       transformRef.current.resetTransform();
     }
   }, [initialMallId, initialFloor, initialFloorLayout, initialLocationIconSettings, initialImageSettings, initialGenreMappings, initialGenreMemoSettings, initialShopSettings, initialBlackScreenSettings, initialAudioSettings]);
+
+  // Load hostname from global settings on mount
+  useEffect(() => {
+    loadGlobalSettings().then((gs) => {
+      setHostname(gs.hostname ?? '');
+    }).catch(() => {});
+  }, []);
 
   // ---------- Mall switch handler ----------
   const handleMallChange = async (newMallId: MallId) => {
@@ -285,6 +297,11 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
 
     try {
       setSaving(true);
+
+      // Save hostname to global settings
+      const globalSettings = await loadGlobalSettings();
+      await saveGlobalSettings({ ...globalSettings, hostname });
+
       const mallSettings: MallSettingsFile = {
         floor,
         floorLayout,
@@ -373,6 +390,27 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
           <span style={{ color: "#ffffff", fontSize: 16, fontWeight: 600 }}>
             Gido
           </span>
+        </div>
+
+        {/* Hostname input */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ color: "#aaaaaa", fontSize: 13 }}>ホスト名:</span>
+          <input
+            type="text"
+            value={hostname}
+            onChange={(e) => setHostname(e.target.value)}
+            placeholder="例: 1-KSK-65-01"
+            style={{
+              backgroundColor: "#3C3C3C",
+              color: "#ffffff",
+              border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 4,
+              padding: "4px 8px",
+              fontSize: 13,
+              width: 160,
+              outline: "none",
+            }}
+          />
         </div>
 
         {/* Error Message */}
@@ -612,6 +650,8 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               imageSettings={imageSettings}
               onChangeImageSettings={setImageSettings}
               floors={mallConfig.floors}
+              mallId={mallId}
+              hostname={hostname}
             />
           )}
           {activeTab === "genre" && (

@@ -54,4 +54,6 @@ export interface MallSettingsFile {
 export interface GlobalSettings {
   mallId: MallId;
   setupCompleted?: boolean;
+  /** Hostname of this display unit (e.g. "1-KSK-65-01"). Used for S3 map fetch. */
+  hostname?: string;
 }
