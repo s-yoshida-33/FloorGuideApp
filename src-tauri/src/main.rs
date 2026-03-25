@@ -464,6 +464,17 @@ fn get_maps_dir_inner(mall_id: &str, hostname: &str) -> Result<PathBuf, String> 
     Ok(dir)
 }
 
+/// Returns the path to the local medias/maps directory WITHOUT creating it.
+/// Returns None if the directory does not exist.
+fn get_maps_dir_if_exists(mall_id: &str, hostname: &str) -> Option<PathBuf> {
+    let safe_mall = validate_path_component(mall_id, "mall_id").ok()?;
+    let safe_host = validate_path_component(hostname, "hostname").ok()?;
+    let dir = get_app_data_dir().ok()?
+        .join("medias").join("maps")
+        .join(&safe_mall).join(&safe_host);
+    if dir.is_dir() { Some(dir) } else { None }
+}
+
 #[derive(Serialize)]
 struct LocalMapEntry {
     /// Filename only (e.g. "1F-map-2026-03-24-14-07-21.webp")
@@ -579,6 +590,16 @@ fn get_open_time_dir_inner(mall_id: &str) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Returns the path to the local medias/open-times directory WITHOUT creating it.
+/// Returns None if the directory does not exist.
+fn get_open_time_dir_if_exists(mall_id: &str) -> Option<PathBuf> {
+    let safe_mall = validate_path_component(mall_id, "mall_id").ok()?;
+    let dir = get_app_data_dir().ok()?
+        .join("medias").join("open-times")
+        .join(&safe_mall);
+    if dir.is_dir() { Some(dir) } else { None }
+}
+
 /// Download a single .webp open-time image from S3 and save it locally.
 /// Emits "open-time-download-progress" events: { phase, percent, message }
 /// Old .webp files in the same directory are removed on success.
@@ -660,9 +681,9 @@ async fn sync_open_time_from_s3(
 /// Used after `sync_open_time_from_s3` to get the asset path for rendering.
 #[tauri::command]
 fn list_local_open_times(mall_id: String) -> Result<Vec<LocalMapEntry>, String> {
-    let open_time_dir = match get_open_time_dir_inner(&mall_id) {
-        Ok(d) => d,
-        Err(_) => return Ok(vec![]),
+    let open_time_dir = match get_open_time_dir_if_exists(&mall_id) {
+        Some(d) => d,
+        None => return Ok(vec![]),
     };
 
     let mut entries: Vec<LocalMapEntry> = vec![];
@@ -693,9 +714,9 @@ fn list_local_open_times(mall_id: String) -> Result<Vec<LocalMapEntry>, String> 
 /// Used after `sync_map_from_s3` to get the asset path for rendering.
 #[tauri::command]
 fn list_local_maps(mall_id: String, hostname: String) -> Result<Vec<LocalMapEntry>, String> {
-    let maps_dir = match get_maps_dir_inner(&mall_id, &hostname) {
-        Ok(d) => d,
-        Err(_) => return Ok(vec![]),
+    let maps_dir = match get_maps_dir_if_exists(&mall_id, &hostname) {
+        Some(d) => d,
+        None => return Ok(vec![]),
     };
 
     let mut entries: Vec<LocalMapEntry> = vec![];
