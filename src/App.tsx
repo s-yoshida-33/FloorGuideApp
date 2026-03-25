@@ -224,7 +224,11 @@ const App: React.FC = () => {
             if (m) floorMaps[m[1]] = convertFileSrc(entry.abs_path);
           }
           if (Object.keys(floorMaps).length > 0) {
-            ms.imageSettings = { ...ms.imageSettings, floorMaps: { ...ms.imageSettings?.floorMaps, ...floorMaps } };
+            ms.imageSettings = {
+              ...DEFAULT_IMAGE_SETTINGS,
+              ...ms.imageSettings,
+              floorMaps: { ...DEFAULT_IMAGE_SETTINGS.floorMaps, ...ms.imageSettings?.floorMaps, ...floorMaps } as Record<FloorId, string>,
+            };
           }
         } catch { /* offline or no maps yet — skip */ }
       }
@@ -234,7 +238,11 @@ const App: React.FC = () => {
             'list_local_open_times', { mallId: global.mallId }
           );
           if (localOpenTimes.length > 0) {
-            ms.imageSettings = { ...ms.imageSettings, openTimeImage: convertFileSrc(localOpenTimes[0].abs_path) };
+            ms.imageSettings = {
+              ...DEFAULT_IMAGE_SETTINGS,
+              ...ms.imageSettings,
+              openTimeImage: convertFileSrc(localOpenTimes[0].abs_path),
+            };
           }
         } catch { /* offline or no open-time yet — skip */ }
       }
