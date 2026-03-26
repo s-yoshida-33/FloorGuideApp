@@ -5,6 +5,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { logInfo } from '../logs/logging';
 
 const HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+// get_system_info はGPU検出(wmic)のタイムアウト(10s)を含むため、
+// IPC全体でも余裕を持って15秒でタイムアウトさせる。
+// これにより、USB Mobile Monitorなどの仮想ドライバが wmic をブロックしても
+// setInterval の開始が阻害されなくなる。
+const SYSTEM_INFO_TIMEOUT_MS = 15_000;
 
 interface SystemInfo {
   cpu_name: string;
@@ -20,7 +25,10 @@ interface SystemInfo {
 
 const getSystemInfo = async (): Promise<SystemInfo | null> => {
   try {
-    return await invoke<SystemInfo>('get_system_info');
+    const timeout = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), SYSTEM_INFO_TIMEOUT_MS)
+    );
+    return await Promise.race([invoke<SystemInfo>('get_system_info'), timeout]);
   } catch {
     return null;
   }
@@ -40,22 +48,10 @@ export const useHeartbeat = () => {
 
     const start = async () => {
       const version = await getVersion().catch(() => 'unknown');
-      const sysInfo = await getSystemInfo();
 
-      // Startup log with system info
-      if (sysInfo) {
-        logInfo('SYS_INIT', `App started - v${version}`, {
-          cpu: sysInfo.cpu_name,
-          cpuCores: sysInfo.cpu_cores,
-          gpu: sysInfo.gpu_name,
-          memoryTotal: `${sysInfo.memory_total_mb}MB`,
-          os: `${sysInfo.os_name} ${sysInfo.os_version}`,
-        });
-      } else {
-        logInfo('SYS_INIT', `App started - v${version}`);
-      }
-
-      // Hourly heartbeat with uptime and resource usage
+      // インターバルを先に開始する。
+      // 初回の getSystemInfo (GPU wmic 含む) がタイムアウトしても
+      // 1時間ごとのハートビートが確実に動くようにするため。
       intervalId = setInterval(async () => {
         const uptimeMs = Date.now() - startTimeRef.current;
         const info = await getSystemInfo();
@@ -69,6 +65,20 @@ export const useHeartbeat = () => {
           logInfo('SYS_INIT', `Heartbeat - v${version} - uptime: ${formatUptime(uptimeMs)}`);
         }
       }, HEARTBEAT_INTERVAL_MS);
+
+      // 起動時のシステム情報ログ (タイムアウト付き)
+      const sysInfo = await getSystemInfo();
+      if (sysInfo) {
+        logInfo('SYS_INIT', `App started - v${version}`, {
+          cpu: sysInfo.cpu_name,
+          cpuCores: sysInfo.cpu_cores,
+          gpu: sysInfo.gpu_name,
+          memoryTotal: `${sysInfo.memory_total_mb}MB`,
+          os: `${sysInfo.os_name} ${sysInfo.os_version}`,
+        });
+      } else {
+        logInfo('SYS_INIT', `App started - v${version}`);
+      }
     };
 
     start();
