@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { exit } from '@tauri-apps/plugin-process';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 interface ContextMenuProps {
   onOpenSettings: () => void;
@@ -45,11 +46,16 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     await exit(0);
   }, []);
 
+  const minimizeWindow = useCallback(async () => {
+    await getCurrentWindow().minimize();
+  }, []);
+
   type MenuItem = { label: string; action: () => void; separator?: boolean };
   const items: MenuItem[] = [
     { label: '設定', action: onOpenSettings, separator: true },
     { label: 'リロード', action: reloadApp },
     { label: 'バージョン情報', action: onOpenVersionInfo, separator: true },
+    { label: '最小化', action: minimizeWindow },
     { label: '終了', action: quitApp },
   ];
 
