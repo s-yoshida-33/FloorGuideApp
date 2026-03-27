@@ -2,10 +2,11 @@
 // Mall-aware layout router: delegates rendering to per-mall layout components
 // while keeping shared data-fetching logic (shops, SSE, cache) here.
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 
 import type { Shop } from "../types/shop";
 import type { MallId } from "../types/mall";
+import { useShopChangeDetection } from "../hooks/useShopChangeDetection";
 
 import { APP_CONFIG, POLLING_INTERVALS } from "../config";
 import { fetchShops } from "../repositories/shopRepository";
@@ -158,6 +159,13 @@ const GidoApp: React.FC<GidoAppProps> = ({
   }, [loadShops]);
 
   useBridgeEvents(loadShops);
+
+  // ショップリストの変化（追加・削除）を検出して Slack 通知
+  const shopChangeItems = useMemo(
+    () => shops.map(s => ({ id: s.shopId || s.number || '', name: s.name })).filter(s => s.id),
+    [shops],
+  );
+  useShopChangeDetection(shopChangeItems, mallId);
 
   // Select the layout component for the active mall
   const LayoutComponent = LAYOUT_MAP[mallId] ?? SakaikitahanadaLayout;

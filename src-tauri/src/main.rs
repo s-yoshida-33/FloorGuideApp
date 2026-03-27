@@ -359,6 +359,43 @@ fn settings_file_exists(filename: String) -> Result<bool, String> {
 }
 
 // ---------------------------------------------------------------------------
+// Shop change notification (bypasses state machine, sends Slack directly)
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+struct ShopChangeItem {
+    id: String,
+    name: String,
+}
+
+#[tauri::command]
+fn notify_shop_change(
+    added: Vec<ShopChangeItem>,
+    removed: Vec<ShopChangeItem>,
+) -> Result<(), String> {
+    if added.is_empty() && removed.is_empty() {
+        return Ok(());
+    }
+    let mut parts: Vec<String> = Vec::new();
+    if !added.is_empty() {
+        let list = added.iter().map(|s| format!("{} ({})", s.name, s.id)).collect::<Vec<_>>().join(", ");
+        parts.push(format!("追加: {}", list));
+    }
+    if !removed.is_empty() {
+        let list = removed.iter().map(|s| format!("{} ({})", s.name, s.id)).collect::<Vec<_>>().join(", ");
+        parts.push(format!("削除: {}", list));
+    }
+    let message = parts.join(" / ");
+    let context = match (added.len(), removed.len()) {
+        (a, 0) => format!("追加 {}件", a),
+        (0, r) => format!("削除 {}件", r),
+        (a, r) => format!("追加 {}件 / 削除 {}件", a, r),
+    };
+    send_slack_notification("WARN", "SHOPLIST", &message, false, &context);
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Image file commands (Base64-free: receives raw bytes from frontend)
 // ---------------------------------------------------------------------------
 
@@ -1333,6 +1370,7 @@ fn main() {
             webview_ping,
             pause_watchdog,
             resume_watchdog,
+            notify_shop_change,
             sync_map_from_s3,
             list_local_maps,
             sync_open_time_from_s3,
