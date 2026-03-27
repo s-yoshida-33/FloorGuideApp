@@ -369,6 +369,13 @@ struct ShopChangeItem {
 }
 
 #[tauri::command]
+fn minimize_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.set_fullscreen(false).map_err(|e| e.to_string())?;
+    window.minimize().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 fn notify_shop_change(
     added: Vec<ShopChangeItem>,
     removed: Vec<ShopChangeItem>,
@@ -1312,6 +1319,7 @@ fn setup_system_tray(app: &tauri::App) -> Result<tauri::tray::TrayIcon, Box<dyn 
             match event.id().as_ref() {
                 "show" => {
                     if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.set_fullscreen(true);
                         let _ = window.show();
                         let _ = window.set_focus();
                     }
@@ -1341,16 +1349,25 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .on_window_event(|_window, event| {
+        .on_window_event(|window, event| {
             // Prevent window from closing — kiosk mode.
             // The app can only be exited via the system tray "終了" menu.
             // FORCE_QUIT が立っている場合(watchdog restart / quit_app)は
             // prevent_close をスキップし、ウィンドウを正常に破棄させる。
             // これにより tao の "cannot move state from Destroyed" パニックを防ぐ。
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if !FORCE_QUIT.load(Ordering::Relaxed) {
-                    api.prevent_close();
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    if !FORCE_QUIT.load(Ordering::Relaxed) {
+                        api.prevent_close();
+                    }
                 }
+                WindowEvent::Focused(true) => {
+                    // 最小化から復元した際にフルスクリーンを再適用する
+                    if !FORCE_QUIT.load(Ordering::Relaxed) {
+                        let _ = window.set_fullscreen(true);
+                    }
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -1371,6 +1388,7 @@ fn main() {
             pause_watchdog,
             resume_watchdog,
             notify_shop_change,
+            minimize_window,
             sync_map_from_s3,
             list_local_maps,
             sync_open_time_from_s3,
