@@ -151,8 +151,10 @@ export function useMapSync(
   }, [mallId, hostname, onMapUpdated]);
 
   // Check S3 for updates; short delay to avoid competing with boot I/O.
+  // mallId/hostname が変わったらリセットして再同期を許可する。
   useEffect(() => {
     if (!mallId || !hostname) return;
+    syncPerformed.current = false;
     const tid = setTimeout(() => { runSync(); }, 1000);
     return () => clearTimeout(tid);
   }, [mallId, hostname, runSync]);

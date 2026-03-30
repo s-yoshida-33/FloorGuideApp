@@ -130,8 +130,10 @@ export function useOpenTimeSync(
   }, [mallId, onOpenTimeUpdated]);
 
   // Check S3 for updates; short delay to avoid competing with boot I/O.
+  // mallId が変わったらリセットして再同期を許可する。
   useEffect(() => {
     if (!mallId) return;
+    syncPerformed.current = false;
     const tid = setTimeout(() => { runSync(); }, 1000);
     return () => clearTimeout(tid);
   }, [mallId, runSync]);
