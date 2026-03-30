@@ -5,11 +5,11 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { BaseDirectory, exists, readTextFile, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
 import type { FloorId } from '../types/floorLayout';
 import { logInfo, logError, logWarn } from '../logs/logging';
 
 const S3_MAPS_BASE = 'https://dl.tti.ninja/gido/medias/maps';
-const META_FILENAME_PREFIX = 'map-meta-';
 
 interface MapMeta {
   lastFile: string;
@@ -28,16 +28,16 @@ function parseFloorFromFilename(filename: string): FloorId | null {
   return m[1] as FloorId;
 }
 
-/** Sanitize mall_id + hostname to build a safe settings key */
-function metaKey(mallId: string, hostname: string): string {
-  return `${META_FILENAME_PREFIX}${mallId}-${hostname}`;
-}
+const mapMetaPath = (mallId: string, hostname: string) =>
+  `medias/maps/${mallId}/${hostname}/.map-meta.json`;
 
 async function loadMapMeta(mallId: string, hostname: string): Promise<MapMeta | null> {
   try {
-    const filename = `${metaKey(mallId, hostname)}.json`;
-    const json = await invoke<string>('get_named_settings', { filename });
-    return JSON.parse(json) as MapMeta;
+    const path = mapMetaPath(mallId, hostname);
+    const metaExists = await exists(path, { baseDir: BaseDirectory.AppLocalData });
+    if (!metaExists) return null;
+    const content = await readTextFile(path, { baseDir: BaseDirectory.AppLocalData });
+    return JSON.parse(content) as MapMeta;
   } catch {
     return null;
   }
@@ -45,9 +45,8 @@ async function loadMapMeta(mallId: string, hostname: string): Promise<MapMeta | 
 
 async function saveMapMeta(mallId: string, hostname: string, meta: MapMeta): Promise<void> {
   try {
-    const filename = `${metaKey(mallId, hostname)}.json`;
-    const json = JSON.stringify(meta, null, 2);
-    await invoke('save_named_settings', { filename, json });
+    await mkdir(`medias/maps/${mallId}/${hostname}`, { baseDir: BaseDirectory.AppLocalData, recursive: true });
+    await writeTextFile(mapMetaPath(mallId, hostname), JSON.stringify(meta, null, 2), { baseDir: BaseDirectory.AppLocalData });
   } catch (e) {
     logWarn('MAP_SYNC', 'Failed to save map meta', { error: String(e) });
   }
