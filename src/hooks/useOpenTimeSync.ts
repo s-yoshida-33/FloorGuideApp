@@ -5,10 +5,10 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { BaseDirectory, exists, readTextFile, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
 import { logInfo, logError, logWarn } from '../logs/logging';
 
 const S3_OPEN_TIMES_BASE = 'https://dl.tti.ninja/gido/medias/open-times';
-const META_FILENAME_PREFIX = 'open-time-meta-';
 
 interface OpenTimeMeta {
   lastFile: string;
@@ -20,15 +20,16 @@ interface LatestJson {
   updated_at: string;
 }
 
-function metaKey(mallId: string): string {
-  return `${META_FILENAME_PREFIX}${mallId}`;
-}
+const openTimeMetaPath = (mallId: string) =>
+  `medias/open-times/${mallId}/.open-time-meta.json`;
 
 async function loadOpenTimeMeta(mallId: string): Promise<OpenTimeMeta | null> {
   try {
-    const filename = `${metaKey(mallId)}.json`;
-    const json = await invoke<string>('get_named_settings', { filename });
-    return JSON.parse(json) as OpenTimeMeta;
+    const path = openTimeMetaPath(mallId);
+    const metaExists = await exists(path, { baseDir: BaseDirectory.AppLocalData });
+    if (!metaExists) return null;
+    const content = await readTextFile(path, { baseDir: BaseDirectory.AppLocalData });
+    return JSON.parse(content) as OpenTimeMeta;
   } catch {
     return null;
   }
@@ -36,9 +37,8 @@ async function loadOpenTimeMeta(mallId: string): Promise<OpenTimeMeta | null> {
 
 async function saveOpenTimeMeta(mallId: string, meta: OpenTimeMeta): Promise<void> {
   try {
-    const filename = `${metaKey(mallId)}.json`;
-    const json = JSON.stringify(meta, null, 2);
-    await invoke('save_named_settings', { filename, json });
+    await mkdir(`medias/open-times/${mallId}`, { baseDir: BaseDirectory.AppLocalData, recursive: true });
+    await writeTextFile(openTimeMetaPath(mallId), JSON.stringify(meta, null, 2), { baseDir: BaseDirectory.AppLocalData });
   } catch (e) {
     logWarn('OPEN_TIME_SYNC', 'Failed to save open-time meta', { error: String(e) });
   }
