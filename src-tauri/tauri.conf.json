@@ -26,24 +26,33 @@
     "security": {
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       },
       "csp": "default-src 'self' http://localhost:8090 http://localhost:48080; img-src 'self' asset: https://asset.localhost http://asset.localhost http://localhost:8090 http://localhost:48080 https: http: data: blob:; media-src 'self' asset: https://asset.localhost http://asset.localhost http://localhost:48080 https: http: data: blob:; connect-src 'self' http://localhost:8090 http://localhost:48080 http: https: ws:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; font-src 'self' https: data:;",
       "capabilities": [
         "default",
         {
           "identifier": "app-fs-scope",
-          "windows": ["main"],
+          "windows": [
+            "main"
+          ],
           "permissions": [
             {
               "identifier": "fs:scope",
-              "allow": ["$APPDATA/com.tti.gido/**", "$HOME/**"]
+              "allow": [
+                "$APPDATA/com.tti.gido/**",
+                "$HOME/**"
+              ]
             }
           ]
         },
         {
           "identifier": "updater-all",
-          "windows": ["main"],
+          "windows": [
+            "main"
+          ],
           "permissions": [
             "updater:default"
           ]
@@ -53,19 +62,25 @@
   },
   "bundle": {
     "active": true,
-    "icon": ["icons/icon.ico"],
+    "icon": [
+      "icons/icon.ico"
+    ],
     "publisher": "Toei Techno International Inc.",
-    "copyright": "\u00a9 2026 Toei Techno International Inc.",
+    "copyright": "© 2026 Toei Techno International Inc.",
     "windows": {
       "nsis": {
-        "installerHooks": "./nsis-hooks.nsh"
+        "installerHooks": "./nsis-hooks.nsh",
+        "installerIcon": "icons/installer.ico",
+        "uninstallerIcon": "icons/uninstaller.ico"
       }
     }
   },
   "plugins": {
     "updater": {
       "active": true,
-      "endpoints": ["https://dl.tti.ninja/gido/releases/latest.json"],
+      "endpoints": [
+        "https://dl.tti.ninja/gido/releases/latest.json"
+      ],
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg0QkE1REEyNDM1Nzc1NDgKUldSSWRWZERvbDI2aENEWEF0eVd0NWhubjVsUE1tWGFuMjdiZjlKR3I2ei9VMmIxd3hrWVdLOTkK"
     }
