@@ -1,10 +1,11 @@
 // src/hooks/useShopChangeDetection.ts
 //
 // ショップリストの変化（追加・削除）を検出し、Slack に通知するフック。
-// 前回のショップリストをローカルファイルに保存し、起動/SSE 更新のたびに比較する。
+// 前回のショップリストを AppLocalData に保存し、起動/SSE 更新のたびに比較する。
 // 初回起動時（スナップショット未存在）はスナップショットの初期化のみ行い、通知しない。
 import { useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { BaseDirectory, exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { logInfo } from '../logs/logging';
 
 interface ShopEntry {
@@ -20,26 +21,27 @@ export const useShopChangeDetection = (
   shops: ShopEntry[],
   mallId: string,
 ) => {
-  // 前回チェック時のショップIDリスト（文字列化）を保持し、
-  // 同一内容では detect を再実行しないようにする。
-  const prevIdsRef = useRef<string>('');
+  // mallId を含めたキーで重複実行を防ぐ。
+  // mallId 変化時はキーが変わるため、新しい mallId に対して必ず detect を実行する。
+  const prevKeyRef = useRef<string>('');
 
   useEffect(() => {
     if (!mallId || shops.length === 0) return;
 
-    const currentIds = shops.map(s => s.id).sort().join(',');
-    if (currentIds === prevIdsRef.current) return;
-    prevIdsRef.current = currentIds;
+    const currentKey = `${mallId}:${shops.map(s => s.id).sort().join(',')}`;
+    if (currentKey === prevKeyRef.current) return;
+    prevKeyRef.current = currentKey;
+
+    const options = { baseDir: BaseDirectory.AppLocalData };
+    const filename = `shop-snapshot-${mallId}.json`;
 
     const detect = async () => {
-      const filename = `shop-snapshot-${mallId}.json`;
-
       let previous: ShopEntry[] = [];
       let isFirst = false;
 
       try {
-        const json = await invoke<string>('get_named_settings', { filename });
-        if (json && json !== '{}') {
+        if (await exists(filename, options)) {
+          const json = await readTextFile(filename, options);
           const parsed: ShopSnapshot = JSON.parse(json);
           previous = parsed.shops || [];
         } else {
@@ -50,10 +52,7 @@ export const useShopChangeDetection = (
       }
 
       if (isFirst) {
-        await invoke('save_named_settings', {
-          filename,
-          json: JSON.stringify({ shops } satisfies ShopSnapshot),
-        });
+        await writeTextFile(filename, JSON.stringify({ shops } satisfies ShopSnapshot), options);
         logInfo('SHOPLIST', 'ショップスナップショットを初期化しました', {
           count: String(shops.length),
           mall: mallId,
@@ -69,13 +68,8 @@ export const useShopChangeDetection = (
 
       if (added.length === 0 && removed.length === 0) return;
 
-      // スナップショット更新
-      await invoke('save_named_settings', {
-        filename,
-        json: JSON.stringify({ shops } satisfies ShopSnapshot),
-      });
+      await writeTextFile(filename, JSON.stringify({ shops } satisfies ShopSnapshot), options);
 
-      // Slack 通知（Rust 側で直接送信）
       await invoke('notify_shop_change', { added, removed });
 
       if (added.length > 0) {
