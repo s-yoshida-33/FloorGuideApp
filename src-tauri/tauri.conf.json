@@ -70,8 +70,7 @@
     "windows": {
       "nsis": {
         "installerHooks": "./nsis-hooks.nsh",
-        "installerIcon": "icons/installer.ico",
-        "uninstallerIcon": "icons/uninstaller.ico"
+        "installerIcon": "icons/installer.ico"
       }
     }
   },
