@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { sseClient } from "../api/sseClient";
 import type { Shop } from "../types/shop";
-import { logInfo, logError } from "../logs/logging";
+import { logInfo } from "../logs/logging";
 
 export function useBridgeEvents(onUpdate: (shops?: Shop[]) => void) {
   useEffect(() => {
