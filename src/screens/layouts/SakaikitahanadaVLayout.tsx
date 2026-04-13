@@ -5,8 +5,10 @@
 import React, { useRef } from "react";
 
 import ShopList from "../../components/ShopList";
+import BannerArea from "../../components/BannerArea";
 import VerticalVideoSlot from "../../components/VerticalVideoSlot";
 import { LocationIconsOverlay } from "../../components/LocationIconsOverlay";
+import { DEFAULT_BANNER_SETTINGS } from "../../types/imageSettings";
 
 import floorMap2F from "../../assets/malls/sakaikitahanada/floor-v-2F-map.webp";
 import floorMap3F from "../../assets/malls/sakaikitahanada/floor-v-3F-map.webp";
@@ -65,6 +67,8 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
     : undefined;
   const floorMap = customFloorMap || FLOOR_MAPS[floor] || floorMap2F;
 
+  const banner = imageSettings?.banner ?? DEFAULT_BANNER_SETTINGS;
+
   const currentLayout =
     floorLayout[floor] ??
     DEFAULT_FLOOR_LAYOUT[floor as keyof typeof DEFAULT_FLOOR_LAYOUT] ??
@@ -81,12 +85,15 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
         fontWeight: 700,
       }}
     >
-      {/* Left: shop list (full height) */}
+      {/* Left: shop list + banner (full height) */}
       <div
         style={{
           width: `${SHOP_LIST_WIDTH_VW}vw`,
           height: "100vh",
           flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          backgroundColor: "#ffffff",
         }}
       >
         {error ? (
@@ -94,18 +101,32 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
             Error: {error}
           </div>
         ) : (
-          <ShopList
-            shops={shops}
-            floor={floor}
-            columnCount={currentLayout.columns}
-            rowsPerColumn={currentLayout.rowsPerCol}
-            perColumnRows={currentLayout.perColumnRows}
-            perColumnPadding={currentLayout.perColumnPadding}
-            genreGap={currentLayout.genreGap}
-            genreMappings={genreMappings}
-            genreMemoSettings={genreMemoSettings}
-            shopSettings={shopSettings}
-          />
+          <>
+            <ShopList
+              shops={shops}
+              floor={floor}
+              columnCount={currentLayout.columns}
+              rowsPerColumn={currentLayout.rowsPerCol}
+              perColumnRows={currentLayout.perColumnRows}
+              perColumnPadding={currentLayout.perColumnPadding}
+              genreGap={currentLayout.genreGap}
+              genreMappings={genreMappings}
+              genreMemoSettings={genreMemoSettings}
+              shopSettings={shopSettings}
+              fitContent
+            />
+            {/* Spacer pushes banner to bottom */}
+            <div style={{ flex: 1 }} />
+            {banner.enabled && banner.images.length > 0 && (
+              <div style={{ padding: "0 16px 10px" }}>
+                <BannerArea
+                  images={banner.images}
+                  displayMode={banner.displayMode}
+                  carouselIntervalMs={banner.carouselIntervalMs}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 

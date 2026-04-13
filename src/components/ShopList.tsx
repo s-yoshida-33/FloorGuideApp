@@ -30,6 +30,7 @@ interface ShopListProps {
   genreMappings?: GenreMappings;
   genreMemoSettings?: GenreMemoSettings;
   shopSettings?: ShopSettings;
+  fitContent?: boolean;
 }
 
 // Internal representation of a single line item (header or shop row)
@@ -100,6 +101,7 @@ const ShopList: React.FC<ShopListProps> = ({
   genreMappings = DEFAULT_GENRE_MAPPINGS,
   genreMemoSettings = DEFAULT_GENRE_MEMO_SETTINGS,
   shopSettings,
+  fitContent = false,
 }) => {
   const normalizedFloor = normalizeFloor(floor);
 
@@ -532,7 +534,7 @@ const ShopList: React.FC<ShopListProps> = ({
         padding: "10px 16px",
         boxSizing: "border-box",
         width: "100%",
-        height: "100%",
+        height: fitContent ? "auto" : "100%",
         fontSize: `${APP_CONFIG.fontSizeVmin}vmin`,
         lineHeight: 1.4,
         overflow: "hidden",
