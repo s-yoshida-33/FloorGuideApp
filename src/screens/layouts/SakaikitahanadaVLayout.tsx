@@ -115,31 +115,62 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
               shopSettings={shopSettings}
               fitContent
             />
-            {banner.enabled && banner.images.length > 0 ? (
-              <>
-                {/* autoFit: banner expands to fill remaining space (no separate spacer) */}
-                {/* normal:  spacer pushes banner to bottom */}
-                {!(banner.displayMode === "stack" && banner.autoFit) && (
+            {banner.enabled && banner.images.length > 0 ? (() => {
+              const isAutoFit = banner.displayMode === "stack" && banner.autoFit;
+              const isCentered = !isAutoFit && banner.centerAlign;
+
+              if (isAutoFit) {
+                // autoFit: banner fills all remaining space
+                return (
+                  <div style={{ flex: 1, minHeight: 0, padding: "0 16px 10px" }}>
+                    <BannerArea
+                      images={banner.images}
+                      displayMode={banner.displayMode}
+                      carouselIntervalMs={banner.carouselIntervalMs}
+                      gap={banner.gap}
+                      autoFit
+                    />
+                  </div>
+                );
+              }
+
+              if (isCentered) {
+                // centerAlign: banner group centered vertically in remaining space
+                return (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      padding: "0 16px 10px",
+                    }}
+                  >
+                    <BannerArea
+                      images={banner.images}
+                      displayMode={banner.displayMode}
+                      carouselIntervalMs={banner.carouselIntervalMs}
+                      gap={banner.gap}
+                    />
+                  </div>
+                );
+              }
+
+              // default: spacer + banner bottom-aligned
+              return (
+                <>
                   <div style={{ flex: 1 }} />
-                )}
-                <div
-                  style={{
-                    padding: "0 16px 10px",
-                    ...(banner.displayMode === "stack" && banner.autoFit
-                      ? { flex: 1, minHeight: 0 }
-                      : {}),
-                  }}
-                >
-                  <BannerArea
-                    images={banner.images}
-                    displayMode={banner.displayMode}
-                    carouselIntervalMs={banner.carouselIntervalMs}
-                    gap={banner.gap}
-                    autoFit={banner.autoFit}
-                  />
-                </div>
-              </>
-            ) : (
+                  <div style={{ padding: "0 16px 10px" }}>
+                    <BannerArea
+                      images={banner.images}
+                      displayMode={banner.displayMode}
+                      carouselIntervalMs={banner.carouselIntervalMs}
+                      gap={banner.gap}
+                    />
+                  </div>
+                </>
+              );
+            })() : (
               <div style={{ flex: 1 }} />
             )}
           </>

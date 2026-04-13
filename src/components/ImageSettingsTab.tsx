@@ -826,6 +826,38 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
           </div>
         )}
 
+        {/* Center align */}
+        {!banner.autoFit && (
+          <div style={{ marginBottom: 12 }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={banner.centerAlign ?? false}
+                style={{ marginTop: 2, flexShrink: 0 }}
+                onChange={(e) =>
+                  onChangeImageSettings({
+                    ...imageSettings,
+                    banner: { ...banner, centerAlign: e.target.checked },
+                  })
+                }
+              />
+              <span style={{ fontSize: 13, color: "#BDBDBD", lineHeight: 1.4 }}>
+                余白の中央に配置
+                <span style={{ display: "block", fontSize: 11, color: "#757575", marginTop: 2 }}>
+                  複数枚の場合はグループごと中央に配置します
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+
         {/* Add banner image */}
         <input
           ref={bannerInputRef}

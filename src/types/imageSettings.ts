@@ -13,6 +13,9 @@ export type BannerSettings = {
    *  Each image scales to fit its equal share of the available height,
    *  maintaining its aspect ratio. */
   autoFit: boolean;
+  /** Center the banner group vertically in the remaining space below the shop list.
+   *  Ignored when autoFit is true (autoFit takes priority). */
+  centerAlign: boolean;
 };
 
 export const DEFAULT_BANNER_SETTINGS: BannerSettings = {
@@ -22,6 +25,7 @@ export const DEFAULT_BANNER_SETTINGS: BannerSettings = {
   carouselIntervalMs: 5000,
   gap: 8,
   autoFit: false,
+  centerAlign: false,
 };
 
 export type ImageSettings = {
