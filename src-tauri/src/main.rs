@@ -788,6 +788,155 @@ fn list_local_maps(mall_id: String, hostname: String) -> Result<Vec<LocalMapEntr
 }
 
 // ---------------------------------------------------------------------------
+// Banner image sync (medias/banners/{layout_id}/{hostname}/)
+// ---------------------------------------------------------------------------
+
+/// Returns and creates the local medias/banners directory for a given layout + hostname.
+fn get_banners_dir_inner(layout_id: &str, hostname: &str) -> Result<PathBuf, String> {
+    let safe_layout = validate_path_component(layout_id, "layout_id")?;
+    let safe_host = validate_path_component(hostname, "hostname")?;
+    let dir = get_app_data_dir()?
+        .join("medias").join("banners")
+        .join(&safe_layout)
+        .join(&safe_host);
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create banners dir: {}", e))?;
+    Ok(dir)
+}
+
+/// Returns the path to the local banners directory WITHOUT creating it.
+fn get_banners_dir_if_exists(layout_id: &str, hostname: &str) -> Option<PathBuf> {
+    let safe_layout = validate_path_component(layout_id, "layout_id").ok()?;
+    let safe_host = validate_path_component(hostname, "hostname").ok()?;
+    let dir = get_app_data_dir().ok()?
+        .join("medias").join("banners")
+        .join(&safe_layout)
+        .join(&safe_host);
+    if dir.is_dir() { Some(dir) } else { None }
+}
+
+/// Download a single .webp banner image from S3 and save it locally.
+/// Emits "banner-download-progress" events: { phase, percent, message }
+/// Old .webp files with the same index prefix (banner-N-*.webp) are removed.
+/// Returns the absolute path of the saved file.
+#[tauri::command]
+async fn sync_banner_from_s3(
+    app: tauri::AppHandle,
+    layout_id: String,
+    hostname: String,
+    file_url: String,
+    filename: String,
+) -> Result<String, String> {
+    let safe_name = std::path::Path::new(&filename)
+        .file_name()
+        .ok_or_else(|| "Invalid filename".to_string())?
+        .to_string_lossy()
+        .to_string();
+
+    if !safe_name.ends_with(".webp") {
+        return Err(format!("Only .webp files are supported, got: {}", safe_name));
+    }
+
+    let banners_dir = get_banners_dir_inner(&layout_id, &hostname)?;
+
+    let _ = app.emit("banner-download-progress", serde_json::json!({
+        "phase": "started", "percent": 0,
+        "message": format!("バナー画像をダウンロード中: {}", safe_name)
+    }));
+
+    let url = file_url.clone();
+    let bytes = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .user_agent("Gido-MediaUpdater/1.0")
+            .build()
+            .map_err(|e| format!("HTTP client error: {}", e))?;
+
+        let response = client.get(&url).send()
+            .map_err(|e| format!("Request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("HTTP {}: {}", response.status(), url));
+        }
+
+        response.bytes()
+            .map(|b| b.to_vec())
+            .map_err(|e| format!("Failed to read response body: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))??;
+
+    // Remove old .webp files for the SAME index only (e.g. "banner-0-*.webp").
+    // The index prefix is "banner-N-" from "banner-N-timestamp.webp".
+    let index_prefix = {
+        // "banner-0-2026-04-13-12-00-00.webp" → parts = ["banner", "0", ...]
+        let parts: Vec<&str> = safe_name.splitn(3, '-').collect();
+        if parts.len() >= 2 {
+            format!("{}-{}-", parts[0], parts[1])
+        } else {
+            String::new()
+        }
+    };
+
+    if let Ok(entries) = fs::read_dir(&banners_dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.extension().and_then(|e| e.to_str()) == Some("webp") {
+                let fname = p.file_name().unwrap_or_default().to_str().unwrap_or("").to_string();
+                if index_prefix.is_empty() || fname.starts_with(&index_prefix) {
+                    let _ = fs::remove_file(&p);
+                }
+            }
+        }
+    }
+
+    let target_path = banners_dir.join(&safe_name);
+    fs::write(&target_path, &bytes)
+        .map_err(|e| format!("Failed to write banner file: {}", e))?;
+
+    let abs_path = target_path
+        .canonicalize()
+        .unwrap_or(target_path)
+        .to_string_lossy()
+        .to_string();
+
+    let _ = app.emit("banner-download-progress", serde_json::json!({
+        "phase": "finished", "percent": 100,
+        "message": "ダウンロード完了"
+    }));
+
+    Ok(abs_path)
+}
+
+/// Return all .webp files in the local medias/banners/{layout_id}/{hostname}/ directory,
+/// sorted by filename (so banner-0-*.webp comes before banner-1-*.webp).
+#[tauri::command]
+fn list_local_banners(layout_id: String, hostname: String) -> Result<Vec<LocalMapEntry>, String> {
+    let banners_dir = match get_banners_dir_if_exists(&layout_id, &hostname) {
+        Some(d) => d,
+        None => return Ok(vec![]),
+    };
+
+    let mut entries: Vec<LocalMapEntry> = vec![];
+
+    if let Ok(read_dir) = fs::read_dir(&banners_dir) {
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("webp") {
+                let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let abs_path = path.canonicalize().unwrap_or(path).to_string_lossy().to_string();
+                entries.push(LocalMapEntry { filename, abs_path });
+            }
+        }
+    }
+
+    // Sort by filename so banner-0 < banner-1 < banner-2
+    entries.sort_by(|a, b| a.filename.cmp(&b.filename));
+
+    Ok(entries)
+}
+
+// ---------------------------------------------------------------------------
 // System info command (CPU, memory, GPU, OS)
 // ---------------------------------------------------------------------------
 
@@ -1393,6 +1542,8 @@ fn main() {
             list_local_maps,
             sync_open_time_from_s3,
             list_local_open_times,
+            sync_banner_from_s3,
+            list_local_banners,
         ]);
 
     let app = builder
