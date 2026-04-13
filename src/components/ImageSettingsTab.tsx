@@ -763,6 +763,69 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
           </div>
         )}
 
+        {/* Gap between images */}
+        <div style={{ marginBottom: 12 }}>
+          <label
+            style={{ fontSize: 13, color: "#BDBDBD", marginBottom: 6, display: "block" }}
+          >
+            画像間の余白（px）
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={200}
+            value={banner.gap ?? 8}
+            onChange={(e) => {
+              const px = Math.max(0, parseInt(e.target.value, 10) || 0);
+              onChangeImageSettings({
+                ...imageSettings,
+                banner: { ...banner, gap: px },
+              });
+            }}
+            style={{
+              width: 80,
+              padding: "6px 8px",
+              backgroundColor: "#2A2A2A",
+              border: "1px solid #4A4A4A",
+              borderRadius: 4,
+              color: "#ffffff",
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        {/* Auto-fit (stack mode only) */}
+        {banner.displayMode === "stack" && (
+          <div style={{ marginBottom: 12 }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={banner.autoFit ?? false}
+                style={{ marginTop: 2, flexShrink: 0 }}
+                onChange={(e) =>
+                  onChangeImageSettings({
+                    ...imageSettings,
+                    banner: { ...banner, autoFit: e.target.checked },
+                  })
+                }
+              />
+              <span style={{ fontSize: 13, color: "#BDBDBD", lineHeight: 1.4 }}>
+                ショップリスト下の余白に自動で収める
+                <span style={{ display: "block", fontSize: 11, color: "#757575", marginTop: 2 }}>
+                  アスペクト比を保ちながら、各画像を残りのスペースに均等配置します
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+
         {/* Add banner image */}
         <input
           ref={bannerInputRef}
