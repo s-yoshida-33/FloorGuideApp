@@ -115,16 +115,32 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
               shopSettings={shopSettings}
               fitContent
             />
-            {/* Spacer pushes banner to bottom */}
-            <div style={{ flex: 1 }} />
-            {banner.enabled && banner.images.length > 0 && (
-              <div style={{ padding: "0 16px 10px" }}>
-                <BannerArea
-                  images={banner.images}
-                  displayMode={banner.displayMode}
-                  carouselIntervalMs={banner.carouselIntervalMs}
-                />
-              </div>
+            {banner.enabled && banner.images.length > 0 ? (
+              <>
+                {/* autoFit: banner expands to fill remaining space (no separate spacer) */}
+                {/* normal:  spacer pushes banner to bottom */}
+                {!(banner.displayMode === "stack" && banner.autoFit) && (
+                  <div style={{ flex: 1 }} />
+                )}
+                <div
+                  style={{
+                    padding: "0 16px 10px",
+                    ...(banner.displayMode === "stack" && banner.autoFit
+                      ? { flex: 1, minHeight: 0 }
+                      : {}),
+                  }}
+                >
+                  <BannerArea
+                    images={banner.images}
+                    displayMode={banner.displayMode}
+                    carouselIntervalMs={banner.carouselIntervalMs}
+                    gap={banner.gap}
+                    autoFit={banner.autoFit}
+                  />
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1 }} />
             )}
           </>
         )}
