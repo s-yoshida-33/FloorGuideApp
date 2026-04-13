@@ -230,10 +230,12 @@ const ShopList: React.FC<ShopListProps> = ({
     let currentColIndex = 0;
     let currentRows = 0;
 
-    const startNewColumn = () => {
-      if (currentColIndex >= effectiveColumns - 1) return;
+    // Returns true if a new column was started, false if already at the last column.
+    const startNewColumn = (): boolean => {
+      if (currentColIndex >= effectiveColumns - 1) return false;
       currentColIndex += 1;
       currentRows = 0;
+      return true;
     };
 
     for (let i = 0; i < lines.length; i++) {
@@ -247,11 +249,11 @@ const ShopList: React.FC<ShopListProps> = ({
         const required = needsTwoRows ? 2 : 1;
 
         if (currentRows > 0 && currentRows + required > capacity) {
-          startNewColumn();
+          if (!startNewColumn()) break;
         }
       } else {
         if (currentRows > 0 && currentRows + 1 > capacity) {
-          startNewColumn();
+          if (!startNewColumn()) break;
         }
       }
 
