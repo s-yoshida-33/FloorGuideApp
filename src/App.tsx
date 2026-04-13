@@ -13,6 +13,7 @@ import { useHeartbeat } from "./hooks/useHeartbeat";
 import { useWebViewPing } from "./hooks/useWebViewPing";
 import { useMapSync } from "./hooks/useMapSync";
 import { useOpenTimeSync } from "./hooks/useOpenTimeSync";
+import { useBannerSync } from "./hooks/useBannerSync";
 import { DEFAULT_LOCATION_ICON_SETTINGS } from "./config";
 import { getMallConfig } from "./config/malls";
 import type { MallId, MallSettingsFile } from "./types/mall";
@@ -163,6 +164,19 @@ const App: React.FC = () => {
     [],
   );
   useOpenTimeSync(mallId, { onOpenTimeUpdated: handleOpenTimeUpdated });
+
+  // S3 banner sync on startup (only active for layouts that use banners)
+  const handleBannerUpdated = useCallback(
+    (assetUrls: string[]) => {
+      setImageSettings((prev) => ({
+        ...prev,
+        banner: { ...prev.banner, images: assetUrls },
+      }));
+    },
+    [],
+  );
+  // Pass mallId as layoutId — for sakaikitahanada-v this equals "sakaikitahanada-v"
+  useBannerSync(mallId, hostname, { onBannerUpdated: handleBannerUpdated });
 
   // -----------------------------------------------------------------------
   // Apply a MallSettingsFile to local state

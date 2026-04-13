@@ -653,6 +653,7 @@ const UnifiedSettingsScreen: React.FC<UnifiedSettingsScreenProps> = ({
               floors={mallConfig.floors}
               mallId={mallId}
               hostname={hostname}
+              bannerLayoutId={mallId === "sakaikitahanada-v" ? mallId : undefined}
             />
           )}
           {activeTab === "genre" && (

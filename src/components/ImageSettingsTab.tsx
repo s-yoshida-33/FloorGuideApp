@@ -7,6 +7,7 @@ import { saveImageFile, deleteImageFile } from "../utils/settings";
 import { logInfo, logError } from "../logs/logging";
 import { useMapForceFetch } from "../hooks/useMapForceFetch";
 import { useOpenTimeForceFetch } from "../hooks/useOpenTimeForceFetch";
+import { useBannerForceFetch } from "../hooks/useBannerForceFetch";
 
 export interface ImageSettingsTabProps {
   floor: FloorId;
@@ -16,6 +17,8 @@ export interface ImageSettingsTabProps {
   floors?: FloorId[];
   mallId?: string;
   hostname?: string;
+  /** Layout ID used for the banner S3 path (e.g. "sakaikitahanada-v"). If omitted, banner S3 fetch is hidden. */
+  bannerLayoutId?: string;
   onMapsFetchedFromS3?: () => void;
   onOpenTimeFetchedFromS3?: () => void;
 }
@@ -30,6 +33,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
   floors: FLOORS = DEFAULT_FLOORS,
   mallId = '',
   hostname = '',
+  bannerLayoutId,
   onMapsFetchedFromS3,
   onOpenTimeFetchedFromS3,
 }) => {
@@ -40,6 +44,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
 
   const { status: fetchStatus, fetchMaps, reset: resetFetch } = useMapForceFetch();
   const { status: openTimeFetchStatus, fetchOpenTime, reset: resetOpenTimeFetch } = useOpenTimeForceFetch();
+  const { status: bannerFetchStatus, fetchBanners, reset: resetBannerFetch } = useBannerForceFetch();
 
   const handleFetchMapsFromS3 = async () => {
     resetFetch();
@@ -63,8 +68,20 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
     onOpenTimeFetchedFromS3?.();
   };
 
+  const handleFetchBannersFromS3 = async () => {
+    if (!bannerLayoutId) return;
+    resetBannerFetch();
+    const assetUrls = await fetchBanners(bannerLayoutId, hostname);
+    if (!assetUrls) return;
+    onChangeImageSettings({
+      ...imageSettings,
+      banner: { ...(imageSettings.banner ?? DEFAULT_BANNER_SETTINGS), images: assetUrls },
+    });
+  };
+
   const isFetching = fetchStatus.status === 'fetching';
   const isOpenTimeFetching = openTimeFetchStatus.status === 'fetching';
+  const isBannerFetching = bannerFetchStatus.status === 'fetching';
 
   /**
    * Handle file selection: read as bytes, save via Rust, store asset URL.
@@ -616,6 +633,69 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
             <span style={{ fontSize: 13, color: "#BDBDBD" }}>表示する</span>
           </label>
         </div>
+
+        {/* S3 Banner Fetch — only shown when bannerLayoutId is provided */}
+        {bannerLayoutId && (
+          <div style={{ marginBottom: 16 }}>
+            <button
+              onClick={handleFetchBannersFromS3}
+              disabled={isBannerFetching || !hostname}
+              style={{
+                width: "100%",
+                padding: "10px 16px",
+                backgroundColor: isBannerFetching ? "#2E7D32" : "#388E3C",
+                border: "none",
+                borderRadius: 4,
+                color: isBannerFetching || !hostname ? "#9E9E9E" : "#ffffff",
+                cursor: isBannerFetching || !hostname ? "not-allowed" : "pointer",
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+              title={!hostname ? "ホスト名を先に設定してください" : undefined}
+            >
+              {isBannerFetching ? "取得中..." : "最新のバナーを取得"}
+            </button>
+
+            {bannerFetchStatus.status !== 'idle' && (
+              <div style={{ marginTop: 8 }}>
+                {isBannerFetching && (
+                  <div
+                    style={{
+                      height: 4,
+                      backgroundColor: "#2A3F55",
+                      borderRadius: 2,
+                      marginBottom: 6,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${bannerFetchStatus.progress}%`,
+                        backgroundColor: "#4A9EFF",
+                        borderRadius: 2,
+                        transition: "width 0.3s ease",
+                      }}
+                    />
+                  </div>
+                )}
+                <div
+                  style={{
+                    fontSize: 12,
+                    color:
+                      bannerFetchStatus.status === 'error'
+                        ? "#EF9A9A"
+                        : bannerFetchStatus.status === 'done'
+                        ? "#A5D6A7"
+                        : "#9E9E9E",
+                  }}
+                >
+                  {bannerFetchStatus.message}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Display mode */}
         <div style={{ marginBottom: 12 }}>

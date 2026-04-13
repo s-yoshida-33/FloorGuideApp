@@ -1,4 +1,4 @@
-# Map / open-time image S3 upload script for Gido
+# Map / open-time / banner image S3 upload script for Gido
 # Usage:
 #   # Upload maps (default)
 #   powershell -ExecutionPolicy Bypass -File .\build\upload-maps.ps1 -MallId "sakaikitahanada"
@@ -6,6 +6,9 @@
 #
 #   # Upload open-time image
 #   powershell -ExecutionPolicy Bypass -File .\build\upload-maps.ps1 -MallId "sakaikitahanada" -MediaType open-times
+#
+#   # Upload banner images (layout-specific, e.g. sakaikitahanada-v)
+#   powershell -ExecutionPolicy Bypass -File .\build\upload-maps.ps1 -MallId "sakaikitahanada-v" -MediaType banners
 #
 # --- maps ---
 # For each hostname directory under medias/maps/{MallId}/{hostname}/:
@@ -33,6 +36,23 @@
 # S3 output layout:
 #   s3://tti-distribution/public/gido/medias/open-times/{MallId}/open-time-{timestamp}.webp
 #   s3://tti-distribution/public/gido/medias/open-times/{MallId}/latest.json
+#
+# --- banners ---
+# For each hostname directory under medias/banners/{MallId}/{hostname}/:
+#   - Reads banner-0.webp, banner-1.webp, ... (any number of banners)
+#   - Uploads with timestamp: banner-0-{timestamp}.webp, banner-1-{timestamp}.webp, ...
+#   - Generates latest.json: { "files": [...], "updated_at": "..." }
+#   - Uploads to S3: s3://tti-distribution/public/gido/medias/banners/{MallId}/{hostname}/
+#
+# Local source layout:
+#   medias/banners/{MallId}/{hostname}/banner-0.webp
+#   medias/banners/{MallId}/{hostname}/banner-1.webp
+#   ...
+#
+# S3 output layout:
+#   s3://tti-distribution/public/gido/medias/banners/{MallId}/{hostname}/banner-0-{timestamp}.webp
+#   s3://tti-distribution/public/gido/medias/banners/{MallId}/{hostname}/banner-1-{timestamp}.webp
+#   s3://tti-distribution/public/gido/medias/banners/{MallId}/{hostname}/latest.json
 
 param(
     [string]$MallId    = "",
@@ -57,16 +77,16 @@ if ([string]::IsNullOrWhiteSpace($MallId)) {
 }
 
 # Require MediaType
-$validMediaTypes = @("maps", "open-times", "all")
+$validMediaTypes = @("maps", "open-times", "banners", "all")
 if ([string]::IsNullOrWhiteSpace($MediaType) -or $MediaType -notin $validMediaTypes) {
-    Write-Host "Media type? [maps / open-times / all] (default: maps): " -NoNewline
+    Write-Host "Media type? [maps / open-times / banners / all] (default: maps): " -NoNewline
     $input = Read-Host
     if ([string]::IsNullOrWhiteSpace($input)) {
         $MediaType = "maps"
     } elseif ($input -in $validMediaTypes) {
         $MediaType = $input
     } else {
-        Write-Host "Error: Invalid media type '$input'. Choose from: maps, open-times, all." -ForegroundColor Red
+        Write-Host "Error: Invalid media type '$input'. Choose from: maps, open-times, banners, all." -ForegroundColor Red
         exit 1
     }
 }
@@ -197,6 +217,106 @@ if ($MediaType -eq "open-times" -or $MediaType -eq "all") {
     Write-Host "Processing open-time image for mall: $MallId" -ForegroundColor Cyan
     Write-Host "  File: open-time.webp -> $uploadName" -ForegroundColor Green
     Upload-WebpToS3 -LocalFile $srcFile -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt -BaseName "open-time"
+}
+
+# ---------------------------------------------------------------------------
+# banners
+# ---------------------------------------------------------------------------
+if ($MediaType -eq "banners" -or $MediaType -eq "all") {
+    $bannersRoot = Join-Path $mediasRoot "banners\$MallId"
+
+    if (-not (Test-Path $bannersRoot)) {
+        if ($MediaType -eq "banners") {
+            Write-Host "Error: Banners directory not found: $bannersRoot" -ForegroundColor Red
+            exit 1
+        } else {
+            Write-Host "Skipping banners: directory not found: $bannersRoot" -ForegroundColor Yellow
+        }
+    } else {
+        $hostnameDirs = Get-ChildItem -Path $bannersRoot -Directory -ErrorAction SilentlyContinue
+
+        if ($hostnameDirs.Count -eq 0) {
+            Write-Host "No hostname directories found under: $bannersRoot" -ForegroundColor Yellow
+        } else {
+            Write-Host "Processing banners for layout: $MallId" -ForegroundColor Cyan
+            Write-Host "Found $($hostnameDirs.Count) hostname dir(s): $($hostnameDirs.Name -join ', ')" -ForegroundColor Green
+
+            foreach ($hostnameDir in $hostnameDirs) {
+                $hn     = $hostnameDir.Name
+                $srcDir = $hostnameDir.FullName
+                $s3Base = "s3://tti-distribution/public/gido/medias/banners/$MallId/$hn"
+
+                Write-Host "`n[HOSTNAME: $hn]" -ForegroundColor Magenta
+
+                # Find banner-0.webp, banner-1.webp, ... (sorted)
+                $bannerFiles = Get-ChildItem -Path $srcDir -Filter "banner-*.webp" -File -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '^banner-\d+\.webp$' } |
+                    Sort-Object Name
+
+                if ($bannerFiles.Count -eq 0) {
+                    Write-Host "  No banner-N.webp files found. Skipping." -ForegroundColor Yellow
+                    continue
+                }
+
+                $updatedAt   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                $uploadNames = @()
+
+                if (Get-Command aws -ErrorAction SilentlyContinue) {
+                    # Remove all old timestamped banner-*.webp files for this hostname
+                    Write-Host "  Cleaning old banner-*-*.webp from S3..." -ForegroundColor Cyan
+                    aws s3 rm "$s3Base/" --recursive --exclude "*" --include "banner-*-*.webp" 2>&1 | Out-Null
+
+                    foreach ($bannerFile in $bannerFiles) {
+                        $baseName   = [System.IO.Path]::GetFileNameWithoutExtension($bannerFile.Name)  # e.g. "banner-0"
+                        $uploadName = "$baseName-$today.webp"
+                        $uploadNames += $uploadName
+
+                        Write-Host "  File: $($bannerFile.Name) -> $uploadName" -ForegroundColor Green
+                        try {
+                            aws s3 cp $bannerFile.FullName "$s3Base/$uploadName" --content-type "image/webp"
+                            Write-Host "  Uploaded: $uploadName" -ForegroundColor Green
+                        } catch {
+                            Write-Host "  Upload failed: $_" -ForegroundColor Red
+                            Write-Host "  Please upload manually:" -ForegroundColor Yellow
+                            Write-Host "    aws s3 cp `"$($bannerFile.FullName)`" `"$s3Base/$uploadName`" --content-type image/webp" -ForegroundColor Gray
+                        }
+                    }
+
+                    # Generate and upload latest.json with files array
+                    $latestJson = [PSCustomObject]@{
+                        files      = $uploadNames
+                        updated_at = $updatedAt
+                    } | ConvertTo-Json -Compress
+                    $tmpJson = [System.IO.Path]::GetTempFileName()
+                    [System.IO.File]::WriteAllText($tmpJson, $latestJson, [System.Text.Encoding]::UTF8)
+
+                    try {
+                        aws s3 cp $tmpJson "$s3Base/latest.json" `
+                            --content-type "application/json" `
+                            --cache-control "no-cache, no-store"
+                        Write-Host "  Uploaded: latest.json (files=$($uploadNames -join ', '), updated_at=$updatedAt)" -ForegroundColor Green
+                    } catch {
+                        Write-Host "  Failed to upload latest.json: $_" -ForegroundColor Red
+                    } finally {
+                        Remove-Item $tmpJson -Force -ErrorAction SilentlyContinue
+                    }
+                } else {
+                    Write-Host "  [INFO] AWS CLI not found. Upload manually:" -ForegroundColor Yellow
+                    Write-Host "    aws s3 rm `"$s3Base/`" --recursive --exclude `"*`" --include `"banner-*-*.webp`"" -ForegroundColor Gray
+                    foreach ($bannerFile in $bannerFiles) {
+                        $baseName   = [System.IO.Path]::GetFileNameWithoutExtension($bannerFile.Name)
+                        $uploadName = "$baseName-$today.webp"
+                        $uploadNames += $uploadName
+                        Write-Host "    aws s3 cp `"$($bannerFile.FullName)`" `"$s3Base/$uploadName`" --content-type image/webp" -ForegroundColor Gray
+                    }
+                    $filesJson = ($uploadNames | ForEach-Object { "`"$_`"" }) -join ", "
+                    Write-Host "    # Then upload latest.json: { `"files`": [$filesJson], `"updated_at`": `"$updatedAt`" }" -ForegroundColor Gray
+                }
+
+                Write-Host "  Done: $hn" -ForegroundColor Green
+            }
+        }
+    }
 }
 
 Write-Host "`nDone!" -ForegroundColor Green
