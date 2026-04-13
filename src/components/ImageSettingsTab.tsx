@@ -1,7 +1,8 @@
 import React, { useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { FloorId } from "../types/floorLayout";
-import type { ImageSettings } from "../types/imageSettings";
+import type { BannerDisplayMode, ImageSettings } from "../types/imageSettings";
+import { DEFAULT_BANNER_SETTINGS } from "../types/imageSettings";
 import { saveImageFile, deleteImageFile } from "../utils/settings";
 import { logInfo, logError } from "../logs/logging";
 import { useMapForceFetch } from "../hooks/useMapForceFetch";
@@ -34,6 +35,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
 }) => {
   const floorMapInputRef = useRef<HTMLInputElement>(null);
   const openTimeInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { status: fetchStatus, fetchMaps, reset: resetFetch } = useMapForceFetch();
@@ -143,6 +145,76 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
 
     // Reset input
     event.target.value = "";
+  };
+
+  const banner = imageSettings.banner ?? DEFAULT_BANNER_SETTINGS;
+
+  const handleBannerFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setErrors({});
+
+    const allowedTypes = ["image/webp", "image/png", "image/jpeg"];
+    const allowedExts = [".webp", ".png", ".jpg", ".jpeg"];
+    const isTypeValid = allowedTypes.includes(file.type);
+    const isExtValid = allowedExts.some((ext) =>
+      file.name.toLowerCase().endsWith(ext),
+    );
+
+    if (!isTypeValid && !isExtValid) {
+      setErrors((prev) => ({
+        ...prev,
+        banner: "対応している画像形式は WebP, PNG, JPEG です",
+      }));
+      return;
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const data = new Uint8Array(arrayBuffer);
+      const ext = file.name.split(".").pop()?.toLowerCase() || "webp";
+      const index = banner.images.length;
+      const filename = `banner-${index}.${ext}`;
+
+      const absPath = await saveImageFile(filename, data);
+      const assetUrl = convertFileSrc(absPath);
+
+      logInfo("CONFIG", "Banner image saved", { filename, absPath });
+
+      onChangeImageSettings({
+        ...imageSettings,
+        banner: {
+          ...banner,
+          images: [...banner.images, assetUrl],
+        },
+      });
+    } catch (err) {
+      logError("CONFIG", "Failed to save banner image", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setErrors((prev) => ({ ...prev, banner: "画像の保存に失敗しました" }));
+    }
+
+    event.target.value = "";
+  };
+
+  const handleRemoveBannerImage = async (index: number) => {
+    try {
+      // Try common extensions
+      for (const ext of ["webp", "png", "jpg", "jpeg"]) {
+        await deleteImageFile(`banner-${index}.${ext}`).catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
+    const newImages = banner.images.filter((_, i) => i !== index);
+    onChangeImageSettings({
+      ...imageSettings,
+      banner: { ...banner, images: newImages },
+    });
   };
 
   const handleRemoveImage = async (
@@ -502,6 +574,193 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
             />
           </div>
         )}
+      </div>
+
+      {/* Banner Images */}
+      <div style={{ marginTop: 32 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 16,
+          }}
+        >
+          <label
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              color: "#E0E0E0",
+            }}
+          >
+            バナー画像
+          </label>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={banner.enabled}
+              onChange={(e) =>
+                onChangeImageSettings({
+                  ...imageSettings,
+                  banner: { ...banner, enabled: e.target.checked },
+                })
+              }
+            />
+            <span style={{ fontSize: 13, color: "#BDBDBD" }}>表示する</span>
+          </label>
+        </div>
+
+        {/* Display mode */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: "#BDBDBD", marginBottom: 6 }}>
+            表示方法
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {(["stack", "carousel"] as BannerDisplayMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() =>
+                  onChangeImageSettings({
+                    ...imageSettings,
+                    banner: { ...banner, displayMode: mode },
+                  })
+                }
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  backgroundColor:
+                    banner.displayMode === mode ? "#4A9EFF" : "#3A3A3A",
+                  border: `1px solid ${banner.displayMode === mode ? "#4A9EFF" : "#4A4A4A"}`,
+                  borderRadius: 4,
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                {mode === "stack" ? "縦並び" : "カルーセル"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Carousel interval */}
+        {banner.displayMode === "carousel" && (
+          <div style={{ marginBottom: 12 }}>
+            <label
+              style={{ fontSize: 13, color: "#BDBDBD", marginBottom: 6, display: "block" }}
+            >
+              切替間隔（秒）
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={Math.round(banner.carouselIntervalMs / 1000)}
+              onChange={(e) => {
+                const sec = Math.max(1, parseInt(e.target.value, 10) || 1);
+                onChangeImageSettings({
+                  ...imageSettings,
+                  banner: { ...banner, carouselIntervalMs: sec * 1000 },
+                });
+              }}
+              style={{
+                width: 80,
+                padding: "6px 8px",
+                backgroundColor: "#2A2A2A",
+                border: "1px solid #4A4A4A",
+                borderRadius: 4,
+                color: "#ffffff",
+                fontSize: 14,
+              }}
+            />
+          </div>
+        )}
+
+        {/* Add banner image */}
+        <input
+          ref={bannerInputRef}
+          type="file"
+          accept=".webp,.png,.jpg,.jpeg,image/webp,image/png,image/jpeg"
+          style={{ display: "none" }}
+          onChange={handleBannerFileSelect}
+        />
+        <button
+          onClick={() => bannerInputRef.current?.click()}
+          style={{
+            width: "100%",
+            padding: "10px 16px",
+            backgroundColor: "#4A9EFF",
+            border: "none",
+            borderRadius: 4,
+            color: "#ffffff",
+            cursor: "pointer",
+            fontSize: 14,
+            fontWeight: 500,
+            marginBottom: 8,
+          }}
+        >
+          バナー画像を追加
+        </button>
+
+        {errors.banner && (
+          <div style={{ color: "#E53935", fontSize: 12, marginBottom: 8 }}>
+            {errors.banner}
+          </div>
+        )}
+
+        {/* Image list */}
+        {banner.images.map((src, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              padding: 8,
+              backgroundColor: "#1A1A1A",
+              borderRadius: 4,
+              border: "1px solid #3A3A3A",
+            }}
+          >
+            <img
+              src={src}
+              alt={`バナー ${idx + 1}`}
+              style={{
+                width: 80,
+                height: 50,
+                objectFit: "contain",
+                flexShrink: 0,
+                backgroundColor: "#2A2A2A",
+              }}
+            />
+            <span style={{ flex: 1, fontSize: 12, color: "#9E9E9E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              バナー {idx + 1}
+            </span>
+            <button
+              onClick={() => handleRemoveBannerImage(idx)}
+              style={{
+                padding: "6px 12px",
+                backgroundColor: "#E53935",
+                border: "none",
+                borderRadius: 4,
+                color: "#ffffff",
+                cursor: "pointer",
+                fontSize: 13,
+                flexShrink: 0,
+              }}
+            >
+              削除
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

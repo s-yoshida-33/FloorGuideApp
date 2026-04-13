@@ -5,7 +5,7 @@ import type { ImageSettings } from '../types/imageSettings';
 import type { GenreMappings, GenreMemoSettings } from '../types/genreSettings';
 import type { ShopSettings } from '../types/shopSettings';
 import type { BlackScreenSettings } from '../types/blackScreenSettings';
-import { DEFAULT_IMAGE_SETTINGS } from '../types/imageSettings';
+import { DEFAULT_IMAGE_SETTINGS, DEFAULT_BANNER_SETTINGS } from '../types/imageSettings';
 import { DEFAULT_GENRE_MAPPINGS, DEFAULT_GENRE_MEMO_SETTINGS } from '../types/genreSettings';
 import { DEFAULT_BLACK_SCREEN_SETTINGS } from '../types/blackScreenSettings';
 import { DEFAULT_AUDIO_SETTINGS } from '../types/audioSettings';
@@ -117,7 +117,13 @@ export async function loadMallSettings(mallId: MallId): Promise<MallSettingsFile
         : defaults.floorLayout,
       locationIcons: mergeLocationIcons(raw.locationIcons),
       imageSettings: raw.imageSettings
-        ? { ...DEFAULT_IMAGE_SETTINGS, ...raw.imageSettings }
+        ? {
+            ...DEFAULT_IMAGE_SETTINGS,
+            ...raw.imageSettings,
+            banner: raw.imageSettings.banner
+              ? { ...DEFAULT_BANNER_SETTINGS, ...raw.imageSettings.banner }
+              : DEFAULT_BANNER_SETTINGS,
+          }
         : DEFAULT_IMAGE_SETTINGS,
       genreMappings: raw.genreMappings ?? DEFAULT_GENRE_MAPPINGS,
       genreMemoSettings: raw.genreMemoSettings
@@ -271,7 +277,13 @@ export async function loadSettings(): Promise<GidoSettings> {
         : DEFAULT_FLOOR_LAYOUT,
       locationIcons: mergeLocationIcons(raw.locationIcons),
       imageSettings: raw.imageSettings
-        ? { ...DEFAULT_IMAGE_SETTINGS, ...raw.imageSettings }
+        ? {
+            ...DEFAULT_IMAGE_SETTINGS,
+            ...raw.imageSettings,
+            banner: raw.imageSettings.banner
+              ? { ...DEFAULT_BANNER_SETTINGS, ...raw.imageSettings.banner }
+              : DEFAULT_BANNER_SETTINGS,
+          }
         : DEFAULT_IMAGE_SETTINGS,
       genreMappings: raw.genreMappings ?? DEFAULT_GENRE_MAPPINGS,
       genreMemoSettings: raw.genreMemoSettings
