@@ -23,6 +23,7 @@ import { DEFAULT_IMAGE_SETTINGS } from "./types/imageSettings";
 import {
   DEFAULT_GENRE_MAPPINGS,
   DEFAULT_GENRE_MEMO_SETTINGS,
+  buildDefaultGenreMappingsForMall,
 } from "./types/genreSettings";
 import type { GenreMappings, GenreMemoSettings } from "./types/genreSettings";
 import type { ShopSettings } from "./types/shopSettings";
@@ -224,6 +225,11 @@ const App: React.FC = () => {
       const loadedFloor = ms.floor ?? config.defaultFloor;
       setFloor(loadedFloor);
 
+      // Use mall-specific default genre mappings if none are saved yet
+      if (!ms.genreMappings) {
+        ms.genreMappings = buildDefaultGenreMappingsForMall(config);
+      }
+
       // 4. Overlay locally cached map/open-time files so the first render
       //    already has the correct images (no white flash).
       const hostname = global.hostname ?? '';
@@ -289,6 +295,10 @@ const App: React.FC = () => {
       // Ensure per-mall file exists with defaults
       await ensureMallSettingsFile(selectedMallId);
       const ms = await loadMallSettings(selectedMallId);
+      // Use mall-specific default genre mappings if none are saved yet
+      if (!ms.genreMappings) {
+        ms.genreMappings = buildDefaultGenreMappingsForMall(config);
+      }
       applyMallSettings(ms, config.defaultFloor);
 
       // Open settings screen for initial configuration
