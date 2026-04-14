@@ -218,6 +218,17 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
     event.target.value = "";
   };
 
+  const handleMoveBannerImage = (index: number, direction: "up" | "down") => {
+    const images = [...banner.images];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= images.length) return;
+    [images[index], images[swapIndex]] = [images[swapIndex], images[index]];
+    onChangeImageSettings({
+      ...imageSettings,
+      banner: { ...banner, images },
+    });
+  };
+
   const handleRemoveBannerImage = async (index: number) => {
     try {
       // Try common extensions
@@ -893,7 +904,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
         {/* Image list */}
         {banner.images.map((src, idx) => (
           <div
-            key={idx}
+            key={src}
             style={{
               display: "flex",
               alignItems: "center",
@@ -919,6 +930,41 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
             <span style={{ flex: 1, fontSize: 12, color: "#9E9E9E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               バナー {idx + 1}
             </span>
+            {/* Reorder buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}>
+              <button
+                onClick={() => handleMoveBannerImage(idx, "up")}
+                disabled={idx === 0}
+                style={{
+                  padding: "2px 8px",
+                  backgroundColor: idx === 0 ? "#2A2A2A" : "#4A4A4A",
+                  border: "none",
+                  borderRadius: 3,
+                  color: idx === 0 ? "#555" : "#ffffff",
+                  cursor: idx === 0 ? "not-allowed" : "pointer",
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                }}
+              >
+                ▲
+              </button>
+              <button
+                onClick={() => handleMoveBannerImage(idx, "down")}
+                disabled={idx === banner.images.length - 1}
+                style={{
+                  padding: "2px 8px",
+                  backgroundColor: idx === banner.images.length - 1 ? "#2A2A2A" : "#4A4A4A",
+                  border: "none",
+                  borderRadius: 3,
+                  color: idx === banner.images.length - 1 ? "#555" : "#ffffff",
+                  cursor: idx === banner.images.length - 1 ? "not-allowed" : "pointer",
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                }}
+              >
+                ▼
+              </button>
+            </div>
             <button
               onClick={() => handleRemoveBannerImage(idx)}
               style={{
