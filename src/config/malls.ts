@@ -88,6 +88,41 @@ export const MALL_CONFIGS: Record<MallId, MallConfig> = {
       "サービス": "Services",
     },
   },
+  tsuminami: {
+    id: "tsuminami",
+    name: "津みなみ",
+    floors: ["1F", "2F", "3F"],
+    defaultFloor: "1F",
+    defaultFloorLayout: {
+      "1F": { columns: 3, rowsPerCol: 20 },
+      "2F": { columns: 3, rowsPerCol: 20 },
+      "3F": { columns: 3, rowsPerCol: 20 },
+    },
+    videoOrientation: "horizontal",
+    hasOpenTimeImage: false,
+    genreOrder: [
+      "ファッション",
+      "グッズ",
+      "グルメ",
+      "食料品",
+      "サービス",
+      "スポーツ＆アウトドア",
+      "エンターテインメント",
+      "クリニック",
+      "総合スーパー/その他",
+    ],
+    genreEnglish: {
+      "ファッション": "Fashion",
+      "グッズ": "Goods",
+      "グルメ": "Dining",
+      "食料品": "Grocery",
+      "サービス": "Services",
+      "スポーツ＆アウトドア": "Sports & Outdoor",
+      "エンターテインメント": "Entertainment",
+      "クリニック": "Clinic",
+      "総合スーパー/その他": "Other",
+    },
+  },
 };
 
 /** All available mall IDs */
