@@ -98,7 +98,7 @@ export const MALL_CONFIGS: Record<MallId, MallConfig> = {
       "2F": { columns: 3, rowsPerCol: 20 },
       "3F": { columns: 3, rowsPerCol: 20 },
     },
-    videoOrientation: "horizontal",
+    videoOrientation: "vertical",
     hasOpenTimeImage: false,
     genreOrder: [
       "ファッション",

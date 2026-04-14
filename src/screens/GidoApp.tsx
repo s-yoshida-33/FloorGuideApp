@@ -36,7 +36,7 @@ const LAYOUT_MAP: Record<MallId, React.FC<LayoutProps>> = {
   sakaikitahanada: SakaikitahanadaLayout,
   "sakaikitahanada-v": SakaikitahanadaVLayout,
   suzaka: SuzakaLayout,
-  tsuminami: SuzakaLayout, // Same horizontal-video + shop-list + floor-map structure
+  tsuminami: SakaikitahanadaVLayout, // Same horizontal-video + shop-list + floor-map structure
 };
 
 // --------------------------------------------------------------------------
