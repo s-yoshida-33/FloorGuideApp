@@ -206,6 +206,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
         banner: {
           ...banner,
           images: [...banner.images, assetUrl],
+          imageEnabled: [...(banner.imageEnabled ?? []), true],
         },
       });
     } catch (err) {
@@ -223,9 +224,22 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
     const swapIndex = direction === "up" ? index - 1 : index + 1;
     if (swapIndex < 0 || swapIndex >= images.length) return;
     [images[index], images[swapIndex]] = [images[swapIndex], images[index]];
+    const imageEnabled = [...(banner.imageEnabled ?? [])];
+    while (imageEnabled.length < images.length) imageEnabled.push(true);
+    [imageEnabled[index], imageEnabled[swapIndex]] = [imageEnabled[swapIndex], imageEnabled[index]];
     onChangeImageSettings({
       ...imageSettings,
-      banner: { ...banner, images },
+      banner: { ...banner, images, imageEnabled },
+    });
+  };
+
+  const handleToggleBannerImage = (index: number) => {
+    const imageEnabled = [...(banner.imageEnabled ?? [])];
+    while (imageEnabled.length <= index) imageEnabled.push(true);
+    imageEnabled[index] = !imageEnabled[index];
+    onChangeImageSettings({
+      ...imageSettings,
+      banner: { ...banner, imageEnabled },
     });
   };
 
@@ -239,9 +253,10 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
       // ignore
     }
     const newImages = banner.images.filter((_, i) => i !== index);
+    const newImageEnabled = (banner.imageEnabled ?? []).filter((_, i) => i !== index);
     onChangeImageSettings({
       ...imageSettings,
-      banner: { ...banner, images: newImages },
+      banner: { ...banner, images: newImages, imageEnabled: newImageEnabled },
     });
   };
 
@@ -933,7 +948,9 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
         )}
 
         {/* Image list */}
-        {banner.images.map((src, idx) => (
+        {banner.images.map((src, idx) => {
+          const isEnabled = (banner.imageEnabled ?? [])[idx] !== false;
+          return (
           <div
             key={src}
             style={{
@@ -944,7 +961,8 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
               padding: 8,
               backgroundColor: "#1A1A1A",
               borderRadius: 4,
-              border: "1px solid #3A3A3A",
+              border: `1px solid ${isEnabled ? "#3A3A3A" : "#555"}`,
+              opacity: isEnabled ? 1 : 0.5,
             }}
           >
             <img
@@ -961,6 +979,23 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
             <span style={{ flex: 1, fontSize: 12, color: "#9E9E9E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               バナー {idx + 1}
             </span>
+            {/* Visibility toggle */}
+            <button
+              onClick={() => handleToggleBannerImage(idx)}
+              style={{
+                padding: "4px 8px",
+                backgroundColor: isEnabled ? "#1B5E20" : "#2A2A2A",
+                border: `1px solid ${isEnabled ? "#4CAF50" : "#555"}`,
+                borderRadius: 4,
+                color: isEnabled ? "#4CAF50" : "#757575",
+                cursor: "pointer",
+                fontSize: 11,
+                flexShrink: 0,
+                lineHeight: 1.4,
+              }}
+            >
+              {isEnabled ? "表示" : "非表示"}
+            </button>
             {/* Reorder buttons */}
             <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}>
               <button
@@ -1012,7 +1047,7 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
               削除
             </button>
           </div>
-        ))}
+        );})}
       </div>
     </div>
   );
