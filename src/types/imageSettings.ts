@@ -5,6 +5,8 @@ export type BannerDisplayMode = 'stack' | 'carousel';
 export type BannerSettings = {
   enabled: boolean;
   images: string[];
+  /** Per-image visibility. Index matches images[]. Absent/undefined index = visible. */
+  imageEnabled: boolean[];
   displayMode: BannerDisplayMode;
   carouselIntervalMs: number;
   /** Gap between banner images in px (stack mode). Default: 8 */
@@ -23,6 +25,7 @@ export type BannerSettings = {
 export const DEFAULT_BANNER_SETTINGS: BannerSettings = {
   enabled: false,
   images: [],
+  imageEnabled: [],
   displayMode: 'carousel',
   carouselIntervalMs: 5000,
   gap: 8,

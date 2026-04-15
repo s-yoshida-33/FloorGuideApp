@@ -125,6 +125,7 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
                   <div style={{ flex: 1, minHeight: 0, padding: `0 16px ${banner.bottomMargin ?? 10}px` }}>
                     <BannerArea
                       images={banner.images}
+                      imageEnabled={banner.imageEnabled}
                       displayMode={banner.displayMode}
                       carouselIntervalMs={banner.carouselIntervalMs}
                       gap={banner.gap}
@@ -148,6 +149,7 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
                   >
                     <BannerArea
                       images={banner.images}
+                      imageEnabled={banner.imageEnabled}
                       displayMode={banner.displayMode}
                       carouselIntervalMs={banner.carouselIntervalMs}
                       gap={banner.gap}
@@ -163,6 +165,7 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
                   <div style={{ padding: `0 16px ${banner.bottomMargin ?? 10}px` }}>
                     <BannerArea
                       images={banner.images}
+                      imageEnabled={banner.imageEnabled}
                       displayMode={banner.displayMode}
                       carouselIntervalMs={banner.carouselIntervalMs}
                       gap={banner.gap}

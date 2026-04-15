@@ -4,6 +4,8 @@ import type { BannerDisplayMode } from "../types/imageSettings";
 
 interface BannerAreaProps {
   images: string[];
+  /** Per-image visibility flags. Index matches images[]. Absent = visible. */
+  imageEnabled?: boolean[];
   displayMode: BannerDisplayMode;
   carouselIntervalMs: number;
   /** Gap between images in px (stack mode). Default: 8 */
@@ -18,6 +20,7 @@ interface BannerAreaProps {
 
 const BannerArea: React.FC<BannerAreaProps> = ({
   images,
+  imageEnabled,
   displayMode,
   carouselIntervalMs,
   gap = 8,
@@ -27,7 +30,11 @@ const BannerArea: React.FC<BannerAreaProps> = ({
   const [transitionEnabled, setTransitionEnabled] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const visibleImages = images.filter((img) => img && img.length > 0);
+  const visibleImages = images.filter((img, idx) => {
+    if (!img || img.length === 0) return false;
+    if (imageEnabled && idx < imageEnabled.length && !imageEnabled[idx]) return false;
+    return true;
+  });
 
   // Timer: advance slide by slide; stop at clone index (visibleImages.length)
   // and let onTransitionEnd handle the snap back to 0.
