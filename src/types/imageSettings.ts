@@ -9,6 +9,8 @@ export type BannerSettings = {
   carouselIntervalMs: number;
   /** Gap between banner images in px (stack mode). Default: 8 */
   gap: number;
+  /** Bottom margin between the banner and the screen edge in px. Default: 10 */
+  bottomMargin: number;
   /** Stack mode only: automatically fill the remaining space below the shop list.
    *  Each image scales to fit its equal share of the available height,
    *  maintaining its aspect ratio. */
@@ -24,6 +26,7 @@ export const DEFAULT_BANNER_SETTINGS: BannerSettings = {
   displayMode: 'carousel',
   carouselIntervalMs: 5000,
   gap: 8,
+  bottomMargin: 10,
   autoFit: false,
   centerAlign: false,
 };

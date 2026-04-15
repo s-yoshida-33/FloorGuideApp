@@ -805,6 +805,37 @@ export const ImageSettingsTab: React.FC<ImageSettingsTabProps> = ({
           />
         </div>
 
+        {/* Bottom margin */}
+        <div style={{ marginBottom: 12 }}>
+          <label
+            style={{ fontSize: 13, color: "#BDBDBD", marginBottom: 6, display: "block" }}
+          >
+            バナー下の余白（px）
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={500}
+            value={banner.bottomMargin ?? 10}
+            onChange={(e) => {
+              const px = Math.max(0, parseInt(e.target.value, 10) || 0);
+              onChangeImageSettings({
+                ...imageSettings,
+                banner: { ...banner, bottomMargin: px },
+              });
+            }}
+            style={{
+              width: 80,
+              padding: "6px 8px",
+              backgroundColor: "#2A2A2A",
+              border: "1px solid #4A4A4A",
+              borderRadius: 4,
+              color: "#ffffff",
+              fontSize: 14,
+            }}
+          />
+        </div>
+
         {/* Auto-fit (stack mode only) */}
         {banner.displayMode === "stack" && (
           <div style={{ marginBottom: 12 }}>

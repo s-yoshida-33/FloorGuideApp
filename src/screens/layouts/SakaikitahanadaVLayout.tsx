@@ -122,7 +122,7 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
               if (isAutoFit) {
                 // autoFit: banner fills all remaining space
                 return (
-                  <div style={{ flex: 1, minHeight: 0, padding: "0 16px 10px" }}>
+                  <div style={{ flex: 1, minHeight: 0, padding: `0 16px ${banner.bottomMargin ?? 10}px` }}>
                     <BannerArea
                       images={banner.images}
                       displayMode={banner.displayMode}
@@ -143,7 +143,7 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center",
-                      padding: "0 16px 10px",
+                      padding: `0 16px ${banner.bottomMargin ?? 10}px`,
                     }}
                   >
                     <BannerArea
@@ -160,7 +160,7 @@ const SakaikitahanadaVLayout: React.FC<LayoutProps> = ({
               return (
                 <>
                   <div style={{ flex: 1 }} />
-                  <div style={{ padding: "0 16px 10px" }}>
+                  <div style={{ padding: `0 16px ${banner.bottomMargin ?? 10}px` }}>
                     <BannerArea
                       images={banner.images}
                       displayMode={banner.displayMode}
