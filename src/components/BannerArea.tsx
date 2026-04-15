@@ -29,21 +29,17 @@ const BannerArea: React.FC<BannerAreaProps> = ({
 
   const visibleImages = images.filter((img) => img && img.length > 0);
 
+  // Timer: advance slide by slide; stop at clone index (visibleImages.length)
+  // and let onTransitionEnd handle the snap back to 0.
   useEffect(() => {
     if (displayMode !== "carousel" || visibleImages.length <= 1) return;
 
     const schedule = () => {
       timerRef.current = setTimeout(() => {
         setCurrentIndex((prev) => {
-          const next = (prev + 1) % visibleImages.length;
-          if (next === 0) {
-            // Looping back to first: snap instantly (no backward slide)
-            setTransitionEnabled(false);
-            requestAnimationFrame(() =>
-              requestAnimationFrame(() => setTransitionEnabled(true))
-            );
-          }
-          return next;
+          // Don't advance past the clone at index n
+          if (prev >= visibleImages.length) return prev;
+          return prev + 1;
         });
         schedule();
       }, carouselIntervalMs);
@@ -135,24 +131,42 @@ const BannerArea: React.FC<BannerAreaProps> = ({
   }
 
   // -------------------------------------------------------------------------
-  // Carousel mode — horizontal slide
+  // Carousel mode — horizontal slide with seamless loop
+  //
+  // Strip layout: [img0, img1, ..., imgN-1, img0(clone)]
+  //   • Normal advance: 0 → 1 → … → N-1 → N(clone)  (slides left each time)
+  //   • After sliding to clone (index N), onTransitionEnd snaps to index 0
+  //     with no transition — visually seamless since clone == img0.
   // -------------------------------------------------------------------------
-  const safeCurrent = currentIndex % visibleImages.length;
+  const stripImages = visibleImages.length > 1
+    ? [...visibleImages, visibleImages[0]]
+    : visibleImages;
 
   return (
     <div style={{ width: "100%", overflow: "hidden" }}>
       <div
         style={{
           display: "flex",
-          transform: `translateX(-${safeCurrent * 100}%)`,
+          transform: `translateX(-${currentIndex * 100}%)`,
           transition: transitionEnabled ? "transform 0.5s ease-in-out" : "none",
         }}
+        onTransitionEnd={(e) => {
+          if (e.propertyName !== "transform") return;
+          // Snap back from clone to real index 0, invisibly
+          if (currentIndex >= visibleImages.length) {
+            setTransitionEnabled(false);
+            setCurrentIndex(0);
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => setTransitionEnabled(true))
+            );
+          }
+        }}
       >
-        {visibleImages.map((src, idx) => (
+        {stripImages.map((src, idx) => (
           <img
             key={idx}
             src={src}
-            alt={`バナー ${idx + 1}`}
+            alt={`バナー ${(idx % visibleImages.length) + 1}`}
             style={{
               width: "100%",
               flexShrink: 0,
