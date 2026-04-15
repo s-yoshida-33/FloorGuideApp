@@ -24,7 +24,7 @@ const BannerArea: React.FC<BannerAreaProps> = ({
   autoFit = false,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [visible, setVisible] = useState(true);
+  const [transitionEnabled, setTransitionEnabled] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const visibleImages = images.filter((img) => img && img.length > 0);
@@ -34,12 +34,18 @@ const BannerArea: React.FC<BannerAreaProps> = ({
 
     const schedule = () => {
       timerRef.current = setTimeout(() => {
-        setVisible(false);
-        setTimeout(() => {
-          setCurrentIndex((prev) => (prev + 1) % visibleImages.length);
-          setVisible(true);
-          schedule();
-        }, 400);
+        setCurrentIndex((prev) => {
+          const next = (prev + 1) % visibleImages.length;
+          if (next === 0) {
+            // Looping back to first: snap instantly (no backward slide)
+            setTransitionEnabled(false);
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => setTransitionEnabled(true))
+            );
+          }
+          return next;
+        });
+        schedule();
       }, carouselIntervalMs);
     };
 
@@ -52,7 +58,7 @@ const BannerArea: React.FC<BannerAreaProps> = ({
 
   useEffect(() => {
     setCurrentIndex(0);
-    setVisible(true);
+    setTransitionEnabled(true);
   }, [visibleImages.length]);
 
   if (visibleImages.length === 0) return null;
@@ -129,24 +135,34 @@ const BannerArea: React.FC<BannerAreaProps> = ({
   }
 
   // -------------------------------------------------------------------------
-  // Carousel mode
+  // Carousel mode — horizontal slide
   // -------------------------------------------------------------------------
   const safeCurrent = currentIndex % visibleImages.length;
 
   return (
-    <div style={{ width: "100%", position: "relative" }}>
-      <img
-        src={visibleImages[safeCurrent]}
-        alt={`バナー ${safeCurrent + 1}`}
+    <div style={{ width: "100%", overflow: "hidden" }}>
+      <div
         style={{
-          width: "100%",
-          height: "auto",
-          display: "block",
-          objectFit: "contain",
-          opacity: visible ? 1 : 0,
-          transition: "opacity 0.4s ease-in-out",
+          display: "flex",
+          transform: `translateX(-${safeCurrent * 100}%)`,
+          transition: transitionEnabled ? "transform 0.5s ease-in-out" : "none",
         }}
-      />
+      >
+        {visibleImages.map((src, idx) => (
+          <img
+            key={idx}
+            src={src}
+            alt={`バナー ${idx + 1}`}
+            style={{
+              width: "100%",
+              flexShrink: 0,
+              height: "auto",
+              display: "block",
+              objectFit: "contain",
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 };
