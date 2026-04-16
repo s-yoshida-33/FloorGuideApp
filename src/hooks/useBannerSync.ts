@@ -123,8 +123,9 @@ export function useBannerSync(
     const meta = await loadBannerMeta(layoutId, hostname);
     if (meta?.lastUpdatedAt === latest.updated_at) {
       logInfo('BANNER_SYNC', 'Banners already up to date', { updated_at: latest.updated_at });
-      const urls = await buildBannerUrlsFromLocal(layoutId, hostname);
-      if (urls.length > 0) onBannerUpdated(urls);
+      // Do NOT call onBannerUpdated here: the saved settings already have the correct
+      // order (possibly user-customised). Overwriting with the filesystem order would
+      // reset any reordering the user has made.
       return;
     }
 
