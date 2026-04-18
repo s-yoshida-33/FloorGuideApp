@@ -129,7 +129,21 @@ export function useBannerSync(
       return;
     }
 
-    // 3. Download each file
+    // 3. Purge stale banners (files no longer in latest.json)
+    try {
+      const deleted = await invoke<number>('cleanup_stale_banners', {
+        layoutId,
+        hostname,
+        keepFilenames: latest.files,
+      });
+      if (deleted > 0) {
+        logInfo('BANNER_SYNC', 'Purged stale banner files', { deleted });
+      }
+    } catch (e) {
+      logWarn('BANNER_SYNC', 'cleanup_stale_banners failed (non-fatal)', { error: String(e) });
+    }
+
+    // 4. Download each file
     logInfo('BANNER_SYNC', 'Downloading banners', { count: latest.files.length, updated_at: latest.updated_at });
 
     const downloadedPaths: string[] = [];

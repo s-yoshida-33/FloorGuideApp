@@ -936,6 +936,39 @@ fn list_local_banners(layout_id: String, hostname: String) -> Result<Vec<LocalMa
     Ok(entries)
 }
 
+/// Delete any .webp files in the local banners directory that are NOT in `keep_filenames`.
+/// Called after fetching latest.json so that banners removed from the S3 list are purged.
+#[tauri::command]
+fn cleanup_stale_banners(
+    layout_id: String,
+    hostname: String,
+    keep_filenames: Vec<String>,
+) -> Result<u32, String> {
+    let banners_dir = match get_banners_dir_if_exists(&layout_id, &hostname) {
+        Some(d) => d,
+        None => return Ok(0),
+    };
+
+    let keep_set: std::collections::HashSet<String> = keep_filenames.into_iter().collect();
+    let mut deleted: u32 = 0;
+
+    if let Ok(entries) = fs::read_dir(&banners_dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.extension().and_then(|e| e.to_str()) != Some("webp") {
+                continue;
+            }
+            let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+            if !keep_set.contains(&fname) {
+                let _ = fs::remove_file(&p);
+                deleted += 1;
+            }
+        }
+    }
+
+    Ok(deleted)
+}
+
 // ---------------------------------------------------------------------------
 // System info command (CPU, memory, GPU, OS)
 // ---------------------------------------------------------------------------
@@ -1544,6 +1577,7 @@ fn main() {
             list_local_open_times,
             sync_banner_from_s3,
             list_local_banners,
+            cleanup_stale_banners,
         ]);
 
     let app = builder
