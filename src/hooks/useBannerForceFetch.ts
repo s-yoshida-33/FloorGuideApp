@@ -80,6 +80,20 @@ export function useBannerForceFetch() {
         return null;
       }
 
+      // Purge stale banners before downloading
+      try {
+        const deleted = await invoke<number>('cleanup_stale_banners', {
+          layoutId,
+          hostname,
+          keepFilenames: latest.files,
+        });
+        if (deleted > 0) {
+          logInfo('BANNER_FORCE_FETCH', 'Purged stale banner files', { deleted });
+        }
+      } catch (e) {
+        logInfo('BANNER_FORCE_FETCH', 'cleanup_stale_banners skipped (non-fatal)', { error: String(e) });
+      }
+
       const assetUrls: string[] = [];
       const total = latest.files.length;
 
