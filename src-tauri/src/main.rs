@@ -1200,7 +1200,17 @@ fn start_webview_watchdog(app_handle: tauri::AppHandle) {
                 // FORCE_QUIT を立てることで on_window_event の prevent_close が
                 // スキップされ、ウィンドウ破棄時の TAO パニックを防ぐ。
                 FORCE_QUIT.store(true, Ordering::Relaxed);
-                handle.restart();
+                // handle.restart() can panic with "cannot move state from Destroyed" when
+                // tao's event loop is already torn down (e.g. after a WebView crash).
+                // Catch the panic and fall back to process::exit so the OS-level startup
+                // mechanism can relaunch us cleanly.
+                let restart_result = std::panic::catch_unwind(
+                    std::panic::AssertUnwindSafe(|| handle.restart())
+                );
+                if restart_result.is_err() {
+                    write_to_log_file_direct("WATCHDOG", "handle.restart() panicked (tao Destroyed state), falling back to process::exit");
+                    std::process::exit(1);
+                }
             }
         }
     });
