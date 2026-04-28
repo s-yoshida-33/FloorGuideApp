@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import type { GenreMappings, GenreDisplayConfig, GenreMemoSettings } from "../types/genreSettings";
 import { DEFAULT_GENRE_CONFIG } from "../types/genreSettings";
+import type { Shop } from "../types/shop";
+import { fetchShops } from "../repositories/shopRepository";
 
 interface GenreSettingsTabProps {
   genreMappings: GenreMappings;
@@ -213,6 +215,44 @@ export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
   const [newGenre, setNewGenre] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [keywordInput, setKeywordInput] = useState("");
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const genreInputRef = useRef<HTMLInputElement>(null);
+  const genreDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchShops().then(setShops).catch(() => { /* offline — no suggestions */ });
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        genreDropdownRef.current &&
+        !genreDropdownRef.current.contains(e.target as Node) &&
+        genreInputRef.current &&
+        !genreInputRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const uniqueGenreNames = useMemo(() => {
+    const names = new Set<string>();
+    shops.forEach((shop) => {
+      if (shop.genre) names.add(shop.genre.trim());
+    });
+    return Array.from(names).sort();
+  }, [shops]);
+
+  const filteredGenreOptions = useMemo(() => {
+    if (!newGenre) return uniqueGenreNames;
+    return uniqueGenreNames.filter((name) =>
+      name.toLowerCase().includes(newGenre.toLowerCase()),
+    );
+  }, [uniqueGenreNames, newGenre]);
 
   // Maintain local order state for Reorder component
   // Initialize from genreMappings keys
@@ -342,24 +382,80 @@ export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
       <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)", paddingTop: 20 }}>
         <h4 style={{ margin: "0 0 12px 0", fontSize: 14 }}>新規追加</h4>
         <div style={{ display: "flex", gap: 12 }}>
-          <input
-            type="text"
-            value={newGenre}
-            onChange={(e) => setNewGenre(e.target.value)}
-            placeholder="日本語ジャンル名"
-            style={{
-              flex: 1,
-              padding: "8px",
-              backgroundColor: "rgba(255, 255, 255, 0.1)",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              borderRadius: 4,
-              color: "#ffffff",
-              fontSize: 14,
-              boxSizing: "border-box",
-            }}
-          />
+          <div style={{ flex: 1, position: "relative" }}>
+            <input
+              ref={genreInputRef}
+              type="text"
+              value={newGenre}
+              onChange={(e) => {
+                setNewGenre(e.target.value);
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleAdd();
+                  setShowDropdown(false);
+                }
+              }}
+              placeholder="日本語ジャンル名"
+              style={{
+                width: "100%",
+                padding: "8px",
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                borderRadius: 4,
+                color: "#ffffff",
+                fontSize: 14,
+                boxSizing: "border-box",
+              }}
+            />
+            {showDropdown && filteredGenreOptions.length > 0 && (
+              <div
+                ref={genreDropdownRef}
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  width: "100%",
+                  maxHeight: 300,
+                  overflowY: "auto",
+                  backgroundColor: "#2a2a2a",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  borderTop: "none",
+                  borderRadius: "0 0 4px 4px",
+                  zIndex: 100,
+                  boxShadow: "0 4px 6px rgba(0,0,0,0.4)",
+                }}
+              >
+                {filteredGenreOptions.map((name) => (
+                  <div
+                    key={name}
+                    onClick={() => {
+                      setNewGenre(name);
+                      setShowDropdown(false);
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      cursor: "pointer",
+                      fontSize: 14,
+                      color: "#ffffff",
+                      borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.1)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  >
+                    {name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <button
-            onClick={handleAdd}
+            onClick={() => {
+              handleAdd();
+              setShowDropdown(false);
+            }}
             disabled={!newGenre}
             style={{
               padding: "8px 16px",
@@ -369,7 +465,7 @@ export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
               color: "#ffffff",
               cursor: !newGenre ? "not-allowed" : "pointer",
               opacity: !newGenre ? 0.5 : 1,
-              height: 38, // Match input height roughly
+              height: 38,
               whiteSpace: "nowrap",
             }}
           >
