@@ -66,9 +66,9 @@ export function normalizeBridgeShops(rawList: BridgeShop[]): Shop[] {
     return {
       shopId,
       name: shopName ? shopName.replace(/【.*?】/g, "").trim() : "",
-      genre: item.genre,
+      genre: item.genre || "",
       genreMemo: genreMemo || "",
-      number: item.number,
+      number: item.number || "",
       floors,
     };
   });
