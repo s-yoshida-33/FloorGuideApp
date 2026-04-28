@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import type { GenreMappings, GenreDisplayConfig, GenreMemoSettings } from "../types/genreSettings";
 import { DEFAULT_GENRE_CONFIG } from "../types/genreSettings";
-import type { Shop } from "../types/shop";
-import { fetchShops } from "../repositories/shopRepository";
+import { fetchGenresFromBridge } from "../api/bridgeClient";
 
 interface GenreSettingsTabProps {
   genreMappings: GenreMappings;
@@ -215,13 +214,13 @@ export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
   const [newGenre, setNewGenre] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [keywordInput, setKeywordInput] = useState("");
-  const [shops, setShops] = useState<Shop[]>([]);
+  const [genreOptions, setGenreOptions] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const genreInputRef = useRef<HTMLInputElement>(null);
   const genreDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchShops().then(setShops).catch(() => { /* offline — no suggestions */ });
+    fetchGenresFromBridge().then(setGenreOptions).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -239,20 +238,12 @@ export const GenreSettingsTab: React.FC<GenreSettingsTabProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const uniqueGenreNames = useMemo(() => {
-    const names = new Set<string>();
-    shops.forEach((shop) => {
-      if (shop.genre) names.add(shop.genre.trim());
-    });
-    return Array.from(names).sort();
-  }, [shops]);
-
   const filteredGenreOptions = useMemo(() => {
-    if (!newGenre) return uniqueGenreNames;
-    return uniqueGenreNames.filter((name) =>
+    if (!newGenre) return genreOptions;
+    return genreOptions.filter((name) =>
       name.toLowerCase().includes(newGenre.toLowerCase()),
     );
-  }, [uniqueGenreNames, newGenre]);
+  }, [genreOptions, newGenre]);
 
   // Maintain local order state for Reorder component
   // Initialize from genreMappings keys
