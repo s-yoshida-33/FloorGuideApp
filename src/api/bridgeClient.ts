@@ -48,7 +48,8 @@ export function normalizeBridgeShops(rawList: BridgeShop[]): Shop[] {
   const defaultFloor = APP_CONFIG.floor;
 
   return rawList.map((item) => {
-    const floors = parseFloorsFromBridge(item.floors, defaultFloor);
+    // `floors` (plural, legacy) takes precedence; fall back to `floor` (singular, new API)
+    const floors = parseFloorsFromBridge(item.floors ?? item.floor, defaultFloor);
     const shopId = item.shopId ?? item.shop_id;
     const shopName = item.shopName ?? item.shop_name;
     const genreMemo = item.genreMemo ?? item.genre_memo;
@@ -57,7 +58,7 @@ export function normalizeBridgeShops(rawList: BridgeShop[]): Shop[] {
       logWarn("DATA_SYNC", "Shop has no floors after normalization", {
         shopId,
         name: shopName,
-        rawFloors: item.floors,
+        rawFloors: item.floors ?? item.floor,
         defaultFloor,
       });
     }
