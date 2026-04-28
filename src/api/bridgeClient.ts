@@ -75,6 +75,33 @@ export function normalizeBridgeShops(rawList: BridgeShop[]): Shop[] {
 }
 
 /**
+ * Fetch genre list from BridgeWebPopper via Rust proxy (CORS bypass).
+ */
+export async function fetchGenresFromBridge(): Promise<string[]> {
+  const baseUrl = await getApiBaseUrl();
+  const url = `${baseUrl}/api/genres`;
+
+  try {
+    const response = await invoke<{ status: number; body: string }>(
+      "fetch_shops_proxy",
+      { url },
+    );
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Bridge API error: HTTP ${response.status}`);
+    }
+
+    const json: unknown = JSON.parse(response.body);
+    const list = Array.isArray(json) ? json : [];
+    return list
+      .map((item: Record<string, unknown>) => String(item.genreName ?? "").trim())
+      .filter((name) => name.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Fetch shop list from BridgeWebPopper via Rust proxy (CORS bypass).
  */
 export async function fetchShopsFromBridge(): Promise<Shop[]> {
