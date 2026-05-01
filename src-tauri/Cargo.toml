@@ -25,7 +25,6 @@ hostname = "0.4"
 dirs = "5.0"
 chrono = "0.4"
 sysinfo = "0.32"
-image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 [profile.release]
 codegen-units = 1

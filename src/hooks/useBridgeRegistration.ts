@@ -42,13 +42,9 @@ async function sendHeartbeat(baseUrl: string, id: string): Promise<boolean> {
 
 async function captureAndSendScreenshot(baseUrl: string, id: string): Promise<void> {
   try {
-    const bytes = await invoke<number[]>('take_screenshot');
-    const blob = new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' });
-    await fetch(`${baseUrl}/api/apps/${id}/screenshot`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'image/jpeg' },
-      body: blob,
-    });
+    // Capture and POST are handled entirely by capture_and_send.ps1 running
+    // as an independent process, avoiding WebView2 DirectComposition issues.
+    await invoke('run_capture_script', { bridgeUrl: baseUrl, appId: id });
     logInfo('BRIDGE_REG', 'Screenshot sent to Bridge-Ground');
   } catch (e) {
     logWarn('BRIDGE_REG', 'Screenshot capture failed', { error: String(e) });
