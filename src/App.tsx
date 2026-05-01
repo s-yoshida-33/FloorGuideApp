@@ -10,6 +10,7 @@ import { ContextMenu } from "./components/ContextMenu";
 import { PatchScreen } from "./screens/PatchScreen";
 import BlackScreenOverlay from "./components/BlackScreenOverlay";
 import { useHeartbeat } from "./hooks/useHeartbeat";
+import { useBridgeRegistration } from "./hooks/useBridgeRegistration";
 import { useWebViewPing } from "./hooks/useWebViewPing";
 import { useMapSync } from "./hooks/useMapSync";
 import { useOpenTimeSync } from "./hooks/useOpenTimeSync";
@@ -141,6 +142,9 @@ const App: React.FC = () => {
 
   // Heartbeat
   useHeartbeat();
+
+  // Bridge-Ground app registration & heartbeat
+  useBridgeRegistration(mallId, hostname);
 
   // WebView watchdog ping
   useWebViewPing();
