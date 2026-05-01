@@ -270,16 +270,25 @@ fn write_log(
 /// Locate capture_and_send.ps1 at runtime.
 /// Production: resource_dir() == installation directory (NSIS).
 /// Dev:        falls back to the directory containing the current executable.
-fn find_capture_script(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+fn find_capture_script(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
     if let Ok(dir) = app.path().resource_dir() {
-        let p = dir.join("capture_and_send.ps1");
-        if p.exists() { return Some(p); }
+        candidates.push(dir.join("capture_and_send.ps1"));
+        candidates.push(dir.join("resources").join("capture_and_send.ps1"));
     }
     if let Ok(exe) = std::env::current_exe() {
-        let p = exe.parent()?.join("capture_and_send.ps1");
-        if p.exists() { return Some(p); }
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join("capture_and_send.ps1"));
+            candidates.push(parent.join("resources").join("capture_and_send.ps1"));
+        }
     }
-    None
+    candidates.iter()
+        .find(|p| p.exists())
+        .cloned()
+        .ok_or_else(|| format!(
+            "capture_and_send.ps1 not found. Searched: {}",
+            candidates.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join("; ")
+        ))
 }
 
 #[tauri::command]
@@ -288,8 +297,7 @@ fn run_capture_script(
     bridge_url: String,
     app_id: String,
 ) -> Result<(), String> {
-    let script = find_capture_script(&app)
-        .ok_or_else(|| "capture_and_send.ps1 not found".to_string())?;
+    let script = find_capture_script(&app)?;
 
     let output = std::process::Command::new("powershell")
         .args([
