@@ -259,40 +259,193 @@ fn write_log(
 }
 
 // ---------------------------------------------------------------------------
-// Screenshot capture via Tauri WebviewWindow::capture_image()
-// Captures actual WebView2 GPU-rendered content (no GDI black-screen issue).
-// Resizes to max 1920px wide and encodes as JPEG before returning.
+// Screenshot capture via Win32 PrintWindow + PW_RENDERFULLCONTENT
+//
+// CopyFromScreen (GDI) cannot capture GPU-accelerated DirectComposition
+// content (including WebView2), producing a black image. PrintWindow with
+// PW_RENDERFULLCONTENT forces the compositor to render into a GDI DC and
+// works correctly regardless of GPU rendering or display scale factor.
 // ---------------------------------------------------------------------------
+
+#[cfg(target_os = "windows")]
+mod screenshot_win {
+    type HWND    = isize;
+    type HDC     = isize;
+    type HGDIOBJ = isize;
+
+    const PW_RENDERFULLCONTENT: u32 = 0x00000002;
+    const BI_RGB:               u32 = 0;
+    const DIB_RGB_COLORS:       u32 = 0;
+
+    #[repr(C)]
+    struct RECT { left: i32, top: i32, right: i32, bottom: i32 }
+
+    #[repr(C)]
+    #[allow(non_snake_case)]
+    struct BITMAPINFOHEADER {
+        biSize:          u32,
+        biWidth:         i32,
+        biHeight:        i32,
+        biPlanes:        u16,
+        biBitCount:      u16,
+        biCompression:   u32,
+        biSizeImage:     u32,
+        biXPelsPerMeter: i32,
+        biYPelsPerMeter: i32,
+        biClrUsed:       u32,
+        biClrImportant:  u32,
+    }
+
+    // BITMAPINFO with a single (unused) colour entry to satisfy the struct layout.
+    #[repr(C)]
+    #[allow(non_snake_case)]
+    struct BITMAPINFO {
+        bmiHeader: BITMAPINFOHEADER,
+        bmiColors: u32,
+    }
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetWindowRect(hwnd: HWND, lp_rect: *mut RECT) -> i32;
+        fn PrintWindow(hwnd: HWND, hdc_blt: HDC, n_flags: u32) -> i32;
+        fn GetDC(hwnd: HWND) -> HDC;
+        fn ReleaseDC(hwnd: HWND, hdc: HDC) -> i32;
+    }
+
+    #[link(name = "gdi32")]
+    extern "system" {
+        fn CreateCompatibleDC(hdc: HDC) -> HDC;
+        fn CreateCompatibleBitmap(hdc: HDC, cx: i32, cy: i32) -> HGDIOBJ;
+        fn SelectObject(hdc: HDC, h: HGDIOBJ) -> HGDIOBJ;
+        fn DeleteDC(hdc: HDC) -> i32;
+        fn DeleteObject(h: HGDIOBJ) -> i32;
+        fn GetDIBits(
+            hdc: HDC, hbm: HGDIOBJ,
+            start: u32, c_lines: u32,
+            lp_v_bits: *mut u8, lp_bmi: *mut BITMAPINFO,
+            usage: u32,
+        ) -> i32;
+    }
+
+    /// Capture the window identified by `hwnd` using PrintWindow.
+    /// Returns (width, height, RGBA bytes).
+    pub fn capture(hwnd: isize) -> Result<(u32, u32, Vec<u8>), String> {
+        unsafe {
+            let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            if GetWindowRect(hwnd, &mut rect) == 0 {
+                return Err("GetWindowRect failed".to_string());
+            }
+            let w = (rect.right  - rect.left).max(1);
+            let h = (rect.bottom - rect.top ).max(1);
+
+            let screen_dc = GetDC(0);
+            if screen_dc == 0 { return Err("GetDC failed".to_string()); }
+
+            let mem_dc = CreateCompatibleDC(screen_dc);
+            if mem_dc == 0 {
+                ReleaseDC(0, screen_dc);
+                return Err("CreateCompatibleDC failed".to_string());
+            }
+
+            let bmp = CreateCompatibleBitmap(screen_dc, w, h);
+            if bmp == 0 {
+                DeleteDC(mem_dc);
+                ReleaseDC(0, screen_dc);
+                return Err("CreateCompatibleBitmap failed".to_string());
+            }
+
+            let old_obj = SelectObject(mem_dc, bmp);
+
+            // PW_RENDERFULLCONTENT: captures DirectComposition / WebView2 GPU layers
+            let pw_ok = PrintWindow(hwnd, mem_dc, PW_RENDERFULLCONTENT);
+
+            let pixels_result: Result<Vec<u8>, String> = if pw_ok != 0 {
+                let mut bmi = BITMAPINFO {
+                    bmiHeader: BITMAPINFOHEADER {
+                        biSize:          std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                        biWidth:         w,
+                        biHeight:        -h, // negative = top-down scan lines
+                        biPlanes:        1,
+                        biBitCount:      32,
+                        biCompression:   BI_RGB,
+                        biSizeImage:     0,
+                        biXPelsPerMeter: 0,
+                        biYPelsPerMeter: 0,
+                        biClrUsed:       0,
+                        biClrImportant:  0,
+                    },
+                    bmiColors: 0,
+                };
+                let mut bgra = vec![0u8; (w * h * 4) as usize];
+                let lines = GetDIBits(
+                    mem_dc, bmp,
+                    0, h as u32,
+                    bgra.as_mut_ptr(), &mut bmi,
+                    DIB_RGB_COLORS,
+                );
+                if lines > 0 { Ok(bgra) } else { Err("GetDIBits failed".to_string()) }
+            } else {
+                Err("PrintWindow failed".to_string())
+            };
+
+            // Always clean up GDI resources
+            SelectObject(mem_dc, old_obj);
+            DeleteObject(bmp);
+            DeleteDC(mem_dc);
+            ReleaseDC(0, screen_dc);
+
+            let bgra = pixels_result?;
+
+            // GDI returns BGRA; convert to RGBA and force alpha = 255
+            let mut rgba = Vec::with_capacity(bgra.len());
+            for px in bgra.chunks_exact(4) {
+                rgba.push(px[2]); // R
+                rgba.push(px[1]); // G
+                rgba.push(px[0]); // B
+                rgba.push(255);   // A
+            }
+
+            Ok((w as u32, h as u32, rgba))
+        }
+    }
+}
 
 #[tauri::command]
 fn take_screenshot(window: tauri::WebviewWindow) -> Result<Vec<u8>, String> {
-    let img = window.capture_image()
-        .map_err(|e| format!("Capture failed: {}", e))?;
+    #[cfg(target_os = "windows")]
+    {
+        let hwnd = window.hwnd()
+            .map_err(|e| format!("Failed to get HWND: {}", e))?
+            .0 as isize;
 
-    let width = img.width();
-    let height = img.height();
-    let rgba_bytes = img.rgba().to_vec();
-    drop(img);
+        let (width, height, rgba) = screenshot_win::capture(hwnd)?;
 
-    let rgba_img = ::image::RgbaImage::from_raw(width, height, rgba_bytes)
-        .ok_or_else(|| "Failed to build image buffer".to_string())?;
+        let rgba_img = ::image::RgbaImage::from_raw(width, height, rgba)
+            .ok_or_else(|| "Failed to build image buffer".to_string())?;
 
-    let dynamic = ::image::DynamicImage::ImageRgba8(rgba_img);
+        let dynamic = ::image::DynamicImage::ImageRgba8(rgba_img);
 
-    // Scale down if wider than 1920px (e.g. 4K display), preserving aspect ratio
-    const MAX_W: u32 = 1920;
-    let dynamic = if width > MAX_W {
-        let new_h = ((height as u64 * MAX_W as u64) / width as u64) as u32;
-        dynamic.resize_exact(MAX_W, new_h, ::image::imageops::FilterType::Triangle)
-    } else {
-        dynamic
-    };
+        // Resize to max 1920px wide preserving aspect ratio (handles 4K captures)
+        const MAX_W: u32 = 1920;
+        let dynamic = if width > MAX_W {
+            let new_h = ((height as u64 * MAX_W as u64) / width as u64) as u32;
+            dynamic.resize_exact(MAX_W, new_h, ::image::imageops::FilterType::Triangle)
+        } else {
+            dynamic
+        };
 
-    let mut buf = std::io::Cursor::new(Vec::<u8>::new());
-    dynamic.write_to(&mut buf, ::image::ImageFormat::Jpeg)
-        .map_err(|e| format!("JPEG encoding failed: {}", e))?;
+        let mut buf = std::io::Cursor::new(Vec::<u8>::new());
+        dynamic.write_to(&mut buf, ::image::ImageFormat::Jpeg)
+            .map_err(|e| format!("JPEG encoding failed: {}", e))?;
 
-    Ok(buf.into_inner())
+        Ok(buf.into_inner())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = window;
+        Err("Screenshot is only supported on Windows".to_string())
+    }
 }
 
 // ---------------------------------------------------------------------------
