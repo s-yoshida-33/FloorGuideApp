@@ -277,6 +277,12 @@ mod screenshot_win {
     const BI_RGB:               u32 = 0;
     const DIB_RGB_COLORS:       u32 = 0;
 
+    // How many retries and how long to wait between them.
+    // DwmFlush() waits for the compositor's next vsync frame, so 150 ms is
+    // enough buffer even at 60 Hz.  Three attempts cover transient hitches.
+    const MAX_RETRIES:   u32 = 3;
+    const RETRY_DELAY_MS: u64 = 150;
+
     #[repr(C)]
     struct RECT { left: i32, top: i32, right: i32, bottom: i32 }
 
@@ -296,7 +302,6 @@ mod screenshot_win {
         biClrImportant:  u32,
     }
 
-    // BITMAPINFO with a single (unused) colour entry to satisfy the struct layout.
     #[repr(C)]
     #[allow(non_snake_case)]
     struct BITMAPINFO {
@@ -327,9 +332,17 @@ mod screenshot_win {
         ) -> i32;
     }
 
-    /// Capture the window identified by `hwnd` using PrintWindow.
-    /// Returns (width, height, RGBA bytes).
-    pub fn capture(hwnd: isize) -> Result<(u32, u32, Vec<u8>), String> {
+    // DwmFlush() waits until the next DWM vsync frame is presented.
+    // Calling it before PrintWindow ensures the compositor has finished
+    // compositing the current frame, eliminating the race condition that
+    // causes blank captures.
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmFlush() -> i32;
+    }
+
+    /// Single capture attempt. Returns (width, height, BGRA bytes) or an error.
+    fn capture_once(hwnd: isize) -> Result<(i32, i32, Vec<u8>), String> {
         unsafe {
             let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
             if GetWindowRect(hwnd, &mut rect) == 0 {
@@ -355,16 +368,14 @@ mod screenshot_win {
             }
 
             let old_obj = SelectObject(mem_dc, bmp);
-
-            // PW_RENDERFULLCONTENT: captures DirectComposition / WebView2 GPU layers
-            let pw_ok = PrintWindow(hwnd, mem_dc, PW_RENDERFULLCONTENT);
+            let pw_ok   = PrintWindow(hwnd, mem_dc, PW_RENDERFULLCONTENT);
 
             let pixels_result: Result<Vec<u8>, String> = if pw_ok != 0 {
                 let mut bmi = BITMAPINFO {
                     bmiHeader: BITMAPINFOHEADER {
                         biSize:          std::mem::size_of::<BITMAPINFOHEADER>() as u32,
                         biWidth:         w,
-                        biHeight:        -h, // negative = top-down scan lines
+                        biHeight:        -h,
                         biPlanes:        1,
                         biBitCount:      32,
                         biCompression:   BI_RGB,
@@ -383,30 +394,68 @@ mod screenshot_win {
                     bgra.as_mut_ptr(), &mut bmi,
                     DIB_RGB_COLORS,
                 );
-                if lines > 0 { Ok(bgra) } else { Err("GetDIBits failed".to_string()) }
+                if lines > 0 { Ok(bgra) } else { Err("GetDIBits returned 0 lines".to_string()) }
             } else {
-                Err("PrintWindow failed".to_string())
+                Err("PrintWindow returned 0".to_string())
             };
 
-            // Always clean up GDI resources
             SelectObject(mem_dc, old_obj);
             DeleteObject(bmp);
             DeleteDC(mem_dc);
             ReleaseDC(0, screen_dc);
 
-            let bgra = pixels_result?;
+            pixels_result.map(|bgra| (w, h, bgra))
+        }
+    }
 
-            // GDI returns BGRA; convert to RGBA and force alpha = 255
-            let mut rgba = Vec::with_capacity(bgra.len());
-            for px in bgra.chunks_exact(4) {
-                rgba.push(px[2]); // R
-                rgba.push(px[1]); // G
-                rgba.push(px[0]); // B
-                rgba.push(255);   // A
+    /// Returns true if the BGRA buffer looks like a blank (all-black) frame.
+    /// Samples 256 evenly-spaced pixels; if all RGB channels are zero, it's blank.
+    fn is_blank(bgra: &[u8]) -> bool {
+        if bgra.len() < 4 { return true; }
+        let step = ((bgra.len() / 4) / 256).max(1);
+        bgra.chunks_exact(4)
+            .step_by(step)
+            .take(256)
+            .all(|px| px[0] == 0 && px[1] == 0 && px[2] == 0)
+    }
+
+    /// Capture `hwnd` with DwmFlush synchronisation and blank-image retry.
+    /// Returns (width, height, RGBA bytes).
+    pub fn capture(hwnd: isize) -> Result<(u32, u32, Vec<u8>), String> {
+        let mut last_err = String::new();
+
+        for attempt in 0..=MAX_RETRIES {
+            if attempt > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS));
             }
 
-            Ok((w as u32, h as u32, rgba))
+            // Wait for DWM to finish compositing the current frame before reading.
+            unsafe { DwmFlush(); }
+
+            match capture_once(hwnd) {
+                Err(e) => {
+                    last_err = format!("attempt {}: {}", attempt + 1, e);
+                }
+                Ok((w, h, bgra)) => {
+                    if is_blank(&bgra) {
+                        last_err = format!("attempt {}: blank frame", attempt + 1);
+                        continue;
+                    }
+
+                    // Convert BGRA → RGBA, force alpha = 255
+                    let mut rgba = Vec::with_capacity(bgra.len());
+                    for px in bgra.chunks_exact(4) {
+                        rgba.push(px[2]);
+                        rgba.push(px[1]);
+                        rgba.push(px[0]);
+                        rgba.push(255);
+                    }
+                    return Ok((w as u32, h as u32, rgba));
+                }
+            }
         }
+
+        Err(format!("Screenshot failed after {} attempts: {}", MAX_RETRIES + 1, last_err))
     }
 }
 
