@@ -57,7 +57,7 @@ public static class WinCap {
 # Helpers
 # ---------------------------------------------------------------------------
 
-function Capture-GDI {
+function Get-GdiScreenshot {
     $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
     $bmp    = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
     $g      = [System.Drawing.Graphics]::FromImage($bmp)
@@ -66,7 +66,7 @@ function Capture-GDI {
     return $bmp
 }
 
-function Capture-PrintWindow {
+function Get-PrintWindowScreenshot {
     return [WinCap]::Capture()
 }
 
@@ -127,17 +127,17 @@ $bmp    = $null
 $method = 'GDI'
 
 try {
-    $bmp = Capture-GDI
+    $bmp = Get-GdiScreenshot
     if ((Test-Blank $bmp) -or (Test-Uniform $bmp)) {
         Write-Host "GDI frame unusable, switching to PrintWindow..."
         $bmp.Dispose()
-        $bmp    = Capture-PrintWindow
+        $bmp    = Get-PrintWindowScreenshot
         $method = 'PrintWindow'
     }
 } catch {
     Write-Warning "GDI error: $_"
     if ($null -ne $bmp) { $bmp.Dispose(); $bmp = $null }
-    $bmp    = Capture-PrintWindow
+    $bmp    = Get-PrintWindowScreenshot
     $method = 'PrintWindow'
 }
 
