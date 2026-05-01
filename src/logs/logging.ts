@@ -1,5 +1,6 @@
 import type { LogTag, LogContext } from '../types/logging';
 import { invoke } from '@tauri-apps/api/core';
+import { bridgeState } from '../api/bridgeState';
 
 const logToConsole = (
   level: 'debug' | 'info' | 'warn' | 'error',
@@ -18,17 +19,26 @@ const logToFile = async (
   message: string,
   context?: LogContext,
 ) => {
+  const upperLevel = level.toUpperCase();
+  const contextStr = context ? JSON.stringify(context) : undefined;
+
   try {
-    const contextStr = context ? JSON.stringify(context) : undefined;
-    await invoke('write_log', {
-      level: level.toUpperCase(),
-      tag,
-      message,
-      context: contextStr,
-    });
+    await invoke('write_log', { level: upperLevel, tag, message, context: contextStr });
   } catch {
-    // Prevent infinite loop: only console output on file write failure
     console.error('[logging] Failed to write log to file');
+  }
+
+  // Forward to Bridge-Ground asynchronously (fire-and-forget)
+  const { baseUrl, appId } = bridgeState;
+  if (baseUrl && appId) {
+    const now = new Date();
+    const ts = now.toISOString().replace('T', ' ').replace('Z', '').slice(0, 23);
+    const fullMsg = contextStr ? `${message} | ${contextStr}` : message;
+    fetch(`${baseUrl}/api/apps/${appId}/logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timestamp: ts, level: upperLevel, tag, message: fullMsg }),
+    }).catch(() => { /* ignore forwarding errors */ });
   }
 };
 

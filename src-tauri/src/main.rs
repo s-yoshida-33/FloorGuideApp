@@ -259,6 +259,50 @@ fn write_log(
 }
 
 // ---------------------------------------------------------------------------
+// Screenshot capture (Windows: PowerShell + System.Drawing)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn take_screenshot() -> Result<Vec<u8>, String> {
+    let temp_path = std::env::temp_dir().join("gido_screenshot_tmp.jpg");
+    let path_str = temp_path
+        .to_str()
+        .ok_or_else(|| "Invalid temp path".to_string())?
+        .replace('\'', "''");
+
+    let ps_script = format!(
+        "Add-Type -AssemblyName System.Drawing; \
+         Add-Type -AssemblyName System.Windows.Forms; \
+         $s = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; \
+         $bmp = New-Object System.Drawing.Bitmap($s.Width, $s.Height); \
+         $g = [System.Drawing.Graphics]::FromImage($bmp); \
+         $g.CopyFromScreen($s.Location, [System.Drawing.Point]::Empty, $s.Size); \
+         $enc = [System.Drawing.Imaging.Encoder]::Quality; \
+         $params = New-Object System.Drawing.Imaging.EncoderParameters(1); \
+         $params.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter($enc, 80L); \
+         $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object {{ $_.MimeType -eq 'image/jpeg' }}; \
+         $bmp.Save('{}', $codec, $params); \
+         $g.Dispose(); $bmp.Dispose()",
+        path_str
+    );
+
+    let status = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+        .status()
+        .map_err(|e| format!("Failed to run PowerShell: {}", e))?;
+
+    if !status.success() {
+        return Err("Screenshot capture failed".to_string());
+    }
+
+    let bytes = std::fs::read(&temp_path)
+        .map_err(|e| format!("Failed to read screenshot file: {}", e))?;
+    let _ = std::fs::remove_file(&temp_path);
+
+    Ok(bytes)
+}
+
+// ---------------------------------------------------------------------------
 // HTTP proxy (CORS bypass for Bridge API)
 // ---------------------------------------------------------------------------
 
@@ -1564,6 +1608,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             write_log,
+            take_screenshot,
             fetch_shops_proxy,
             get_settings,
             save_settings,

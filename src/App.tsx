@@ -143,8 +143,8 @@ const App: React.FC = () => {
   // Heartbeat
   useHeartbeat();
 
-  // Bridge-Ground app registration & heartbeat
-  useBridgeRegistration(mallId, hostname);
+  // Bridge-Ground app registration & heartbeat (only after settings have loaded)
+  useBridgeRegistration(mallId, hostname, appPhase === 'running');
 
   // WebView watchdog ping
   useWebViewPing();

@@ -88,6 +88,10 @@ class SseClient {
           this.notifyListeners('shops', e.data);
       });
       
+      this.eventSource.addEventListener('screenshot_request', (e) => {
+          this.notifyListeners('screenshot_request', e.data);
+      });
+
       this.eventSource.addEventListener('connected', (e) => {
           this.notifyListeners('connected', e.data);
       });

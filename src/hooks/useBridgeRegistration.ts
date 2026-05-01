@@ -1,8 +1,11 @@
 // src/hooks/useBridgeRegistration.ts
 import { useEffect, useRef } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
+import { invoke } from '@tauri-apps/api/core';
 import { getApiBaseUrl } from '../config';
 import { logInfo, logWarn } from '../logs/logging';
+import { bridgeState } from '../api/bridgeState';
+import { sseClient } from '../api/sseClient';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -36,14 +39,41 @@ async function sendHeartbeat(baseUrl: string, id: string): Promise<boolean> {
   }
 }
 
-export const useBridgeRegistration = (mallId: string, hostname: string) => {
+async function captureAndSendScreenshot(baseUrl: string, id: string): Promise<void> {
+  try {
+    const bytes = await invoke<number[]>('take_screenshot');
+    const blob = new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' });
+    await fetch(`${baseUrl}/api/apps/${id}/screenshot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: blob,
+    });
+    logInfo('BRIDGE_REG', 'Screenshot sent to Bridge-Ground');
+  } catch (e) {
+    logWarn('BRIDGE_REG', 'Screenshot capture failed', { error: String(e) });
+  }
+}
+
+export const useBridgeRegistration = (mallId: string, hostname: string, enabled: boolean) => {
   const appIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!mallId) return;
+    if (!enabled || !mallId) return;
 
     let intervalId: ReturnType<typeof setInterval>;
     let cancelled = false;
+
+    const handleScreenshotRequest = (data: unknown) => {
+      try {
+        const parsed = typeof data === 'string' ? JSON.parse(data) : (data as { appId?: string });
+        if (parsed.appId !== appIdRef.current) return;
+        if (bridgeState.baseUrl && appIdRef.current) {
+          captureAndSendScreenshot(bridgeState.baseUrl, appIdRef.current);
+        }
+      } catch { /* ignore parse errors */ }
+    };
+
+    const unsubscribeScreenshot = sseClient.on('screenshot_request', handleScreenshotRequest);
 
     const start = async () => {
       const [baseUrl, version] = await Promise.all([
@@ -51,30 +81,34 @@ export const useBridgeRegistration = (mallId: string, hostname: string) => {
         getVersion().catch(() => 'unknown'),
       ]);
 
+      bridgeState.baseUrl = baseUrl;
+
       const id = await registerApp(baseUrl, version, mallId, hostname);
       if (cancelled) return;
 
       if (id) {
         appIdRef.current = id;
+        bridgeState.appId = id;
         logInfo('BRIDGE_REG', 'Registered with Bridge-Ground', { id, mallId, hostname });
       }
 
       intervalId = setInterval(async () => {
-        if (appIdRef.current) {
-          const ok = await sendHeartbeat(baseUrl, appIdRef.current);
+        const currentId = appIdRef.current;
+        if (currentId) {
+          const ok = await sendHeartbeat(baseUrl, currentId);
           if (!ok) {
-            // Bridge-Ground may have restarted — re-register
             const newId = await registerApp(baseUrl, version, mallId, hostname);
             if (newId) {
               appIdRef.current = newId;
+              bridgeState.appId = newId;
               logInfo('BRIDGE_REG', 'Re-registered with Bridge-Ground', { id: newId });
             }
           }
         } else {
-          // Previous registration failed — retry
           const newId = await registerApp(baseUrl, version, mallId, hostname);
           if (newId) {
             appIdRef.current = newId;
+            bridgeState.appId = newId;
             logInfo('BRIDGE_REG', 'Registered with Bridge-Ground (retry)', { id: newId });
           }
         }
@@ -85,7 +119,9 @@ export const useBridgeRegistration = (mallId: string, hostname: string) => {
 
     return () => {
       cancelled = true;
+      bridgeState.appId = null;
       if (intervalId) clearInterval(intervalId);
+      unsubscribeScreenshot();
     };
-  }, [mallId, hostname]);
+  }, [enabled, mallId, hostname]);
 };
