@@ -14,12 +14,13 @@ async function registerApp(
   version: string,
   mallId: string,
   hostname: string,
+  startedAt: string,
 ): Promise<string | null> {
   try {
     const res = await fetch(`${baseUrl}/api/apps/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Gido', version, mallId, hostname }),
+      body: JSON.stringify({ name: 'Gido', version, mallId, hostname, startedAt }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = (await res.json()) as { id: string };
@@ -55,7 +56,9 @@ async function captureAndSendScreenshot(baseUrl: string, id: string): Promise<vo
 }
 
 export const useBridgeRegistration = (mallId: string, hostname: string, enabled: boolean) => {
-  const appIdRef = useRef<string | null>(null);
+  const appIdRef   = useRef<string | null>(null);
+  // Capture start time once; stays constant across re-registrations (e.g. Bridge-Ground restart)
+  const startedAt  = useRef(new Date().toISOString());
 
   useEffect(() => {
     if (!enabled || !mallId) return;
@@ -83,7 +86,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
 
       bridgeState.baseUrl = baseUrl;
 
-      const id = await registerApp(baseUrl, version, mallId, hostname);
+      const id = await registerApp(baseUrl, version, mallId, hostname, startedAt.current);
       if (cancelled) return;
 
       if (id) {
@@ -97,7 +100,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
         if (currentId) {
           const ok = await sendHeartbeat(baseUrl, currentId);
           if (!ok) {
-            const newId = await registerApp(baseUrl, version, mallId, hostname);
+            const newId = await registerApp(baseUrl, version, mallId, hostname, startedAt.current);
             if (newId) {
               appIdRef.current = newId;
               bridgeState.appId = newId;
@@ -105,7 +108,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
             }
           }
         } else {
-          const newId = await registerApp(baseUrl, version, mallId, hostname);
+          const newId = await registerApp(baseUrl, version, mallId, hostname, startedAt.current);
           if (newId) {
             appIdRef.current = newId;
             bridgeState.appId = newId;
