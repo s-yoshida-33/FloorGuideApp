@@ -280,8 +280,9 @@ mod screenshot_win {
     // How many retries and how long to wait between them.
     // DwmFlush() waits for the compositor's next vsync frame, so 150 ms is
     // enough buffer even at 60 Hz.  Three attempts cover transient hitches.
-    const MAX_RETRIES:   u32 = 3;
-    const RETRY_DELAY_MS: u64 = 150;
+    const MAX_RETRIES:    u32  = 4;   // up to 5 total attempts
+    const RETRY_DELAY_MS: u64  = 200;
+    const DWM_FLUSHES:    usize = 3;  // wait for 3 vsync frames per attempt
 
     #[repr(C)]
     struct RECT { left: i32, top: i32, right: i32, bottom: i32 }
@@ -408,18 +409,31 @@ mod screenshot_win {
         }
     }
 
-    /// Returns true if the BGRA buffer looks like a blank (all-black) frame.
-    /// Samples 256 evenly-spaced pixels; if all RGB channels are zero, it's blank.
-    fn is_blank(bgra: &[u8]) -> bool {
-        if bgra.len() < 4 { return true; }
-        let step = ((bgra.len() / 4) / 256).max(1);
-        bgra.chunks_exact(4)
-            .step_by(step)
-            .take(256)
-            .all(|px| px[0] == 0 && px[1] == 0 && px[2] == 0)
+    /// Returns true if the BGRA buffer contains usable screenshot content.
+    ///
+    /// Two failure modes are detected:
+    /// 1. All-black frame  — PrintWindow ran but the compositor had nothing yet.
+    /// 2. Near-uniform frame — PrintWindow captured only a partial composition;
+    ///    the un-rendered region is filled with the CSS background colour (solid
+    ///    olive-green, light-blue, etc.).  Real screen content always has
+    ///    meaningful brightness variation from text, icons, and map colours.
+    fn is_usable_frame(bgra: &[u8]) -> bool {
+        if bgra.len() < 4 { return false; }
+        let step = ((bgra.len() / 4) / 512).max(1);
+        let mut min_b = u16::MAX;
+        let mut max_b = 0u16;
+        for px in bgra.chunks_exact(4).step_by(step).take(512) {
+            // brightness = B + G + R  (indices 0-2 in BGRA)
+            let b = px[0] as u16 + px[1] as u16 + px[2] as u16;
+            if b < min_b { min_b = b; }
+            if b > max_b { max_b = b; }
+        }
+        // All-black: max_b == 0.
+        // Near-uniform solid fill: range < 60 (out of 765 max).
+        max_b > 0 && (max_b - min_b) > 60
     }
 
-    /// Capture `hwnd` with DwmFlush synchronisation and blank-image retry.
+    /// Capture `hwnd` with DwmFlush synchronisation and content-validity retry.
     /// Returns (width, height, RGBA bytes).
     pub fn capture(hwnd: isize) -> Result<(u32, u32, Vec<u8>), String> {
         let mut last_err = String::new();
@@ -429,16 +443,23 @@ mod screenshot_win {
                 std::thread::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS));
             }
 
-            // Wait for DWM to finish compositing the current frame before reading.
-            unsafe { DwmFlush(); }
+            // Wait for DWM to finish compositing multiple vsync frames.
+            // One flush is not always sufficient for WebView2's GPU layering;
+            // three flushes (~50 ms at 60 Hz) give the compositor time to
+            // complete all DirectComposition sub-layers.
+            unsafe {
+                for _ in 0..DWM_FLUSHES { DwmFlush(); }
+            }
 
             match capture_once(hwnd) {
                 Err(e) => {
                     last_err = format!("attempt {}: {}", attempt + 1, e);
                 }
                 Ok((w, h, bgra)) => {
-                    if is_blank(&bgra) {
-                        last_err = format!("attempt {}: blank frame", attempt + 1);
+                    if !is_usable_frame(&bgra) {
+                        last_err = format!(
+                            "attempt {}: unusable frame (blank or partial solid-fill)", attempt + 1
+                        );
                         continue;
                     }
 
