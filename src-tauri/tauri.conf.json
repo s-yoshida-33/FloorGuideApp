@@ -65,6 +65,9 @@
     "icon": [
       "icons/icon.ico"
     ],
+    "resources": [
+      "resources/capture_and_send.ps1"
+    ],
     "publisher": "Toei Techno International Inc.",
     "copyright": "© 2026 Toei Techno International Inc.",
     "windows": {

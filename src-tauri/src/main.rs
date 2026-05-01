@@ -259,14 +259,64 @@ fn write_log(
 }
 
 // ---------------------------------------------------------------------------
-// Screenshot capture via Win32 PrintWindow + PW_RENDERFULLCONTENT
+// Screenshot: delegate to capture_and_send.ps1 (external process)
 //
-// CopyFromScreen (GDI) cannot capture GPU-accelerated DirectComposition
-// content (including WebView2), producing a black image. PrintWindow with
-// PW_RENDERFULLCONTENT forces the compositor to render into a GDI DC and
-// works correctly regardless of GPU rendering or display scale factor.
+// Running capture in a separate PowerShell process avoids the WebView2
+// DirectComposition race that caused blank/partial images when calling
+// PrintWindow from within the Tauri process.  The script handles capture,
+// resize, and POSTing to Bridge-Ground directly.
 // ---------------------------------------------------------------------------
 
+/// Locate capture_and_send.ps1 at runtime.
+/// Production: resource_dir() == installation directory (NSIS).
+/// Dev:        falls back to the directory containing the current executable.
+fn find_capture_script(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    if let Ok(dir) = app.path().resource_dir() {
+        let p = dir.join("capture_and_send.ps1");
+        if p.exists() { return Some(p); }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        let p = exe.parent()?.join("capture_and_send.ps1");
+        if p.exists() { return Some(p); }
+    }
+    None
+}
+
+#[tauri::command]
+fn run_capture_script(
+    app: tauri::AppHandle,
+    bridge_url: String,
+    app_id: String,
+) -> Result<(), String> {
+    let script = find_capture_script(&app)
+        .ok_or_else(|| "capture_and_send.ps1 not found".to_string())?;
+
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy", "Bypass",
+            "-File", script.to_str().unwrap_or(""),
+            "-BridgeUrl", &bridge_url,
+            "-AppId",     &app_id,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to launch PowerShell: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "Script failed (exit {}): {} {}",
+            output.status.code().unwrap_or(-1),
+            stderr.trim(),
+            stdout.trim(),
+        ));
+    }
+    Ok(())
+}
+
+// Keep the old Win32 module around so we can resurrect it easily if needed.
 #[cfg(target_os = "windows")]
 mod screenshot_win {
     type HWND    = isize;
@@ -1824,7 +1874,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             write_log,
-            take_screenshot,
+            run_capture_script,
             fetch_shops_proxy,
             get_settings,
             save_settings,
