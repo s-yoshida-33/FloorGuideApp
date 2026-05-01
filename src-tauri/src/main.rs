@@ -259,46 +259,40 @@ fn write_log(
 }
 
 // ---------------------------------------------------------------------------
-// Screenshot capture (Windows: PowerShell + System.Drawing)
+// Screenshot capture via Tauri WebviewWindow::capture_image()
+// Captures actual WebView2 GPU-rendered content (no GDI black-screen issue).
+// Resizes to max 1920px wide and encodes as JPEG before returning.
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-fn take_screenshot() -> Result<Vec<u8>, String> {
-    let temp_path = std::env::temp_dir().join("gido_screenshot_tmp.jpg");
-    let path_str = temp_path
-        .to_str()
-        .ok_or_else(|| "Invalid temp path".to_string())?
-        .replace('\'', "''");
+fn take_screenshot(window: tauri::WebviewWindow) -> Result<Vec<u8>, String> {
+    let img = window.capture_image()
+        .map_err(|e| format!("Capture failed: {}", e))?;
 
-    // Simplified script: avoid EncoderParameters (codec array issue).
-    // CopyFromScreen(0,0,0,0,size) captures primary screen from origin.
-    let ps_script = format!(
-        "Add-Type -AssemblyName System.Drawing; \
-         Add-Type -AssemblyName System.Windows.Forms; \
-         $s = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; \
-         $bmp = New-Object System.Drawing.Bitmap($s.Width, $s.Height); \
-         $g = [System.Drawing.Graphics]::FromImage($bmp); \
-         $g.CopyFromScreen($s.X, $s.Y, 0, 0, $bmp.Size); \
-         $bmp.Save('{}', [System.Drawing.Imaging.ImageFormat]::Jpeg); \
-         $g.Dispose(); $bmp.Dispose()",
-        path_str
-    );
+    let width = img.width();
+    let height = img.height();
+    let rgba_bytes = img.rgba().to_vec();
+    drop(img);
 
-    let output = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
-        .output()
-        .map_err(|e| format!("Failed to run PowerShell: {}", e))?;
+    let rgba_img = ::image::RgbaImage::from_raw(width, height, rgba_bytes)
+        .ok_or_else(|| "Failed to build image buffer".to_string())?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Screenshot capture failed: {}", stderr.trim()));
-    }
+    let dynamic = ::image::DynamicImage::ImageRgba8(rgba_img);
 
-    let bytes = std::fs::read(&temp_path)
-        .map_err(|e| format!("Failed to read screenshot file: {}", e))?;
-    let _ = std::fs::remove_file(&temp_path);
+    // Scale down if wider than 1920px (e.g. 4K display), preserving aspect ratio
+    const MAX_W: u32 = 1920;
+    let dynamic = if width > MAX_W {
+        let new_h = ((height as u64 * MAX_W as u64) / width as u64) as u32;
+        dynamic.resize_exact(MAX_W, new_h, ::image::imageops::FilterType::Triangle)
+    } else {
+        dynamic
+    };
 
-    Ok(bytes)
+    let mut buf = std::io::Cursor::new(Vec::<u8>::new());
+    dynamic.write_to(&mut buf, ::image::ImageFormat::Jpeg)
+        .map_err(|e| format!("JPEG encoding failed: {}", e))?;
+
+    Ok(buf.into_inner())
 }
 
 // ---------------------------------------------------------------------------
