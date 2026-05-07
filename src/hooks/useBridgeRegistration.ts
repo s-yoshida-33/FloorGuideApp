@@ -5,9 +5,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { getApiBaseUrl } from '../config';
 import { logInfo, logWarn } from '../logs/logging';
 import { bridgeState } from '../api/bridgeState';
-import { sseClient } from '../api/sseClient';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
+const WS_RECONNECT_DELAY_MS = 5_000;
 
 async function registerApp(
   baseUrl: string,
@@ -41,39 +41,97 @@ async function sendHeartbeat(baseUrl: string, id: string): Promise<boolean> {
   }
 }
 
-async function captureAndSendScreenshot(baseUrl: string, id: string): Promise<void> {
-  try {
-    // Capture and POST are handled entirely by capture_and_send.ps1 running
-    // as an independent process, avoiding WebView2 DirectComposition issues.
-    await invoke('run_capture_script', { bridgeUrl: baseUrl, appId: id });
-    logInfo('BRIDGE_REG', 'Screenshot sent to Bridge-Ground');
-  } catch (e) {
-    logWarn('BRIDGE_REG', 'Screenshot capture failed', { error: String(e) });
-  }
+async function captureScreenshot(baseUrl: string, id: string): Promise<void> {
+  // Dynamic import keeps html2canvas out of the initial bundle.
+  const { default: html2canvas } = await import('html2canvas');
+
+  const canvas = await html2canvas(document.documentElement, {
+    useCORS: true,
+    allowTaint: false,
+    logging: false,
+    scale: 1,
+  });
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.85),
+  );
+  if (!blob) throw new Error('canvas.toBlob returned null');
+
+  const res = await fetch(`${baseUrl}/api/apps/${id}/screenshot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg' },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`Upload HTTP ${res.status}`);
+  logInfo('BRIDGE_WS', 'Screenshot uploaded to Bridge-Ground');
+}
+
+// openScreenshotWS opens a WebSocket to receive screenshot_request commands.
+// Returns a cleanup function that closes the socket and stops reconnection.
+function openScreenshotWS(
+  baseUrl: string,
+  id: string,
+  isCancelled: () => boolean,
+): () => void {
+  const wsUrl = baseUrl.replace(/^http/, 'ws');
+  let ws: WebSocket | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const connect = () => {
+    if (isCancelled()) return;
+
+    ws = new WebSocket(`${wsUrl}/api/apps/ws?id=${id}`);
+
+    ws.onopen = () => {
+      logInfo('BRIDGE_WS', 'WebSocket connected');
+    };
+
+    ws.onmessage = async (event) => {
+      try {
+        const msg = JSON.parse(event.data as string) as { type?: string };
+        if (msg.type !== 'screenshot_request') return;
+        await captureScreenshot(baseUrl, id);
+      } catch (e) {
+        logWarn('BRIDGE_WS', 'Screenshot capture failed', { error: String(e) });
+      }
+    };
+
+    ws.onclose = () => {
+      ws = null;
+      if (!isCancelled()) {
+        reconnectTimer = setTimeout(connect, WS_RECONNECT_DELAY_MS);
+      }
+    };
+
+    ws.onerror = () => {
+      logWarn('BRIDGE_WS', 'WebSocket error — will reconnect');
+    };
+  };
+
+  connect();
+
+  return () => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    ws?.close();
+  };
 }
 
 export const useBridgeRegistration = (mallId: string, hostname: string, enabled: boolean) => {
-  const appIdRef   = useRef<string | null>(null);
+  const appIdRef  = useRef<string | null>(null);
   // Capture start time once; stays constant across re-registrations (e.g. Bridge-Ground restart)
-  const startedAt  = useRef(new Date().toISOString());
+  const startedAt = useRef(new Date().toISOString());
 
   useEffect(() => {
     if (!enabled || !mallId) return;
 
     let intervalId: ReturnType<typeof setInterval>;
     let cancelled = false;
+    let closeWS: (() => void) | null = null;
 
-    const handleScreenshotRequest = (data: unknown) => {
-      try {
-        const parsed = typeof data === 'string' ? JSON.parse(data) : (data as { appId?: string });
-        if (parsed.appId !== appIdRef.current) return;
-        if (bridgeState.baseUrl && appIdRef.current) {
-          captureAndSendScreenshot(bridgeState.baseUrl, appIdRef.current);
-        }
-      } catch { /* ignore parse errors */ }
+    const connectWS = (baseUrl: string, id: string) => {
+      closeWS?.();
+      closeWS = openScreenshotWS(baseUrl, id, () => cancelled);
     };
-
-    const unsubscribeScreenshot = sseClient.on('screenshot_request', handleScreenshotRequest);
 
     const start = async () => {
       const [baseUrl, version, logDir] = await Promise.all([
@@ -91,6 +149,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
         appIdRef.current = id;
         bridgeState.appId = id;
         logInfo('BRIDGE_REG', 'Registered with Bridge-Ground', { id, mallId, hostname });
+        connectWS(baseUrl, id);
       }
 
       intervalId = setInterval(async () => {
@@ -103,6 +162,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
               appIdRef.current = newId;
               bridgeState.appId = newId;
               logInfo('BRIDGE_REG', 'Re-registered with Bridge-Ground', { id: newId });
+              connectWS(baseUrl, newId);
             }
           }
         } else {
@@ -111,6 +171,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
             appIdRef.current = newId;
             bridgeState.appId = newId;
             logInfo('BRIDGE_REG', 'Registered with Bridge-Ground (retry)', { id: newId });
+            connectWS(baseUrl, newId);
           }
         }
       }, HEARTBEAT_INTERVAL_MS);
@@ -122,7 +183,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
       cancelled = true;
       bridgeState.appId = null;
       if (intervalId) clearInterval(intervalId);
-      unsubscribeScreenshot();
+      closeWS?.();
     };
   }, [enabled, mallId, hostname]);
 };
