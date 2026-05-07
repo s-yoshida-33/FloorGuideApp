@@ -1,6 +1,5 @@
 import type { LogTag, LogContext } from '../types/logging';
 import { invoke } from '@tauri-apps/api/core';
-import { bridgeState } from '../api/bridgeState';
 
 const logToConsole = (
   level: 'debug' | 'info' | 'warn' | 'error',
@@ -26,22 +25,6 @@ const logToFile = async (
     await invoke('write_log', { level: upperLevel, tag, message, context: contextStr });
   } catch {
     console.error('[logging] Failed to write log to file');
-  }
-
-  // Forward to Bridge-Ground asynchronously (fire-and-forget)
-  const { baseUrl, appId } = bridgeState;
-  if (baseUrl && appId) {
-    const now = new Date();
-    // Use local time (JST) to match the Rust write_log timestamp format.
-    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
-    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
-               `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
-    const fullMsg = contextStr ? `${message} | ${contextStr}` : message;
-    fetch(`${baseUrl}/api/apps/${appId}/logs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ timestamp: ts, level: upperLevel, tag, message: fullMsg }),
-    }).catch(() => { /* ignore forwarding errors */ });
   }
 };
 

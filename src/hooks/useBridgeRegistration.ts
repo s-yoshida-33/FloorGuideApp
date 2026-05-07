@@ -15,12 +15,13 @@ async function registerApp(
   mallId: string,
   hostname: string,
   startedAt: string,
+  logDir: string,
 ): Promise<string | null> {
   try {
     const res = await fetch(`${baseUrl}/api/apps/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Gido', version, mallId, hostname, startedAt }),
+      body: JSON.stringify({ name: 'Gido', version, mallId, hostname, startedAt, logDir, logPrefix: 'gido' }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = (await res.json()) as { id: string };
@@ -75,14 +76,15 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
     const unsubscribeScreenshot = sseClient.on('screenshot_request', handleScreenshotRequest);
 
     const start = async () => {
-      const [baseUrl, version] = await Promise.all([
+      const [baseUrl, version, logDir] = await Promise.all([
         getApiBaseUrl(),
         getVersion().catch(() => 'unknown'),
+        invoke<string>('get_log_directory').catch(() => ''),
       ]);
 
       bridgeState.baseUrl = baseUrl;
 
-      const id = await registerApp(baseUrl, version, mallId, hostname, startedAt.current);
+      const id = await registerApp(baseUrl, version, mallId, hostname, startedAt.current, logDir);
       if (cancelled) return;
 
       if (id) {
@@ -96,7 +98,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
         if (currentId) {
           const ok = await sendHeartbeat(baseUrl, currentId);
           if (!ok) {
-            const newId = await registerApp(baseUrl, version, mallId, hostname, startedAt.current);
+            const newId = await registerApp(baseUrl, version, mallId, hostname, startedAt.current, logDir);
             if (newId) {
               appIdRef.current = newId;
               bridgeState.appId = newId;
@@ -104,7 +106,7 @@ export const useBridgeRegistration = (mallId: string, hostname: string, enabled:
             }
           }
         } else {
-          const newId = await registerApp(baseUrl, version, mallId, hostname, startedAt.current);
+          const newId = await registerApp(baseUrl, version, mallId, hostname, startedAt.current, logDir);
           if (newId) {
             appIdRef.current = newId;
             bridgeState.appId = newId;
