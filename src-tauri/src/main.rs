@@ -70,6 +70,11 @@ fn get_log_file_path() -> Result<PathBuf, String> {
     Ok(log_dir.join(format!("gido-{}.log", today)))
 }
 
+#[tauri::command]
+fn get_log_directory() -> Result<String, String> {
+    get_log_dir().map(|p| p.to_string_lossy().to_string())
+}
+
 /// Delete log files older than `max_age_days` from the log directory.
 fn cleanup_old_logs(max_age_days: u64) {
     let log_dir = match get_log_dir() {
@@ -1630,6 +1635,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             write_log,
+            get_log_directory,
             run_capture_script,
             fetch_shops_proxy,
             get_settings,
