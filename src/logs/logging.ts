@@ -32,7 +32,10 @@ const logToFile = async (
   const { baseUrl, appId } = bridgeState;
   if (baseUrl && appId) {
     const now = new Date();
-    const ts = now.toISOString().replace('T', ' ').replace('Z', '').slice(0, 23);
+    // Use local time (JST) to match the Rust write_log timestamp format.
+    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+               `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
     const fullMsg = contextStr ? `${message} | ${contextStr}` : message;
     fetch(`${baseUrl}/api/apps/${appId}/logs`, {
       method: 'POST',
