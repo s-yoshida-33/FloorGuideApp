@@ -6,7 +6,7 @@
   "description": "Floor guide display system",
   "author": "Toei Techno International Inc.",
   "license": "UNLICENSED",
-  "copyright": "\u00a9 2026 Toei Techno International Inc.",
+  "copyright": "© 2026 Toei Techno International Inc.",
   "repository": {
     "type": "git",
     "url": "https://github.com/s-yoshida-33/Gido.git"
@@ -32,6 +32,7 @@
     "@tauri-apps/plugin-process": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",
     "framer-motion": "^12.23.24",
+    "html2canvas": "^1.4.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-zoom-pan-pinch": "^3.7.0"
