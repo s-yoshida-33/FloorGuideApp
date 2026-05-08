@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
+import html2canvas from 'html2canvas';
 import { getApiBaseUrl } from '../config';
 import { logInfo, logWarn } from '../logs/logging';
 import { bridgeState } from '../api/bridgeState';
@@ -42,9 +43,6 @@ async function sendHeartbeat(baseUrl: string, id: string): Promise<boolean> {
 }
 
 async function captureScreenshot(baseUrl: string, id: string): Promise<void> {
-  // Dynamic import keeps html2canvas out of the initial bundle.
-  const { default: html2canvas } = await import('html2canvas');
-
   const canvas = await html2canvas(document.documentElement, {
     useCORS: true,
     allowTaint: false,
