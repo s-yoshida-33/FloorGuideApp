@@ -1532,16 +1532,6 @@ fn write_to_log_file_direct(tag: &str, message: &str) {
     }
 }
 
-fn write_to_log_file_at_level(level: &str, tag: &str, message: &str) {
-    if let Ok(path) = get_log_file_path() {
-        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
-        let entry = format!("[{}] [{}] [{}] {}\n", timestamp, level, tag, message);
-        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
-            let _ = file.write_all(entry.as_bytes());
-        }
-    }
-}
-
 /// Install a custom panic hook that logs the panic to the log file and stderr
 /// before the process terminates.
 fn install_panic_hook() {
@@ -1607,51 +1597,6 @@ fn setup_system_tray(app: &tauri::App) -> Result<tauri::tray::TrayIcon, Box<dyn 
         .build(app)?;
 
     Ok(tray)
-}
-
-// ---------------------------------------------------------------------------
-// Scheduled 3 AM restart: force-exit to clear network cache and zombie processes
-// ---------------------------------------------------------------------------
-
-fn start_scheduled_restart() {
-    std::thread::spawn(|| {
-        loop {
-            let now = Local::now();
-            let today_3am = now.date_naive().and_hms_opt(3, 0, 0).unwrap();
-            let next_3am = if now.time() < chrono::NaiveTime::from_hms_opt(3, 0, 0).unwrap() {
-                today_3am
-                    .and_local_timezone(Local)
-                    .earliest()
-                    .unwrap_or_else(|| {
-                        (today_3am + chrono::Duration::days(1))
-                            .and_local_timezone(Local)
-                            .unwrap()
-                    })
-            } else {
-                (today_3am + chrono::Duration::days(1))
-                    .and_local_timezone(Local)
-                    .earliest()
-                    .unwrap_or_else(|| {
-                        (today_3am + chrono::Duration::days(2))
-                            .and_local_timezone(Local)
-                            .unwrap()
-                    })
-            };
-            let wait = (next_3am - now)
-                .to_std()
-                .unwrap_or(std::time::Duration::from_secs(3600));
-            write_to_log_file_at_level(
-                "INFO", "SYSTEM",
-                &format!("Scheduled restart armed: next 03:00 in {:.0}s", wait.as_secs_f64()),
-            );
-            std::thread::sleep(wait);
-            let msg = "Scheduled 03:00 restart: force-exit to clear network cache and zombie processes";
-            write_to_log_file_at_level("INFO", "SYSTEM", msg);
-            send_slack_notification("INFO", "SYSTEM", msg, false, "scheduled_restart_03am");
-            FORCE_QUIT.store(true, Ordering::Relaxed);
-            std::process::exit(0);
-        }
-    });
 }
 
 fn main() {
@@ -1733,7 +1678,6 @@ fn main() {
     };
 
     start_webview_watchdog(app.handle().clone());
-    start_scheduled_restart();
 
     // Start foreground focus guard (Windows only).
     // Detects when another window steals focus and restores the Gido window
