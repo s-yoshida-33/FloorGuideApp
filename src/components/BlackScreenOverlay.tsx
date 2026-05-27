@@ -65,6 +65,7 @@ const BlackScreenOverlay: React.FC<BlackScreenOverlayProps> = ({
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (e.button !== 2) return;
     setMenuPos({ x: e.clientX, y: e.clientY });
     setShowMenu(true);
   }, []);
