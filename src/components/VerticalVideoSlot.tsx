@@ -42,12 +42,19 @@ const VerticalVideoSlot: React.FC = () => {
   const [iframeLoaded, setIframeLoaded] = React.useState(false);
   const resizeObserverRef = React.useRef<ResizeObserver | null>(null);
 
-  // Transition overlay to prevent black screen when switching to link content.
+  // Transition overlay: keep the previous frame visible above the loading iframe
+  // so there is no black screen during the video → link transition.
   //
-  // A single canvas element is reused for the lifetime of each video asset.
-  // On cleanup, canvas dimensions are set to 0 to immediately release the GPU
-  // backing store rather than waiting for GC — this avoids the frame-accumulation
-  // memory leak that occurred with per-capture canvas creation.
+  // Root cause of the previous black-screen bug:
+  //   React runs ALL effect cleanups before ANY new effect setups when a dep changes.
+  //   The capture-effect cleanup was nulling latestVideoFrameRef, so by the time
+  //   the overlay-activation effect ran its setup and read the ref, it was already null.
+  //
+  // Fix:
+  //   • Capture-effect cleanup does NOT null latestVideoFrameRef.
+  //   • Overlay-activation effect reads the ref first, THEN nulls it.
+  //   • An immediate capture is attempted when the canvas is created so the ref
+  //     is never empty during the critical transition window.
   const captureCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const latestVideoFrameRef = React.useRef<string | null>(null);
   const prevAssetRef = React.useRef<typeof asset>(null);
@@ -78,9 +85,10 @@ const VerticalVideoSlot: React.FC = () => {
     setIframeLoaded(false);
   }, [asset?.id]);
 
-  // Periodically capture the current video frame while a video asset is playing.
-  // Uses a single reused canvas per asset; dimensions are zeroed on cleanup to
-  // release GPU memory deterministically (not GC-dependent).
+  // Periodically capture the current video frame (1 s interval).
+  // IMPORTANT: cleanup intentionally does NOT null latestVideoFrameRef so that
+  // the overlay-activation effect (which runs its setup AFTER this cleanup) can
+  // still read the last captured frame before nulling it itself.
   React.useEffect(() => {
     if (!asset) return;
     const isVideo =
@@ -88,50 +96,50 @@ const VerticalVideoSlot: React.FC = () => {
       asset.mediaType !== 'link' &&
       !/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src || '');
 
-    if (!isVideo) {
-      latestVideoFrameRef.current = null;
-      return;
-    }
+    if (!isVideo) return;
 
-    // Create one canvas for this asset's lifetime
     const canvas = document.createElement('canvas');
     captureCanvasRef.current = canvas;
 
     const capture = () => {
       const v = videoRef.current;
       if (!v || v.readyState < 2 || v.videoWidth === 0) return;
-
-      // Resize canvas only when video dimensions change (avoids reallocation)
       if (canvas.width !== v.videoWidth || canvas.height !== v.videoHeight) {
         canvas.width = v.videoWidth;
         canvas.height = v.videoHeight;
       }
-
       try {
         canvas.getContext('2d')?.drawImage(v, 0, 0);
         latestVideoFrameRef.current = canvas.toDataURL('image/jpeg', 0.85);
       } catch {
-        // ignore cross-origin or security errors
+        // ignore cross-origin / security errors
       }
     };
+
+    // Attempt an immediate capture so the ref is populated from frame 1,
+    // not only after the first interval tick (1 s later).
+    capture();
 
     const id = window.setInterval(capture, 1000);
 
     return () => {
       window.clearInterval(id);
-      // Zero out dimensions to release the GPU backing store immediately,
-      // then drop the reference so the element can be GC'd.
+      // Release GPU backing store deterministically.
       canvas.width = 0;
       canvas.height = 0;
       captureCanvasRef.current = null;
-      latestVideoFrameRef.current = null;
+      // DO NOT null latestVideoFrameRef here — the overlay-activation effect
+      // reads it in its own setup which runs after this cleanup.
     };
   }, [asset?.id]);
 
-  // Activate overlay when asset changes to link
+  // Activate overlay when asset changes to link.
+  // This effect's setup runs AFTER the capture-effect cleanup, so latestVideoFrameRef
+  // still holds the last frame at this point. We null it here once consumed.
   React.useEffect(() => {
     if (!asset) {
       prevAssetRef.current = null;
+      latestVideoFrameRef.current = null;
       return;
     }
 
@@ -143,8 +151,11 @@ const VerticalVideoSlot: React.FC = () => {
           /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(prev.src);
         setOverlaySnapshot(isPrevImage ? prev.src : latestVideoFrameRef.current);
       }
+      // Consumed — release the frame data
+      latestVideoFrameRef.current = null;
     } else {
       setOverlaySnapshot(null);
+      latestVideoFrameRef.current = null;
     }
 
     prevAssetRef.current = asset;
@@ -162,7 +173,6 @@ const VerticalVideoSlot: React.FC = () => {
       if (freezeTimerRef.current !== undefined) window.clearInterval(freezeTimerRef.current);
       if (healthCheckTimerRef.current !== undefined) window.clearInterval(healthCheckTimerRef.current);
       if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
-      // Release capture canvas GPU memory on unmount
       if (captureCanvasRef.current) {
         captureCanvasRef.current.width = 0;
         captureCanvasRef.current.height = 0;
@@ -353,7 +363,7 @@ const VerticalVideoSlot: React.FC = () => {
     logDebug('CMS_DELIVERY', 'Preloading next CMS asset', { nextAssetId: nextAsset.id });
   }, [nextAsset?.id, nextAsset?.src]);
 
-  // ─── No asset ───────────────────────────────────────────────────────
+  // ─── No asset ──────────────────────────────────────────────────────
 
   if (!asset) {
     if (!isLoading) {
@@ -373,7 +383,7 @@ const VerticalVideoSlot: React.FC = () => {
     (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
   const isLink = asset.mediaType === 'link';
 
-  // ─── Image ────────────────────────────────────────────────────────────
+  // ─── Image ──────────────────────────────────────────────────────────
 
   if (isImage) {
     return (
@@ -389,7 +399,7 @@ const VerticalVideoSlot: React.FC = () => {
     );
   }
 
-  // ─── Link (iframe) ────────────────────────────────────────────────────
+  // ─── Link (iframe) ───────────────────────────────────────────────────
 
   if (isLink) {
     let iframeTransform: string | undefined;
@@ -408,7 +418,6 @@ const VerticalVideoSlot: React.FC = () => {
         ref={linkContainerRef}
         style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#000' }}
       >
-        {/* Iframe loads in the background (z-index 1) */}
         <iframe
           key={`iframe-${asset.id}`}
           src={asset.src}
@@ -433,8 +442,8 @@ const VerticalVideoSlot: React.FC = () => {
           }}
         />
 
-        {/* Overlay: previous frame on top (z-index 2) while iframe loads.
-            Cleared instantly on iframe load to match cut-style transitions. */}
+        {/* Previous frame overlay (z-index 2): stays visible until iframe is ready,
+            then cleared instantly on onLoad to match cut-style transitions. */}
         {overlaySnapshot && (
           <img
             src={overlaySnapshot}
