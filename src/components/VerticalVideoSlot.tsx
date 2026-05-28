@@ -15,9 +15,6 @@ const MAX_RECREATE_COUNT = 3;
 const LINK_CONTENT_W = 1080;
 const LINK_CONTENT_H = 1920;
 
-// Duration of the overlay fade-out transition (ms)
-const OVERLAY_FADE_MS = 400;
-
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
   const muted = audioSettings.cmsMuted;
@@ -51,11 +48,9 @@ const VerticalVideoSlot: React.FC = () => {
   // Flow:
   //   1. nextAsset becomes 'link'  → capture current video/image frame into capturedFrameRef
   //   2. asset becomes 'link'      → activate overlay from capturedFrameRef
-  //   3. iframe onLoad fires       → fade overlay out, then clear it
+  //   3. iframe onLoad fires       → clear overlay immediately (instant switch)
   const capturedFrameRef = React.useRef<string | null>(null);
   const [overlaySnapshot, setOverlaySnapshot] = React.useState<string | null>(null);
-  const [overlayShouldFade, setOverlayShouldFade] = React.useState(false);
-  const overlayFadeTimerRef = React.useRef<number | undefined>(undefined);
 
   // Callback ref: attach ResizeObserver when the link container div mounts/unmounts
   const linkContainerRef = React.useCallback((el: HTMLDivElement | null) => {
@@ -92,10 +87,8 @@ const VerticalVideoSlot: React.FC = () => {
       /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src || '');
 
     if (isCurrentImage && asset.src) {
-      // Image: use the URL directly as overlay source
       capturedFrameRef.current = asset.src;
     } else if (videoRef.current && videoRef.current.readyState >= 2) {
-      // Video: draw current frame onto a canvas and encode as JPEG data URL
       const v = videoRef.current;
       const canvas = document.createElement('canvas');
       canvas.width = v.videoWidth || 1;
@@ -113,30 +106,19 @@ const VerticalVideoSlot: React.FC = () => {
   React.useEffect(() => {
     if (!asset) return;
     if (asset.mediaType !== 'link') {
-      // Leaving link content — clear any leftover overlay immediately
-      if (overlayFadeTimerRef.current) window.clearTimeout(overlayFadeTimerRef.current);
       setOverlaySnapshot(null);
-      setOverlayShouldFade(false);
       capturedFrameRef.current = null;
       return;
     }
     if (capturedFrameRef.current) {
       setOverlaySnapshot(capturedFrameRef.current);
-      setOverlayShouldFade(false);
     }
   }, [asset?.id]);
 
-  // Step 3: When the iframe finishes loading, fade out the overlay.
+  // Step 3: When the iframe finishes loading, clear the overlay immediately.
   React.useEffect(() => {
-    if (!iframeLoaded || !overlaySnapshot) return;
-    setOverlayShouldFade(true);
-    overlayFadeTimerRef.current = window.setTimeout(() => {
-      setOverlaySnapshot(null);
-      setOverlayShouldFade(false);
-    }, OVERLAY_FADE_MS + 50);
-    return () => {
-      if (overlayFadeTimerRef.current) window.clearTimeout(overlayFadeTimerRef.current);
-    };
+    if (!iframeLoaded) return;
+    setOverlaySnapshot(null);
   }, [iframeLoaded]);
 
   // Cleanup all resources on unmount
@@ -145,7 +127,6 @@ const VerticalVideoSlot: React.FC = () => {
       if (retryTimerRef.current !== undefined) window.clearTimeout(retryTimerRef.current);
       if (freezeTimerRef.current !== undefined) window.clearInterval(freezeTimerRef.current);
       if (healthCheckTimerRef.current !== undefined) window.clearInterval(healthCheckTimerRef.current);
-      if (overlayFadeTimerRef.current !== undefined) window.clearTimeout(overlayFadeTimerRef.current);
       if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
       if (preloadVideoRef.current) {
         preloadVideoRef.current.pause();
@@ -331,7 +312,7 @@ const VerticalVideoSlot: React.FC = () => {
     logDebug('CMS_DELIVERY', 'Preloading next CMS asset', { nextAssetId: nextAsset.id });
   }, [nextAsset?.id, nextAsset?.src]);
 
-  // ─── No asset ──────────────────────────────────────────────────────────────
+  // ─── No asset ────────────────────────────────────────────────────────────
 
   if (!asset) {
     if (!isLoading) {
@@ -351,7 +332,7 @@ const VerticalVideoSlot: React.FC = () => {
     (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
   const isLink = asset.mediaType === 'link';
 
-  // ─── Image ─────────────────────────────────────────────────────────────────
+  // ─── Image ───────────────────────────────────────────────────────────────
 
   if (isImage) {
     return (
@@ -367,10 +348,9 @@ const VerticalVideoSlot: React.FC = () => {
     );
   }
 
-  // ─── Link (iframe) ─────────────────────────────────────────────────────────
+  // ─── Link (iframe) ───────────────────────────────────────────────────────
 
   if (isLink) {
-    // Scale the fixed-size iframe down to fit the container, centered
     let iframeTransform: string | undefined;
     if (containerSize.width > 0 && containerSize.height > 0) {
       const scale = Math.min(
@@ -412,8 +392,8 @@ const VerticalVideoSlot: React.FC = () => {
           }}
         />
 
-        {/* Overlay: previous frame stays visible on top (z-index 2) while iframe loads,
-            then fades out once the iframe is ready — prevents any black flash. */}
+        {/* Overlay: previous frame stays on top (z-index 2) until iframe is ready,
+            then cleared instantly to match the cut-style transitions of other content. */}
         {overlaySnapshot && (
           <img
             src={overlaySnapshot}
@@ -425,8 +405,6 @@ const VerticalVideoSlot: React.FC = () => {
               objectFit: 'cover',
               zIndex: 2,
               pointerEvents: 'none',
-              opacity: overlayShouldFade ? 0 : 1,
-              transition: `opacity ${OVERLAY_FADE_MS}ms ease`,
             }}
           />
         )}
@@ -434,7 +412,7 @@ const VerticalVideoSlot: React.FC = () => {
     );
   }
 
-  // ─── Video (default) ───────────────────────────────────────────────────────
+  // ─── Video (default) ─────────────────────────────────────────────────────
 
   return (
     <>
