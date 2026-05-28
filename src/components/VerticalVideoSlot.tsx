@@ -80,7 +80,8 @@ const VerticalVideoSlot: React.FC = () => {
 
     const isImage = asset.mediaType === 'image' ||
       (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
-    if (isImage) return;
+    const isLink = asset.mediaType === 'link';
+    if (isImage || isLink) return;
 
     if (isScheduleTransitioning) {
       if (!video.paused) {
@@ -114,7 +115,8 @@ const VerticalVideoSlot: React.FC = () => {
 
     const isImage = asset.mediaType === 'image' ||
       (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
-    if (isImage) return;
+    const isLink = asset.mediaType === 'link';
+    if (isImage || isLink) return;
 
     // Periodic freeze check
     freezeTimerRef.current = window.setInterval(() => {
@@ -286,6 +288,7 @@ const VerticalVideoSlot: React.FC = () => {
 
   const isImage = asset.mediaType === 'image' ||
     (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
+  const isLink = asset.mediaType === 'link';
 
   if (isImage) {
     return (
@@ -312,6 +315,34 @@ const VerticalVideoSlot: React.FC = () => {
             assetId: asset.id,
             src: asset.src,
             reason: 'LOAD_ERROR'
+          });
+        }}
+      />
+    );
+  }
+
+  if (isLink) {
+    return (
+      <iframe
+        key={`iframe-${asset.id}`}
+        src={asset.src}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          border: 'none',
+        }}
+        sandbox="allow-scripts allow-same-origin allow-forms"
+        onLoad={() => {
+          logDebug('CMS_DELIVERY', 'Link content loaded', {
+            assetId: asset.id,
+            src: asset.src,
+          });
+        }}
+        onError={() => {
+          logError('CMS_DELIVERY', 'Link content load failed', {
+            assetId: asset.id,
+            src: asset.src,
           });
         }}
       />
