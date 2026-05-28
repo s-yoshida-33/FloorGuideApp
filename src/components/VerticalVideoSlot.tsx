@@ -11,6 +11,10 @@ const FREEZE_TIMEOUT_MS = 30000; // Consider as frozen if no timeupdate for 30 s
 const HEALTH_CHECK_INTERVAL_MS = 60000; // Health check interval of 60 seconds
 const MAX_RECREATE_COUNT = 3; // Maximum limit for recreating the video element
 
+// Expected dimensions of link content pages
+const LINK_CONTENT_W = 1080;
+const LINK_CONTENT_H = 1920;
+
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
   const muted = audioSettings.cmsMuted;
@@ -33,6 +37,37 @@ const VerticalVideoSlot: React.FC = () => {
   const [videoKey, setVideoKey] = React.useState<number>(0);
   const recreateCountRef = React.useRef<number>(0);
 
+  // Link iframe: container size for scaling, loaded state for fade-in
+  const [containerSize, setContainerSize] = React.useState({ width: 0, height: 0 });
+  const [iframeLoaded, setIframeLoaded] = React.useState(false);
+  const resizeObserverRef = React.useRef<ResizeObserver | null>(null);
+
+  // Callback ref: attach ResizeObserver when the link container div mounts/unmounts
+  const linkContainerRef = React.useCallback((el: HTMLDivElement | null) => {
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
+    if (el) {
+      const observer = new ResizeObserver(entries => {
+        const { width, height } = entries[0].contentRect;
+        setContainerSize({ width, height });
+      });
+      observer.observe(el);
+      resizeObserverRef.current = observer;
+      // Set initial size immediately
+      const rect = el.getBoundingClientRect();
+      setContainerSize({ width: rect.width, height: rect.height });
+    } else {
+      setContainerSize({ width: 0, height: 0 });
+    }
+  }, []);
+
+  // Reset iframe loaded state on every asset change
+  React.useEffect(() => {
+    setIframeLoaded(false);
+  }, [asset?.id]);
+
   // Cleanup all resources on unmount to prevent memory leaks
   React.useEffect(() => {
     return () => {
@@ -44,6 +79,9 @@ const VerticalVideoSlot: React.FC = () => {
       }
       if (healthCheckTimerRef.current !== undefined) {
         window.clearInterval(healthCheckTimerRef.current);
+      }
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
       }
       // Release preload video buffer to prevent orphaned decoded frames
       if (preloadVideoRef.current) {
@@ -322,30 +360,58 @@ const VerticalVideoSlot: React.FC = () => {
   }
 
   if (isLink) {
+    // Scale 1080x1920 content to fit the actual container, preserving aspect ratio
+    let iframeTransform = '';
+    if (containerSize.width > 0 && containerSize.height > 0) {
+      const scale = Math.min(
+        containerSize.width / LINK_CONTENT_W,
+        containerSize.height / LINK_CONTENT_H,
+      );
+      const tx = (containerSize.width - LINK_CONTENT_W * scale) / 2;
+      const ty = (containerSize.height - LINK_CONTENT_H * scale) / 2;
+      iframeTransform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    }
+
     return (
-      <iframe
-        key={`iframe-${asset.id}`}
-        src={asset.src}
+      <div
+        ref={linkContainerRef}
         style={{
           width: '100%',
           height: '100%',
-          display: 'block',
-          border: 'none',
+          overflow: 'hidden',
+          position: 'relative',
+          background: '#000',
         }}
-        sandbox="allow-scripts allow-same-origin allow-forms"
-        onLoad={() => {
-          logDebug('CMS_DELIVERY', 'Link content loaded', {
-            assetId: asset.id,
-            src: asset.src,
-          });
-        }}
-        onError={() => {
-          logError('CMS_DELIVERY', 'Link content load failed', {
-            assetId: asset.id,
-            src: asset.src,
-          });
-        }}
-      />
+      >
+        <iframe
+          key={`iframe-${asset.id}`}
+          src={asset.src}
+          style={{
+            width: `${LINK_CONTENT_W}px`,
+            height: `${LINK_CONTENT_H}px`,
+            border: 'none',
+            transformOrigin: 'top left',
+            transform: iframeTransform || undefined,
+            // Fade in after load to avoid showing partially-rendered content
+            opacity: iframeLoaded ? 1 : 0,
+            transition: 'opacity 0.4s ease',
+          }}
+          sandbox="allow-scripts allow-same-origin allow-forms"
+          onLoad={() => {
+            setIframeLoaded(true);
+            logDebug('CMS_DELIVERY', 'Link content loaded', {
+              assetId: asset.id,
+              src: asset.src,
+            });
+          }}
+          onError={() => {
+            logError('CMS_DELIVERY', 'Link content load failed', {
+              assetId: asset.id,
+              src: asset.src,
+            });
+          }}
+        />
+      </div>
     );
   }
 
