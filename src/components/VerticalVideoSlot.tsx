@@ -42,19 +42,22 @@ const VerticalVideoSlot: React.FC = () => {
   const [iframeLoaded, setIframeLoaded] = React.useState(false);
   const resizeObserverRef = React.useRef<ResizeObserver | null>(null);
 
-  // Transition overlay: keep the previous frame visible above the loading iframe
-  // so there is no black screen during the video → link transition.
+  // Transition overlay: keeps the previous frame on top of the loading iframe.
   //
-  // Root cause of the previous black-screen bug:
-  //   React runs ALL effect cleanups before ANY new effect setups when a dep changes.
-  //   The capture-effect cleanup was nulling latestVideoFrameRef, so by the time
-  //   the overlay-activation effect ran its setup and read the ref, it was already null.
+  // Why useLayoutEffect for overlay activation:
+  //   useEffect runs AFTER the browser has painted, so the first render of the
+  //   link branch (no overlay yet) would be visible as a black frame.
+  //   useLayoutEffect runs synchronously BEFORE the browser paints:
+  //     1. Asset changes to link  →  React renders iframe (overlay still null)
+  //     2. useLayoutEffect fires  →  setOverlaySnapshot(lastFrame)  →  sync re-render
+  //     3. Browser paints         →  overlay is already present, no black frame ever.
   //
-  // Fix:
-  //   • Capture-effect cleanup does NOT null latestVideoFrameRef.
-  //   • Overlay-activation effect reads the ref first, THEN nulls it.
-  //   • An immediate capture is attempted when the canvas is created so the ref
-  //     is never empty during the critical transition window.
+  // Execution order when asset.id changes:
+  //   [sync]  useLayoutEffect cleanups → useLayoutEffect setups  (reads latestVideoFrameRef)
+  //   [paint] browser renders the frame with overlay
+  //   [async] useEffect cleanups → useEffect setups              (capture interval reset)
+  //   Because useLayoutEffect runs before useEffect cleanups, latestVideoFrameRef still
+  //   holds the last captured frame when the overlay activation reads it.
   const captureCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const latestVideoFrameRef = React.useRef<string | null>(null);
   const prevAssetRef = React.useRef<typeof asset>(null);
@@ -86,9 +89,10 @@ const VerticalVideoSlot: React.FC = () => {
   }, [asset?.id]);
 
   // Periodically capture the current video frame (1 s interval).
-  // IMPORTANT: cleanup intentionally does NOT null latestVideoFrameRef so that
-  // the overlay-activation effect (which runs its setup AFTER this cleanup) can
-  // still read the last captured frame before nulling it itself.
+  // A single canvas is reused per asset; dimensions are zeroed on cleanup to
+  // release GPU memory deterministically.
+  // IMPORTANT: cleanup does NOT null latestVideoFrameRef — the useLayoutEffect
+  // overlay activation reads it before this useEffect cleanup runs.
   React.useEffect(() => {
     if (!asset) return;
     const isVideo =
@@ -116,27 +120,25 @@ const VerticalVideoSlot: React.FC = () => {
       }
     };
 
-    // Attempt an immediate capture so the ref is populated from frame 1,
-    // not only after the first interval tick (1 s later).
+    // Attempt immediate capture so the ref is populated from frame 1.
     capture();
-
     const id = window.setInterval(capture, 1000);
 
     return () => {
       window.clearInterval(id);
-      // Release GPU backing store deterministically.
+      // Zero dimensions to release GPU backing store immediately.
       canvas.width = 0;
       canvas.height = 0;
       captureCanvasRef.current = null;
-      // DO NOT null latestVideoFrameRef here — the overlay-activation effect
-      // reads it in its own setup which runs after this cleanup.
+      // latestVideoFrameRef is intentionally NOT nulled here.
+      // useLayoutEffect overlay activation has already read and nulled it
+      // before this cleanup runs.
     };
   }, [asset?.id]);
 
-  // Activate overlay when asset changes to link.
-  // This effect's setup runs AFTER the capture-effect cleanup, so latestVideoFrameRef
-  // still holds the last frame at this point. We null it here once consumed.
-  React.useEffect(() => {
+  // Overlay activation: useLayoutEffect guarantees this runs BEFORE the browser
+  // paints, eliminating even a single black frame during video -> link transitions.
+  React.useLayoutEffect(() => {
     if (!asset) {
       prevAssetRef.current = null;
       latestVideoFrameRef.current = null;
@@ -151,7 +153,7 @@ const VerticalVideoSlot: React.FC = () => {
           /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(prev.src);
         setOverlaySnapshot(isPrevImage ? prev.src : latestVideoFrameRef.current);
       }
-      // Consumed — release the frame data
+      // Release frame data now that it has been promoted to the overlay snapshot.
       latestVideoFrameRef.current = null;
     } else {
       setOverlaySnapshot(null);
@@ -418,6 +420,7 @@ const VerticalVideoSlot: React.FC = () => {
         ref={linkContainerRef}
         style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#000' }}
       >
+        {/* Iframe loads in the background (z-index 1) */}
         <iframe
           key={`iframe-${asset.id}`}
           src={asset.src}
@@ -442,8 +445,8 @@ const VerticalVideoSlot: React.FC = () => {
           }}
         />
 
-        {/* Previous frame overlay (z-index 2): stays visible until iframe is ready,
-            then cleared instantly on onLoad to match cut-style transitions. */}
+        {/* Previous frame overlay (z-index 2): present from the very first paint
+            thanks to useLayoutEffect, cleared instantly when iframe is ready. */}
         {overlaySnapshot && (
           <img
             src={overlaySnapshot}
@@ -479,6 +482,20 @@ const VerticalVideoSlot: React.FC = () => {
         onLoadedData={() => {
           retryCountRef.current = 0;
           lastTimeUpdateRef.current = Date.now();
+          // Capture the first frame as soon as video data is available,
+          // ensuring the overlay ref is populated even before the 1-second interval fires.
+          const v = videoRef.current;
+          const canvas = captureCanvasRef.current;
+          if (v && canvas && v.videoWidth > 0) {
+            if (canvas.width !== v.videoWidth || canvas.height !== v.videoHeight) {
+              canvas.width = v.videoWidth;
+              canvas.height = v.videoHeight;
+            }
+            try {
+              canvas.getContext('2d')?.drawImage(v, 0, 0);
+              latestVideoFrameRef.current = canvas.toDataURL('image/jpeg', 0.85);
+            } catch { }
+          }
           logDebug('VIDEO', 'Content video ready', { assetId: asset.id, src: asset.src });
         }}
         onPlay={() => {
