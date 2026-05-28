@@ -15,6 +15,15 @@ const MAX_RECREATE_COUNT = 3;
 const LINK_CONTENT_W = 1080;
 const LINK_CONTENT_H = 1920;
 
+// Returns true only for external https:// URLs — not localhost or 127.x.
+// Local video assets are served via http://localhost:... and must not be
+// treated as link content to preload into the iframe.
+const isExternalLinkUrl = (src: string | undefined): boolean =>
+  !!src &&
+  src.startsWith('https://') &&
+  !/^https:\/\/localhost(:\d+)?/i.test(src) &&
+  !/^https:\/\/127\./i.test(src);
+
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
   const muted = audioSettings.cmsMuted;
@@ -53,13 +62,16 @@ const VerticalVideoSlot: React.FC = () => {
   const [iframeSrc, setIframeSrc] = React.useState<string | null>(null);
   const [iframeActive, setIframeActive] = React.useState(false);
 
-  // Begin preloading as soon as the next asset is known to be a URL
+  // Begin preloading as soon as the next asset is known to be an external URL.
+  // Guard with iframeActive so this effect never fires while a link is displayed —
+  // otherwise it would overwrite the active iframeSrc with a local video URL.
   React.useEffect(() => {
+    if (iframeActive) return;
     const src = nextAsset?.src;
-    if (src && /^https?:\/\//i.test(src)) {
+    if (isExternalLinkUrl(src)) {
       setIframeSrc(prev => (prev === src ? prev : src));
     }
-  }, [nextAsset?.src]);
+  }, [nextAsset?.src, iframeActive]);
 
   // Activate/deactivate the iframe synchronously — before the browser paints.
   // When the CMS transitions to a link asset the iframe is already loaded and
@@ -77,11 +89,10 @@ const VerticalVideoSlot: React.FC = () => {
   }, [asset?.id]);
 
   // Release the iframe element when it is no longer active and the next asset
-  // is not a URL (no reason to keep it in the DOM consuming memory)
+  // is not an external URL (no reason to keep it in the DOM consuming memory)
   React.useEffect(() => {
     if (!iframeActive) {
-      const nextSrc = nextAsset?.src;
-      if (!nextSrc || !/^https?:\/\//i.test(nextSrc)) {
+      if (!isExternalLinkUrl(nextAsset?.src)) {
         setIframeSrc(null);
       }
     }
