@@ -44,13 +44,13 @@ const VerticalVideoSlot: React.FC = () => {
 
   // Transition overlay to prevent black screen when switching to link content.
   //
-  // Strategy:
-  //   - While a video is playing, periodically capture the current frame (every 1 s).
-  //   - When asset switches to 'link', promote the last captured frame (or the
-  //     image URL for image assets) as an overlay that sits above the loading iframe.
-  //   - Once the iframe fires onLoad, clear the overlay instantly (cut-style switch).
-  const latestVideoFrameRef = React.useRef<string | null>(null); // JPEG data URL of recent frame
-  const prevAssetRef = React.useRef<typeof asset>(null);          // asset from previous render
+  // A single canvas element is reused for the lifetime of each video asset.
+  // On cleanup, canvas dimensions are set to 0 to immediately release the GPU
+  // backing store rather than waiting for GC — this avoids the frame-accumulation
+  // memory leak that occurred with per-capture canvas creation.
+  const captureCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const latestVideoFrameRef = React.useRef<string | null>(null);
+  const prevAssetRef = React.useRef<typeof asset>(null);
   const [overlaySnapshot, setOverlaySnapshot] = React.useState<string | null>(null);
 
   // Callback ref: attach ResizeObserver when the link container div mounts/unmounts
@@ -78,41 +78,57 @@ const VerticalVideoSlot: React.FC = () => {
     setIframeLoaded(false);
   }, [asset?.id]);
 
-  // Continuously capture the current video frame while a video asset is playing.
-  // This ensures a recent snapshot is always available when transitioning to link.
+  // Periodically capture the current video frame while a video asset is playing.
+  // Uses a single reused canvas per asset; dimensions are zeroed on cleanup to
+  // release GPU memory deterministically (not GC-dependent).
   React.useEffect(() => {
     if (!asset) return;
     const isVideo =
       asset.mediaType !== 'image' &&
       asset.mediaType !== 'link' &&
       !/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src || '');
+
     if (!isVideo) {
       latestVideoFrameRef.current = null;
       return;
     }
 
+    // Create one canvas for this asset's lifetime
+    const canvas = document.createElement('canvas');
+    captureCanvasRef.current = canvas;
+
     const capture = () => {
       const v = videoRef.current;
       if (!v || v.readyState < 2 || v.videoWidth === 0) return;
-      const canvas = document.createElement('canvas');
-      canvas.width = v.videoWidth;
-      canvas.height = v.videoHeight;
+
+      // Resize canvas only when video dimensions change (avoids reallocation)
+      if (canvas.width !== v.videoWidth || canvas.height !== v.videoHeight) {
+        canvas.width = v.videoWidth;
+        canvas.height = v.videoHeight;
+      }
+
       try {
         canvas.getContext('2d')?.drawImage(v, 0, 0);
         latestVideoFrameRef.current = canvas.toDataURL('image/jpeg', 0.85);
       } catch {
-        // cross-origin or other error — leave existing snapshot in place
+        // ignore cross-origin or security errors
       }
     };
 
     const id = window.setInterval(capture, 1000);
+
     return () => {
       window.clearInterval(id);
+      // Zero out dimensions to release the GPU backing store immediately,
+      // then drop the reference so the element can be GC'd.
+      canvas.width = 0;
+      canvas.height = 0;
+      captureCanvasRef.current = null;
       latestVideoFrameRef.current = null;
     };
   }, [asset?.id]);
 
-  // Activate overlay when asset changes to link, using the most recent captured data.
+  // Activate overlay when asset changes to link
   React.useEffect(() => {
     if (!asset) {
       prevAssetRef.current = null;
@@ -125,15 +141,9 @@ const VerticalVideoSlot: React.FC = () => {
         const isPrevImage =
           prev.mediaType === 'image' ||
           /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(prev.src);
-        if (isPrevImage) {
-          setOverlaySnapshot(prev.src);
-        } else {
-          // Video: use the periodically-captured frame
-          setOverlaySnapshot(latestVideoFrameRef.current);
-        }
+        setOverlaySnapshot(isPrevImage ? prev.src : latestVideoFrameRef.current);
       }
     } else {
-      // Not link — clear any stale overlay
       setOverlaySnapshot(null);
     }
 
@@ -152,6 +162,13 @@ const VerticalVideoSlot: React.FC = () => {
       if (freezeTimerRef.current !== undefined) window.clearInterval(freezeTimerRef.current);
       if (healthCheckTimerRef.current !== undefined) window.clearInterval(healthCheckTimerRef.current);
       if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
+      // Release capture canvas GPU memory on unmount
+      if (captureCanvasRef.current) {
+        captureCanvasRef.current.width = 0;
+        captureCanvasRef.current.height = 0;
+        captureCanvasRef.current = null;
+      }
+      latestVideoFrameRef.current = null;
       if (preloadVideoRef.current) {
         preloadVideoRef.current.pause();
         preloadVideoRef.current.removeAttribute('src');
@@ -336,7 +353,7 @@ const VerticalVideoSlot: React.FC = () => {
     logDebug('CMS_DELIVERY', 'Preloading next CMS asset', { nextAssetId: nextAsset.id });
   }, [nextAsset?.id, nextAsset?.src]);
 
-  // ─── No asset ─────────────────────────────────────────────────────────
+  // ─── No asset ───────────────────────────────────────────────────────
 
   if (!asset) {
     if (!isLoading) {
@@ -356,7 +373,7 @@ const VerticalVideoSlot: React.FC = () => {
     (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
   const isLink = asset.mediaType === 'link';
 
-  // ─── Image ──────────────────────────────────────────────────────────────
+  // ─── Image ────────────────────────────────────────────────────────────
 
   if (isImage) {
     return (
@@ -372,7 +389,7 @@ const VerticalVideoSlot: React.FC = () => {
     );
   }
 
-  // ─── Link (iframe) ─────────────────────────────────────────────────────
+  // ─── Link (iframe) ────────────────────────────────────────────────────
 
   if (isLink) {
     let iframeTransform: string | undefined;
@@ -436,7 +453,7 @@ const VerticalVideoSlot: React.FC = () => {
     );
   }
 
-  // ─── Video (default) ──────────────────────────────────────────────────
+  // ─── Video (default) ───────────────────────────────────────────────
 
   return (
     <>
