@@ -15,14 +15,13 @@ const MAX_RECREATE_COUNT = 3;
 const LINK_CONTENT_W = 1080;
 const LINK_CONTENT_H = 1920;
 
-// Returns true only for external https:// URLs — not localhost or 127.x.
-// Local video assets are served via http://localhost:... and must not be
-// treated as link content to preload into the iframe.
+// Returns true for external URLs (http or https) while excluding localhost
+// and loopback addresses used to serve local video files.
 const isExternalLinkUrl = (src: string | undefined): boolean =>
   !!src &&
-  src.startsWith('https://') &&
-  !/^https:\/\/localhost(:\d+)?/i.test(src) &&
-  !/^https:\/\/127\./i.test(src);
+  /^https?:\/\//i.test(src) &&
+  !/^https?:\/\/localhost(:\d+)?/i.test(src) &&
+  !/^https?:\/\/127\./i.test(src);
 
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
@@ -74,19 +73,18 @@ const VerticalVideoSlot: React.FC = () => {
   }, [nextAsset?.src, iframeActive]);
 
   // Activate/deactivate the iframe synchronously — before the browser paints.
-  // When the CMS transitions to a link asset the iframe is already loaded and
-  // GPU-composited at z-index 0; promoting it to z-index 2 here means the very
-  // first paint after the transition shows the iframe content, not a black frame.
+  // Deps include both asset.id AND asset.mediaType so the effect fires even
+  // when the same schedule slot transitions between mediaTypes (e.g. video→link
+  // with an identical asset id).
   React.useLayoutEffect(() => {
     if (!asset) { setIframeActive(false); return; }
     if (asset.mediaType === 'link') {
-      // Ensure src is set even when preloading did not happen (fallback)
       setIframeSrc(prev => (prev === asset.src ? prev : asset.src));
       setIframeActive(true);
     } else {
       setIframeActive(false);
     }
-  }, [asset?.id]);
+  }, [asset?.id, asset?.mediaType]);
 
   // Release the iframe element when it is no longer active and the next asset
   // is not an external URL (no reason to keep it in the DOM consuming memory)
@@ -270,7 +268,7 @@ const VerticalVideoSlot: React.FC = () => {
 
   // Compute CSS transform to scale link content (1080x1920) into the container
   let iframeTransform: string | undefined;
-  if (iframeSrc && containerSize.width > 0 && containerSize.height > 0) {
+  if (containerSize.width > 0 && containerSize.height > 0) {
     const scale = Math.min(containerSize.width / LINK_CONTENT_W, containerSize.height / LINK_CONTENT_H);
     const tx = (containerSize.width - LINK_CONTENT_W * scale) / 2;
     const ty = (containerSize.height - LINK_CONTENT_H * scale) / 2;
@@ -280,6 +278,10 @@ const VerticalVideoSlot: React.FC = () => {
   const isImage = asset && (
     asset.mediaType === 'image' || (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src))
   );
+  const isLink = asset?.mediaType === 'link';
+
+  // Effective iframe src: if active but preloading missed, fall back to asset src directly
+  const effectiveIframeSrc = iframeActive ? (iframeSrc || asset?.src || null) : iframeSrc;
 
   return (
     <div
@@ -290,10 +292,10 @@ const VerticalVideoSlot: React.FC = () => {
           While the current video/image plays, the iframe loads silently at z-index 0.
           useLayoutEffect flips iframeActive before the browser paints, instantly
           promoting it to z-index 2 — no black frame is ever visible. */}
-      {iframeSrc && (
+      {effectiveIframeSrc && (
         <iframe
-          key={`iframe-${iframeSrc}`}
-          src={iframeSrc}
+          key={`iframe-${effectiveIframeSrc}`}
+          src={effectiveIframeSrc}
           style={{
             position: 'absolute', top: 0, left: 0,
             width: `${LINK_CONTENT_W}px`, height: `${LINK_CONTENT_H}px`,
@@ -303,13 +305,15 @@ const VerticalVideoSlot: React.FC = () => {
             pointerEvents: iframeActive ? 'auto' : 'none',
           }}
           sandbox="allow-scripts allow-same-origin allow-forms"
-          onLoad={() => logDebug('CMS_DELIVERY', iframeActive ? 'Link content active' : 'Link content preloaded', { src: iframeSrc })}
-          onError={() => logError('CMS_DELIVERY', 'Link content load failed', { src: iframeSrc })}
+          onLoad={() => logDebug('CMS_DELIVERY', iframeActive ? 'Link content active' : 'Link content preloaded', { src: effectiveIframeSrc })}
+          onError={() => logError('CMS_DELIVERY', 'Link content load failed', { src: effectiveIframeSrc })}
         />
       )}
 
-      {/* Non-link content at z-index 1 — covers the preloading iframe */}
-      {!iframeActive && (
+      {/* Non-link content at z-index 1 — covers the preloading iframe.
+          Never renders video/image for link-type assets to prevent a broken
+          media element from briefly showing during state transitions. */}
+      {!iframeActive && !isLink && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1, background: '#000' }}>
           {!asset ? (
             <div style={{
