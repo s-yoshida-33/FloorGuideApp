@@ -42,14 +42,15 @@ const VerticalVideoSlot: React.FC = () => {
   const [iframeLoaded, setIframeLoaded] = React.useState(false);
   const resizeObserverRef = React.useRef<ResizeObserver | null>(null);
 
-  // Transition overlay: pre-captured frame shown on top of the loading iframe
-  // so there is no visible black screen while the page fetches and renders.
+  // Transition overlay to prevent black screen when switching to link content.
   //
-  // Flow:
-  //   1. nextAsset becomes 'link'  → capture current video/image frame into capturedFrameRef
-  //   2. asset becomes 'link'      → activate overlay from capturedFrameRef
-  //   3. iframe onLoad fires       → clear overlay immediately (instant switch)
-  const capturedFrameRef = React.useRef<string | null>(null);
+  // Strategy:
+  //   - While a video is playing, periodically capture the current frame (every 1 s).
+  //   - When asset switches to 'link', promote the last captured frame (or the
+  //     image URL for image assets) as an overlay that sits above the loading iframe.
+  //   - Once the iframe fires onLoad, clear the overlay instantly (cut-style switch).
+  const latestVideoFrameRef = React.useRef<string | null>(null); // JPEG data URL of recent frame
+  const prevAssetRef = React.useRef<typeof asset>(null);          // asset from previous render
   const [overlaySnapshot, setOverlaySnapshot] = React.useState<string | null>(null);
 
   // Callback ref: attach ResizeObserver when the link container div mounts/unmounts
@@ -77,48 +78,71 @@ const VerticalVideoSlot: React.FC = () => {
     setIframeLoaded(false);
   }, [asset?.id]);
 
-  // Step 1: Pre-capture the current frame as soon as we know the next asset is a link.
-  // This runs while the current video/image is still live in the DOM.
-  React.useEffect(() => {
-    if (nextAsset?.mediaType !== 'link') return;
-    if (!asset || asset.mediaType === 'link') return; // can't snapshot cross-origin iframe
-
-    const isCurrentImage = asset.mediaType === 'image' ||
-      /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src || '');
-
-    if (isCurrentImage && asset.src) {
-      capturedFrameRef.current = asset.src;
-    } else if (videoRef.current && videoRef.current.readyState >= 2) {
-      const v = videoRef.current;
-      const canvas = document.createElement('canvas');
-      canvas.width = v.videoWidth || 1;
-      canvas.height = v.videoHeight || 1;
-      try {
-        canvas.getContext('2d')?.drawImage(v, 0, 0);
-        capturedFrameRef.current = canvas.toDataURL('image/jpeg', 0.85);
-      } catch {
-        capturedFrameRef.current = null;
-      }
-    }
-  }, [nextAsset?.id]);
-
-  // Step 2: When the asset transitions to link, activate the captured overlay.
+  // Continuously capture the current video frame while a video asset is playing.
+  // This ensures a recent snapshot is always available when transitioning to link.
   React.useEffect(() => {
     if (!asset) return;
-    if (asset.mediaType !== 'link') {
-      setOverlaySnapshot(null);
-      capturedFrameRef.current = null;
+    const isVideo =
+      asset.mediaType !== 'image' &&
+      asset.mediaType !== 'link' &&
+      !/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src || '');
+    if (!isVideo) {
+      latestVideoFrameRef.current = null;
       return;
     }
-    if (capturedFrameRef.current) {
-      setOverlaySnapshot(capturedFrameRef.current);
-    }
+
+    const capture = () => {
+      const v = videoRef.current;
+      if (!v || v.readyState < 2 || v.videoWidth === 0) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = v.videoWidth;
+      canvas.height = v.videoHeight;
+      try {
+        canvas.getContext('2d')?.drawImage(v, 0, 0);
+        latestVideoFrameRef.current = canvas.toDataURL('image/jpeg', 0.85);
+      } catch {
+        // cross-origin or other error — leave existing snapshot in place
+      }
+    };
+
+    const id = window.setInterval(capture, 1000);
+    return () => {
+      window.clearInterval(id);
+      latestVideoFrameRef.current = null;
+    };
   }, [asset?.id]);
 
-  // Step 3: When the iframe finishes loading, clear the overlay immediately.
+  // Activate overlay when asset changes to link, using the most recent captured data.
   React.useEffect(() => {
-    if (!iframeLoaded) return;
-    setOverlaySnapshot(null);
+    if (!asset) {
+      prevAssetRef.current = null;
+      return;
+    }
+
+    if (asset.mediaType === 'link') {
+      const prev = prevAssetRef.current;
+      if (prev && prev.id !== asset.id && prev.src) {
+        const isPrevImage =
+          prev.mediaType === 'image' ||
+          /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(prev.src);
+        if (isPrevImage) {
+          setOverlaySnapshot(prev.src);
+        } else {
+          // Video: use the periodically-captured frame
+          setOverlaySnapshot(latestVideoFrameRef.current);
+        }
+      }
+    } else {
+      // Not link — clear any stale overlay
+      setOverlaySnapshot(null);
+    }
+
+    prevAssetRef.current = asset;
+  }, [asset?.id]);
+
+  // Clear overlay instantly when iframe finishes loading
+  React.useEffect(() => {
+    if (iframeLoaded) setOverlaySnapshot(null);
   }, [iframeLoaded]);
 
   // Cleanup all resources on unmount
@@ -312,7 +336,7 @@ const VerticalVideoSlot: React.FC = () => {
     logDebug('CMS_DELIVERY', 'Preloading next CMS asset', { nextAssetId: nextAsset.id });
   }, [nextAsset?.id, nextAsset?.src]);
 
-  // ─── No asset ────────────────────────────────────────────────────────────
+  // ─── No asset ─────────────────────────────────────────────────────────
 
   if (!asset) {
     if (!isLoading) {
@@ -332,7 +356,7 @@ const VerticalVideoSlot: React.FC = () => {
     (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
   const isLink = asset.mediaType === 'link';
 
-  // ─── Image ───────────────────────────────────────────────────────────────
+  // ─── Image ──────────────────────────────────────────────────────────────
 
   if (isImage) {
     return (
@@ -348,7 +372,7 @@ const VerticalVideoSlot: React.FC = () => {
     );
   }
 
-  // ─── Link (iframe) ───────────────────────────────────────────────────────
+  // ─── Link (iframe) ─────────────────────────────────────────────────────
 
   if (isLink) {
     let iframeTransform: string | undefined;
@@ -392,8 +416,8 @@ const VerticalVideoSlot: React.FC = () => {
           }}
         />
 
-        {/* Overlay: previous frame stays on top (z-index 2) until iframe is ready,
-            then cleared instantly to match the cut-style transitions of other content. */}
+        {/* Overlay: previous frame on top (z-index 2) while iframe loads.
+            Cleared instantly on iframe load to match cut-style transitions. */}
         {overlaySnapshot && (
           <img
             src={overlaySnapshot}
@@ -412,7 +436,7 @@ const VerticalVideoSlot: React.FC = () => {
     );
   }
 
-  // ─── Video (default) ─────────────────────────────────────────────────────
+  // ─── Video (default) ──────────────────────────────────────────────────
 
   return (
     <>
