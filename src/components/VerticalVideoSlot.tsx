@@ -11,10 +11,6 @@ const FREEZE_TIMEOUT_MS = 30000;
 const HEALTH_CHECK_INTERVAL_MS = 60000;
 const MAX_RECREATE_COUNT = 3;
 
-// Expected dimensions of link content pages (portrait 9:16)
-const LINK_CONTENT_W = 1080;
-const LINK_CONTENT_H = 1920;
-
 // Returns true for external URLs (http or https) while excluding localhost
 // and loopback addresses used to serve local video files.
 const isExternalLinkUrl = (src: string | undefined): boolean =>
@@ -24,10 +20,10 @@ const isExternalLinkUrl = (src: string | undefined): boolean =>
   !/^https?:\/\/127\\./i.test(src);
 
 const isImageAsset = (asset: any): boolean => 
-  !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)([\?#].*)?$/i.test(asset.src)));
+  !!asset && (asset.mediaType === 'image' || (!!asset.src && /\\.(jpg|jpeg|png|gif|bmp|webp|svg)([\\?#].*)?$/i.test(asset.src)));
 
 const isVideoAsset = (asset: any): boolean => 
-  !!asset && (asset.mediaType === 'video' || (!!asset.src && /\.(mp4|webm|ogg|mov)([\?#].*)?$/i.test(asset.src)));
+  !!asset && (asset.mediaType === 'video' || (!!asset.src && /\\.(mp4|webm|ogg|mov)([\\?#].*)?$/i.test(asset.src)));
 
 const isLinkAsset = (asset: any): boolean => 
   !!asset && (
@@ -284,12 +280,17 @@ const VerticalVideoSlot: React.FC = () => {
     }
   }, [asset, isLoading]);
 
-  // Compute CSS transform to scale link content (1080x1920) into the container
+  // Compute CSS transform to scale link content into the container
+  // 枠の形状（横長か縦長か）を検知し、基準となる解像度（1920x1080 または 1080x1920）を動的に切り替えます
+  const isLandscape = containerSize.width > containerSize.height;
+  const targetW = isLandscape ? 1920 : 1080;
+  const targetH = isLandscape ? 1080 : 1920;
+
   let iframeTransform: string | undefined;
   if (containerSize.width > 0 && containerSize.height > 0) {
-    const scale = Math.min(containerSize.width / LINK_CONTENT_W, containerSize.height / LINK_CONTENT_H);
-    const tx = (containerSize.width - LINK_CONTENT_W * scale) / 2;
-    const ty = (containerSize.height - LINK_CONTENT_H * scale) / 2;
+    const scale = Math.min(containerSize.width / targetW, containerSize.height / targetH);
+    const tx = (containerSize.width - targetW * scale) / 2;
+    const ty = (containerSize.height - targetH * scale) / 2;
     iframeTransform = `translate(${tx}px, ${ty}px) scale(${scale})`;
   }
 
@@ -311,7 +312,7 @@ const VerticalVideoSlot: React.FC = () => {
           src={iframeSrc}
           style={{
             position: 'absolute', top: 0, left: 0,
-            width: `${LINK_CONTENT_W}px`, height: `${LINK_CONTENT_H}px`,
+            width: `${targetW}px`, height: `${targetH}px`,
             border: 'none', transformOrigin: 'top left',
             transform: iframeTransform,
             zIndex: iframeActive ? 2 : 0,
