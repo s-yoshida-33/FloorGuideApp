@@ -24,10 +24,16 @@ const isExternalLinkUrl = (src: string | undefined): boolean =>
   !/^https?:\/\/127\./i.test(src);
 
 const isImageAsset = (asset: any): boolean => 
-  !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src)));
-  
+  !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)([\?#].*)?$/i.test(asset.src)));
+
+const isVideoAsset = (asset: any): boolean => 
+  !!asset && (asset.mediaType === 'video' || (!!asset.src && /\.(mp4|webm|ogg|mov)([\?#].*)?$/i.test(asset.src)));
+
 const isLinkAsset = (asset: any): boolean => 
-  !!asset && (asset.mediaType === 'link' || isExternalLinkUrl(asset.src));  
+  !!asset && (
+    asset.mediaType === 'link' || 
+    (isExternalLinkUrl(asset.src) && !isImageAsset(asset) && !isVideoAsset(asset))
+  );
 
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
@@ -72,11 +78,10 @@ const VerticalVideoSlot: React.FC = () => {
   // otherwise it would overwrite the active iframeSrc with a local video URL.
   React.useEffect(() => {
     if (iframeActive) return;
-    const src = nextAsset?.src;
-    if (isExternalLinkUrl(src)) {
-      setIframeSrc(prev => (prev === src ? prev : src as string));
+    if (isLinkAsset(nextAsset)) {
+      setIframeSrc(prev => (prev === nextAsset?.src ? prev : nextAsset?.src as string));
     }
-  }, [nextAsset?.src, iframeActive]);
+  }, [nextAsset?.id, nextAsset?.src, iframeActive]);
 
   // Activate/deactivate the iframe synchronously — before the browser paints.
   // Deps include both asset.id AND asset.mediaType so the effect fires even
@@ -96,11 +101,11 @@ const VerticalVideoSlot: React.FC = () => {
   // is not an external URL (no reason to keep it in the DOM consuming memory)
   React.useEffect(() => {
     if (!iframeActive) {
-      if (!isExternalLinkUrl(nextAsset?.src)) {
+      if (!isLinkAsset(nextAsset)) {
         setIframeSrc(null);
       }
     }
-  }, [iframeActive, nextAsset?.src]);
+  }, [iframeActive, nextAsset?.id, nextAsset?.src]);
 
   // Unmount cleanup
   React.useEffect(() => {
@@ -253,10 +258,10 @@ const VerticalVideoSlot: React.FC = () => {
   React.useEffect(() => {
     const preloadVideo = preloadVideoRef.current;
     if (!preloadVideo || !nextAsset?.src) return;
-    const isNextVideo =
-      !/^https?:\/\//i.test(nextAsset.src) &&
-      !/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(nextAsset.src);
+    
+    const isNextVideo = isVideoAsset(nextAsset);
     if (!isNextVideo) return;
+    
     const currentPreloadSrc = decodeURIComponent(preloadVideo.src || '');
     if (currentPreloadSrc.includes(nextAsset.id) || preloadVideo.src === nextAsset.src) return;
     if (preloadVideo.src) { preloadVideo.removeAttribute('src'); preloadVideo.load(); }
