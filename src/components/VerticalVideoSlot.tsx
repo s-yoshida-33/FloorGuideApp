@@ -23,6 +23,12 @@ const isExternalLinkUrl = (src: string | undefined): boolean =>
   !/^https?:\/\/localhost(:\d+)?/i.test(src) &&
   !/^https?:\/\/127\./i.test(src);
 
+const isImageAsset = (asset: any): boolean => 
+  !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src)));
+  
+const isLinkAsset = (asset: any): boolean => 
+  !!asset && (asset.mediaType === 'link' || isExternalLinkUrl(asset.src));  
+
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
   const muted = audioSettings.cmsMuted;
@@ -78,13 +84,13 @@ const VerticalVideoSlot: React.FC = () => {
   // with an identical asset id).
   React.useLayoutEffect(() => {
     if (!asset) { setIframeActive(false); return; }
-    if (asset.mediaType === 'link') {
+    if (isLinkAsset(asset)) {
       setIframeSrc(prev => (prev === asset.src ? prev : asset.src));
       setIframeActive(true);
     } else {
       setIframeActive(false);
     }
-  }, [asset?.id, asset?.mediaType]);
+  }, [asset?.id, asset?.mediaType, asset?.src]);
 
   // Release the iframe element when it is no longer active and the next asset
   // is not an external URL (no reason to keep it in the DOM consuming memory)
@@ -131,8 +137,8 @@ const VerticalVideoSlot: React.FC = () => {
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video || !asset) return;
-    const isImage = asset.mediaType === 'image' || (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
-    const isLink = asset.mediaType === 'link';
+    const isImage = isImageAsset(asset);
+    const isLink = isLinkAsset(asset);
     if (isImage || isLink) return;
 
     if (isScheduleTransitioning) {
@@ -155,8 +161,8 @@ const VerticalVideoSlot: React.FC = () => {
   // Freeze detection & health check
   React.useEffect(() => {
     if (!asset) return;
-    const isImage = asset.mediaType === 'image' || (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src));
-    const isLink = asset.mediaType === 'link';
+    const isImage = isImageAsset(asset);
+    const isLink = isLinkAsset(asset);
     if (isImage || isLink) return;
 
     freezeTimerRef.current = window.setInterval(() => {
@@ -275,10 +281,8 @@ const VerticalVideoSlot: React.FC = () => {
     iframeTransform = `translate(${tx}px, ${ty}px) scale(${scale})`;
   }
 
-  const isImage = asset && (
-    asset.mediaType === 'image' || (asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(asset.src))
-  );
-  const isLink = asset?.mediaType === 'link';
+  const isImage = isImageAsset(asset);
+  const isLink = isLinkAsset(asset);
 
   return (
     <div
