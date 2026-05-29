@@ -74,19 +74,15 @@ const VerticalVideoSlot: React.FC = () => {
   const [iframeActive, setIframeActive] = React.useState(false);
 
   // Begin preloading as soon as the next asset is known to be an external URL.
-  // Guard with iframeActive so this effect never fires while a link is displayed —
-  // otherwise it would overwrite the active iframeSrc with a local video URL.
+  // Guard with asset check so this effect never fires while a link is currently displayed.
   React.useEffect(() => {
-    if (iframeActive) return;
+    if (isLinkAsset(asset)) return;
     if (isLinkAsset(nextAsset)) {
       setIframeSrc(prev => (prev === nextAsset?.src ? prev : nextAsset?.src as string));
     }
-  }, [nextAsset?.id, nextAsset?.src, iframeActive]);
+  }, [asset?.id, asset?.src, nextAsset?.id, nextAsset?.src]);
 
   // Activate/deactivate the iframe synchronously — before the browser paints.
-  // Deps include both asset.id AND asset.mediaType so the effect fires even
-  // when the same schedule slot transitions between mediaTypes (e.g. video→link
-  // with an identical asset id).
   React.useLayoutEffect(() => {
     if (!asset) { setIframeActive(false); return; }
     if (isLinkAsset(asset)) {
@@ -100,12 +96,10 @@ const VerticalVideoSlot: React.FC = () => {
   // Release the iframe element when it is no longer active and the next asset
   // is not an external URL (no reason to keep it in the DOM consuming memory)
   React.useEffect(() => {
-    if (!iframeActive) {
-      if (!isLinkAsset(nextAsset)) {
-        setIframeSrc(null);
-      }
+    if (!isLinkAsset(asset) && !isLinkAsset(nextAsset)) {
+      setIframeSrc(null);
     }
-  }, [iframeActive, nextAsset?.id, nextAsset?.src]);
+  }, [asset?.id, asset?.src, nextAsset?.id, nextAsset?.src]);
 
   // Unmount cleanup
   React.useEffect(() => {
