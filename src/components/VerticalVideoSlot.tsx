@@ -21,7 +21,7 @@ const isExternalLinkUrl = (src: string | undefined): boolean =>
   !!src &&
   /^https?:\/\//i.test(src) &&
   !/^https?:\/\/localhost(:\d+)?/i.test(src) &&
-  !/^https?:\/\/127\./i.test(src);
+  !/^https?:\/\/127\\./i.test(src);
 
 const isImageAsset = (asset: any): boolean => 
   !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)([\?#].*)?$/i.test(asset.src)));
@@ -71,35 +71,48 @@ const VerticalVideoSlot: React.FC = () => {
 
   // Iframe state: src while preloading or active, flag for when it is the visible content
   const [iframeSrc, setIframeSrc] = React.useState<string | null>(null);
+  const [iframeAssetId, setIframeAssetId] = React.useState<string | null>(null);
   const [iframeActive, setIframeActive] = React.useState(false);
 
-  // Begin preloading as soon as the next asset is known to be an external URL.
-  // Guard with asset check so this effect never fires while a link is currently displayed.
+  // 1. Begin preloading as soon as the next asset is known to be an external URL.
+  // Generates a fresh timestamp token to reset frozen web timers/clocks on every loop.
   React.useEffect(() => {
     if (isLinkAsset(asset)) return;
-    if (isLinkAsset(nextAsset)) {
-      setIframeSrc(prev => (prev === nextAsset?.src ? prev : nextAsset?.src as string));
+    if (nextAsset && isLinkAsset(nextAsset)) {
+      if (iframeAssetId !== nextAsset.id || !iframeSrc) {
+        const ts = Date.now();
+        const targetSrc = nextAsset.src as string;
+        const srcWithTs = targetSrc.includes('?') ? `${targetSrc}&_ts=${ts}` : `${targetSrc}?_ts=${ts}`;
+        setIframeSrc(srcWithTs);
+        setIframeAssetId(nextAsset.id);
+      }
     }
-  }, [asset?.id, asset?.src, nextAsset?.id, nextAsset?.src]);
+  }, [asset?.id, asset?.src, nextAsset?.id, nextAsset?.src, iframeAssetId, iframeSrc]);
 
-  // Activate/deactivate the iframe synchronously — before the browser paints.
+  // 2. Activate/deactivate the iframe synchronously — before the browser paints.
   React.useLayoutEffect(() => {
     if (!asset) { setIframeActive(false); return; }
     if (isLinkAsset(asset)) {
-      setIframeSrc(prev => (prev === asset.src ? prev : asset.src));
+      if (iframeAssetId !== asset.id || !iframeSrc) {
+        const ts = Date.now();
+        const srcWithTs = asset.src.includes('?') ? `${asset.src}&_ts=${ts}` : `${asset.src}?_ts=${ts}`;
+        setIframeSrc(srcWithTs);
+        setIframeAssetId(asset.id);
+      }
       setIframeActive(true);
     } else {
       setIframeActive(false);
     }
-  }, [asset?.id, asset?.mediaType, asset?.src]);
+  }, [asset?.id, asset?.mediaType, asset?.src, iframeAssetId, iframeSrc]);
 
-  // Release the iframe element when it is no longer active and the next asset
-  // is not an external URL (no reason to keep it in the DOM consuming memory)
+  // 3. Reset iframe states as soon as we move away from a link asset.
+  // This guarantees that when the same link appears again in the schedule, it triggers a clean remount.
   React.useEffect(() => {
-    if (!isLinkAsset(asset) && !isLinkAsset(nextAsset)) {
+    if (!isLinkAsset(asset)) {
       setIframeSrc(null);
+      setIframeAssetId(null);
     }
-  }, [asset?.id, asset?.src, nextAsset?.id, nextAsset?.src]);
+  }, [asset?.id]);
 
   // Unmount cleanup
   React.useEffect(() => {
