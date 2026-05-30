@@ -20,10 +20,10 @@ const isExternalLinkUrl = (src: string | undefined): boolean =>
   !/^https?:\/\/127\\./i.test(src);
 
 const isImageAsset = (asset: any): boolean => 
-  !!asset && (asset.mediaType === 'image' || (!!asset.src && /\\.(jpg|jpeg|png|gif|bmp|webp|svg)([\\?#].*)?$/i.test(asset.src)));
+  !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)([\?#].*)?$/i.test(asset.src)));
 
 const isVideoAsset = (asset: any): boolean => 
-  !!asset && (asset.mediaType === 'video' || (!!asset.src && /\\.(mp4|webm|ogg|mov)([\\?#].*)?$/i.test(asset.src)));
+  !!asset && (asset.mediaType === 'video' || (!!asset.src && /\.(mp4|webm|ogg|mov)([\?#].*)?$/i.test(asset.src)));
 
 const isLinkAsset = (asset: any): boolean => 
   !!asset && (
@@ -70,12 +70,23 @@ const VerticalVideoSlot: React.FC = () => {
   const [iframeAssetId, setIframeAssetId] = React.useState<string | null>(null);
   const [iframeActive, setIframeActive] = React.useState(false);
 
+  // プリロードの重複実行を防ぐための「スロット記憶用Ref」
+  const lastPreloadedSlotRef = React.useRef<string>('');
+
   // 1. Begin preloading as soon as the next asset is known to be an external URL.
   // Generates a fresh timestamp token to reset frozen web timers/clocks on every loop.
   React.useEffect(() => {
     if (isLinkAsset(asset)) return;
+    
     if (nextAsset && isLinkAsset(nextAsset)) {
-      if (iframeAssetId !== nextAsset.id || !iframeSrc) {
+      // asset.startTime をキーに含めることで、同じURLの短いループであっても
+      // 毎回異なるスロット（新しい順番）として認識させ、確実に裏側でリロードさせる
+      const slotKey = `${asset?.id || 'null'}-${asset?.startTime || 'null'}-${nextAsset.id}`;
+      
+      if (lastPreloadedSlotRef.current !== slotKey) {
+        lastPreloadedSlotRef.current = slotKey;
+        logDebug('CMS_DELIVERY', 'Preloading link content for upcoming slot', { slotKey, src: nextAsset.src });
+        
         const ts = Date.now();
         const targetSrc = nextAsset.src as string;
         const srcWithTs = targetSrc.includes('?') ? `${targetSrc}&_ts=${ts}` : `${targetSrc}?_ts=${ts}`;
@@ -83,7 +94,7 @@ const VerticalVideoSlot: React.FC = () => {
         setIframeAssetId(nextAsset.id);
       }
     }
-  }, [asset?.id, asset?.src, nextAsset?.id, nextAsset?.src, iframeAssetId, iframeSrc]);
+  }, [asset?.id, asset?.startTime, nextAsset?.id, nextAsset?.src]);
 
   // 2. Activate/deactivate the iframe synchronously — before the browser paints.
   React.useLayoutEffect(() => {
@@ -104,11 +115,11 @@ const VerticalVideoSlot: React.FC = () => {
   // 3. Reset iframe states as soon as we move away from a link asset.
   // This guarantees that when the same link appears again in the schedule, it triggers a clean remount.
   React.useEffect(() => {
-    if (!isLinkAsset(asset)) {
+    if (!isLinkAsset(asset) && !isLinkAsset(nextAsset)) {
       setIframeSrc(null);
       setIframeAssetId(null);
     }
-  }, [asset?.id]);
+  }, [asset?.id, asset?.src, nextAsset?.id, nextAsset?.src]);
 
   // Unmount cleanup
   React.useEffect(() => {
@@ -257,7 +268,6 @@ const VerticalVideoSlot: React.FC = () => {
   }, [asset?.id, asset?.src]);
 
   // Preload next video asset.
-  // Skip http/https URLs — those are handled by the iframe preloading above.
   React.useEffect(() => {
     const preloadVideo = preloadVideoRef.current;
     if (!preloadVideo || !nextAsset?.src) return;
