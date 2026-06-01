@@ -11,13 +11,16 @@ const FREEZE_TIMEOUT_MS = 30000;
 const HEALTH_CHECK_INTERVAL_MS = 60000;
 const MAX_RECREATE_COUNT = 3;
 
+// 縦型・横型配信枠の基準値
+const LINK_CONTENT_W = 1080;
+const LINK_CONTENT_H = 1920;
+
 // Returns true for external URLs (http or https) while excluding localhost
-// and loopback addresses used to serve local video files.
 const isExternalLinkUrl = (src: string | undefined): boolean =>
   !!src &&
   /^https?:\/\//i.test(src) &&
   !/^https?:\/\/localhost(:\d+)?/i.test(src) &&
-  !/^https?:\/\/127\\./i.test(src);
+  !/^https?:\/\/127\./i.test(src);
 
 const isImageAsset = (asset: any): boolean => 
   !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)([\?#].*)?$/i.test(asset.src)));
@@ -36,7 +39,6 @@ const VerticalVideoSlot: React.FC = () => {
   const muted = audioSettings.cmsMuted;
   const { asset, nextAsset, isLoading, isScheduleTransitioning } = useCurrentAsset();
   const videoRef = React.useRef<HTMLVideoElement>(null);
-  const preloadVideoRef = React.useRef<HTMLVideoElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const prevAssetIdRef = React.useRef<string | null>(null);
 
@@ -73,14 +75,12 @@ const VerticalVideoSlot: React.FC = () => {
   // プリロードの重複実行を防ぐための「スロット記憶用Ref」
   const lastPreloadedSlotRef = React.useRef<string>('');
 
-  // 1. Begin preloading as soon as the next asset is known to be an external URL.
-  // Generates a fresh timestamp token to reset frozen web timers/clocks on every loop.
+  // 1. 次のアセットがURLだと判明した瞬間に裏側で事前読み込みを開始する
+  // (※URLコンテンツはロードに時間がかかるため、引き続きプリロードを行います)
   React.useEffect(() => {
     if (isLinkAsset(asset)) return;
     
     if (nextAsset && isLinkAsset(nextAsset)) {
-      // asset.startTime をキーに含めることで、同じURLの短いループであっても
-      // 毎回異なるスロット（新しい順番）として認識させ、確実に裏側でリロードさせる
       const slotKey = `${asset?.id || 'null'}-${asset?.startTime || 'null'}-${nextAsset.id}`;
       
       if (lastPreloadedSlotRef.current !== slotKey) {
@@ -96,7 +96,7 @@ const VerticalVideoSlot: React.FC = () => {
     }
   }, [asset?.id, asset?.startTime, nextAsset?.id, nextAsset?.src]);
 
-  // 2. Activate/deactivate the iframe synchronously — before the browser paints.
+  // 2. ブラウザが描画する直前に、iframeを前面（アクティブ）に切り替える
   React.useLayoutEffect(() => {
     if (!asset) { setIframeActive(false); return; }
     if (isLinkAsset(asset)) {
@@ -112,8 +112,7 @@ const VerticalVideoSlot: React.FC = () => {
     }
   }, [asset?.id, asset?.mediaType, asset?.src, iframeAssetId, iframeSrc]);
 
-  // 3. Reset iframe states as soon as we move away from a link asset.
-  // This guarantees that when the same link appears again in the schedule, it triggers a clean remount.
+  // 3. 今のコンテンツも次のコンテンツもURLでなくなった場合、速やかにiframeを破棄してメモリを空ける
   React.useEffect(() => {
     if (!isLinkAsset(asset) && !isLinkAsset(nextAsset)) {
       setIframeSrc(null);
@@ -128,11 +127,6 @@ const VerticalVideoSlot: React.FC = () => {
       if (freezeTimerRef.current !== undefined) window.clearInterval(freezeTimerRef.current);
       if (healthCheckTimerRef.current !== undefined) window.clearInterval(healthCheckTimerRef.current);
       if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
-      if (preloadVideoRef.current) {
-        preloadVideoRef.current.pause();
-        preloadVideoRef.current.removeAttribute('src');
-        preloadVideoRef.current.load();
-      }
     };
   }, []);
 
@@ -255,33 +249,9 @@ const VerticalVideoSlot: React.FC = () => {
       }
       logDebug('CMS_DELIVERY', 'CMS asset transition', { from: prevAssetIdRef.current, to: asset.id, mediaType: asset.mediaType });
       if (imgRef.current) imgRef.current.src = asset.src;
-      const preloadVideo = preloadVideoRef.current;
-      if (preloadVideo && preloadVideo.src) {
-        const preloadSrc = decodeURIComponent(preloadVideo.src);
-        if (preloadSrc.includes(asset.id) || preloadVideo.src === asset.src) {
-          preloadVideo.removeAttribute('src');
-          preloadVideo.load();
-        }
-      }
       prevAssetIdRef.current = asset.id;
     }
   }, [asset?.id, asset?.src]);
-
-  // Preload next video asset.
-  React.useEffect(() => {
-    const preloadVideo = preloadVideoRef.current;
-    if (!preloadVideo || !nextAsset?.src) return;
-    
-    const isNextVideo = isVideoAsset(nextAsset);
-    if (!isNextVideo) return;
-    
-    const currentPreloadSrc = decodeURIComponent(preloadVideo.src || '');
-    if (currentPreloadSrc.includes(nextAsset.id) || preloadVideo.src === nextAsset.src) return;
-    if (preloadVideo.src) { preloadVideo.removeAttribute('src'); preloadVideo.load(); }
-    preloadVideo.src = nextAsset.src;
-    preloadVideo.load();
-    logDebug('CMS_DELIVERY', 'Preloading next CMS asset', { nextAssetId: nextAsset.id });
-  }, [nextAsset?.id, nextAsset?.src]);
 
   // Log when no active content is scheduled
   React.useEffect(() => {
@@ -291,10 +261,9 @@ const VerticalVideoSlot: React.FC = () => {
   }, [asset, isLoading]);
 
   // Compute CSS transform to scale link content into the container
-  // 枠の形状（横長か縦長か）を検知し、基準となる解像度（1920x1080 または 1080x1920）を動的に切り替えます
   const isLandscape = containerSize.width > containerSize.height;
-  const targetW = isLandscape ? 1920 : 1080;
-  const targetH = isLandscape ? 1080 : 1920;
+  const targetW = isLandscape ? 1920 : LINK_CONTENT_W;
+  const targetH = isLandscape ? 1080 : LINK_CONTENT_H;
 
   let iframeTransform: string | undefined;
   if (containerSize.width > 0 && containerSize.height > 0) {
@@ -312,10 +281,7 @@ const VerticalVideoSlot: React.FC = () => {
       ref={outerContainerRef}
       style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#000' }}
     >
-      {/* Link content iframe.
-          While the current video/image plays, the iframe loads silently at z-index 0.
-          useLayoutEffect flips iframeActive before the browser paints, instantly
-          promoting it to z-index 2 — no black frame is ever visible. */}
+      {/* Link content iframe. */}
       {iframeSrc && (
         <iframe
           key={`iframe-${iframeSrc}`}
@@ -334,9 +300,7 @@ const VerticalVideoSlot: React.FC = () => {
         />
       )}
 
-      {/* Non-link content at z-index 1 — covers the preloading iframe.
-          Never renders video/image for link-type assets to prevent a broken
-          media element from briefly showing during state transitions. */}
+      {/* Video & Image layer */}
       {!iframeActive && !isLink && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1, background: '#000' }}>
           {!asset ? (
@@ -357,44 +321,41 @@ const VerticalVideoSlot: React.FC = () => {
               onError={() => logError('VIDEO', 'Content image load failed', { assetId: asset.id, src: asset.src, reason: 'LOAD_ERROR' })}
             />
           ) : (
-            <>
-              <OptimizedVideo
-                ref={videoRef}
-                key={`video-player-${videoKey}`}
-                src={asset.src}
-                autoPlay
-                loop={true}
-                playsInline
-                muted={muted}
-                style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }}
-                onTimeUpdate={() => { lastTimeUpdateRef.current = Date.now(); }}
-                onLoadedData={() => {
-                  retryCountRef.current = 0;
-                  lastTimeUpdateRef.current = Date.now();
-                  logDebug('VIDEO', 'Content video ready', { assetId: asset.id, src: asset.src });
-                }}
-                onPlay={() => {
-                  lastTimeUpdateRef.current = Date.now();
-                  logDebug('VIDEO', 'Video playback started', { assetId: asset.id });
-                }}
-                onStalled={() => logWarn('VIDEO', 'Video stalled (network throttle or buffer underrun)', {
+            <OptimizedVideo
+              ref={videoRef}
+              key={`video-player-${videoKey}`}
+              src={asset.src}
+              autoPlay
+              loop={true}
+              playsInline
+              muted={muted}
+              style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }}
+              onTimeUpdate={() => { lastTimeUpdateRef.current = Date.now(); }}
+              onLoadedData={() => {
+                retryCountRef.current = 0;
+                lastTimeUpdateRef.current = Date.now();
+                logDebug('VIDEO', 'Content video ready', { assetId: asset.id, src: asset.src });
+              }}
+              onPlay={() => {
+                lastTimeUpdateRef.current = Date.now();
+                logDebug('VIDEO', 'Video playback started', { assetId: asset.id });
+              }}
+              onStalled={() => logWarn('VIDEO', 'Video stalled (network throttle or buffer underrun)', {
+                assetId: asset.id, src: asset.src,
+                readyState: videoRef.current?.readyState, networkState: videoRef.current?.networkState,
+              })}
+              onEnded={() => logDebug('VIDEO', 'Video playback ended (will loop)', { assetId: asset.id })}
+              onError={() => {
+                logError('VIDEO', 'Content video load failed', {
                   assetId: asset.id, src: asset.src,
-                  readyState: videoRef.current?.readyState, networkState: videoRef.current?.networkState,
-                })}
-                onEnded={() => logDebug('VIDEO', 'Video playback ended (will loop)', { assetId: asset.id })}
-                onError={() => {
-                  logError('VIDEO', 'Content video load failed', {
-                    assetId: asset.id, src: asset.src,
-                    error: videoRef.current?.error?.message,
-                    errorCode: videoRef.current?.error?.code,
-                    networkState: videoRef.current?.networkState,
-                    readyState: videoRef.current?.readyState,
-                  });
-                  if (videoRef.current) attemptRecovery(videoRef.current);
-                }}
-              />
-              <video ref={preloadVideoRef} muted preload="metadata" playsInline style={{ display: 'none' }} />
-            </>
+                  error: videoRef.current?.error?.message,
+                  errorCode: videoRef.current?.error?.code,
+                  networkState: videoRef.current?.networkState,
+                  readyState: videoRef.current?.readyState,
+                });
+                if (videoRef.current) attemptRecovery(videoRef.current);
+              }}
+            />
           )}
         </div>
       )}
