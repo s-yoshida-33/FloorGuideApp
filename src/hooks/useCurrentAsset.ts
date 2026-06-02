@@ -16,7 +16,7 @@ type AssetStatus = 'ok' | 'noAsset' | 'error' | null;
 
 const BASE_RETRY_DELAY_MS = 3000;
 const MAX_RETRY_DELAY_MS = 60000;
-const NULL_GRACE_PERIOD_MS = 5000;
+const NULL_GRACE_PERIOD_MS = 30000;
 
 /**
  * Convert a TimelineStreamEvent into a CurrentAsset.
