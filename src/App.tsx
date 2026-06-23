@@ -168,7 +168,7 @@ const App: React.FC = () => {
     },
     [],
   );
-  useOpenTimeSync(mallId, { onOpenTimeUpdated: handleOpenTimeUpdated });
+  useOpenTimeSync(mallId, { onOpenTimeUpdated: handleOpenTimeUpdated, enabled: appPhase !== 'boot' });
 
   // S3 banner sync on startup (only active for layouts that use banners)
   const handleBannerUpdated = useCallback(
