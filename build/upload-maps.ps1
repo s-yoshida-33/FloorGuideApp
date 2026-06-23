@@ -155,45 +155,43 @@ if ($MediaType -eq "maps" -or $MediaType -eq "all") {
     $mapsDir = Join-Path $mediasRoot "$MallId\maps"
 
     if (-not (Test-Path $mapsDir)) {
-        Write-Host "Error: Maps directory not found: $mapsDir" -ForegroundColor Red
-        exit 1
-    }
+        Write-Host "Skipping maps: directory not found: $mapsDir" -ForegroundColor Yellow
+    } else {
+        $hostnameDirs = Get-ChildItem -Path $mapsDir -Directory -ErrorAction SilentlyContinue
 
-    $hostnameDirs = Get-ChildItem -Path $mapsDir -Directory -ErrorAction SilentlyContinue
+        if ($hostnameDirs.Count -eq 0) {
+            Write-Host "Skipping maps: no hostname directories found under: $mapsDir" -ForegroundColor Yellow
+        } else {
+            Write-Host "Processing maps for mall: $MallId" -ForegroundColor Cyan
+            Write-Host "Found $($hostnameDirs.Count) hostname dir(s): $($hostnameDirs.Name -join ', ')" -ForegroundColor Green
 
-    if ($hostnameDirs.Count -eq 0) {
-        Write-Host "No hostname directories found under: $mapsDir" -ForegroundColor Yellow
-        exit 0
-    }
+            foreach ($hostnameDir in $hostnameDirs) {
+                $hn     = $hostnameDir.Name
+                $srcDir = $hostnameDir.FullName
+                $s3Base = "s3://tti-distribution/public/gido/medias/$MallId/maps/$hn"
 
-    Write-Host "Processing maps for mall: $MallId" -ForegroundColor Cyan
-    Write-Host "Found $($hostnameDirs.Count) hostname dir(s): $($hostnameDirs.Name -join ', ')" -ForegroundColor Green
+                Write-Host "`n[HOSTNAME: $hn]" -ForegroundColor Magenta
 
-    foreach ($hostnameDir in $hostnameDirs) {
-        $hn     = $hostnameDir.Name
-        $srcDir = $hostnameDir.FullName
-        $s3Base = "s3://tti-distribution/public/gido/medias/$MallId/maps/$hn"
+                # Find .webp files (e.g. 1F-map.webp, 2F-map.webp)
+                $webpFiles = Get-ChildItem -Path $srcDir -Filter "*F-map.webp" -File -ErrorAction SilentlyContinue
 
-        Write-Host "`n[HOSTNAME: $hn]" -ForegroundColor Magenta
+                if ($webpFiles.Count -eq 0) {
+                    Write-Host "  No *F-map.webp files found. Skipping." -ForegroundColor Yellow
+                    continue
+                }
 
-        # Find .webp files (e.g. 1F-map.webp, 2F-map.webp)
-        $webpFiles = Get-ChildItem -Path $srcDir -Filter "*F-map.webp" -File -ErrorAction SilentlyContinue
+                foreach ($webpFile in $webpFiles) {
+                    $baseName   = [System.IO.Path]::GetFileNameWithoutExtension($webpFile.Name)
+                    $uploadName = "$baseName-$today.webp"
+                    $updatedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
-        if ($webpFiles.Count -eq 0) {
-            Write-Host "  No *F-map.webp files found. Skipping." -ForegroundColor Yellow
-            continue
+                    Write-Host "  File: $($webpFile.Name) -> $uploadName" -ForegroundColor Green
+                    Upload-WebpToS3 -LocalFile $webpFile.FullName -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt -BaseName $baseName
+                }
+
+                Write-Host "  Done: $hn" -ForegroundColor Green
+            }
         }
-
-        foreach ($webpFile in $webpFiles) {
-            $baseName   = [System.IO.Path]::GetFileNameWithoutExtension($webpFile.Name)
-            $uploadName = "$baseName-$today.webp"
-            $updatedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-            Write-Host "  File: $($webpFile.Name) -> $uploadName" -ForegroundColor Green
-            Upload-WebpToS3 -LocalFile $webpFile.FullName -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt -BaseName $baseName
-        }
-
-        Write-Host "  Done: $hn" -ForegroundColor Green
     }
 }
 
@@ -205,18 +203,16 @@ if ($MediaType -eq "open-times" -or $MediaType -eq "all") {
     $srcFile      = Join-Path $openTimesDir "open-time.webp"
 
     if (-not (Test-Path $srcFile)) {
-        Write-Host "Error: open-time.webp not found: $srcFile" -ForegroundColor Red
-        Write-Host "Place the file at: medias\$MallId\open-times\open-time.webp" -ForegroundColor Yellow
-        exit 1
+        Write-Host "Skipping open-times: open-time.webp not found: $srcFile" -ForegroundColor Yellow
+    } else {
+        $uploadName = "open-time-$today.webp"
+        $updatedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $s3Base     = "s3://tti-distribution/public/gido/medias/$MallId/open-times"
+
+        Write-Host "Processing open-time image for mall: $MallId" -ForegroundColor Cyan
+        Write-Host "  File: open-time.webp -> $uploadName" -ForegroundColor Green
+        Upload-WebpToS3 -LocalFile $srcFile -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt -BaseName "open-time"
     }
-
-    $uploadName = "open-time-$today.webp"
-    $updatedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    $s3Base     = "s3://tti-distribution/public/gido/medias/$MallId/open-times"
-
-    Write-Host "Processing open-time image for mall: $MallId" -ForegroundColor Cyan
-    Write-Host "  File: open-time.webp -> $uploadName" -ForegroundColor Green
-    Upload-WebpToS3 -LocalFile $srcFile -UploadName $uploadName -S3Base $s3Base -UpdatedAt $updatedAt -BaseName "open-time"
 }
 
 # ---------------------------------------------------------------------------
@@ -226,12 +222,7 @@ if ($MediaType -eq "banners" -or $MediaType -eq "all") {
     $bannersRoot = Join-Path $mediasRoot "$MallId\banners"
 
     if (-not (Test-Path $bannersRoot)) {
-        if ($MediaType -eq "banners") {
-            Write-Host "Error: Banners directory not found: $bannersRoot" -ForegroundColor Red
-            exit 1
-        } else {
-            Write-Host "Skipping banners: directory not found: $bannersRoot" -ForegroundColor Yellow
-        }
+        Write-Host "Skipping banners: directory not found: $bannersRoot" -ForegroundColor Yellow
     } else {
         $hostnameDirs = Get-ChildItem -Path $bannersRoot -Directory -ErrorAction SilentlyContinue
 
