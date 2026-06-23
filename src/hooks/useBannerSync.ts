@@ -12,7 +12,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { BaseDirectory, exists, readTextFile, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
 import { logInfo, logError, logWarn } from '../logs/logging';
 
-const S3_BANNERS_BASE = 'https://dl.tti.ninja/gido/medias/banners';
+const S3_MEDIAS_BASE = 'https://dl.tti.ninja/gido/medias';
 
 interface BannerMeta {
   lastUpdatedAt: string;
@@ -25,7 +25,7 @@ interface BannerLatestJson {
 }
 
 const bannerMetaPath = (layoutId: string, hostname: string) =>
-  `medias/banners/${layoutId}/${hostname}/.banner-meta.json`;
+  `medias/${layoutId}/banners/${hostname}/.banner-meta.json`;
 
 async function loadBannerMeta(layoutId: string, hostname: string): Promise<BannerMeta | null> {
   try {
@@ -41,7 +41,7 @@ async function loadBannerMeta(layoutId: string, hostname: string): Promise<Banne
 
 async function saveBannerMeta(layoutId: string, hostname: string, meta: BannerMeta): Promise<void> {
   try {
-    await mkdir(`medias/banners/${layoutId}/${hostname}`, {
+    await mkdir(`medias/${layoutId}/banners/${hostname}`, {
       baseDir: BaseDirectory.AppLocalData,
       recursive: true,
     });
@@ -59,7 +59,7 @@ async function fetchLatestJson(
   layoutId: string,
   hostname: string,
 ): Promise<BannerLatestJson | null> {
-  const url = `${S3_BANNERS_BASE}/${layoutId}/${hostname}/latest.json?_=${Date.now()}`;
+  const url = `${S3_MEDIAS_BASE}/${layoutId}/banners/${hostname}/latest.json?_=${Date.now()}`;
   try {
     const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
     const response = await tauriFetch(url, {
@@ -149,7 +149,7 @@ export function useBannerSync(
     const downloadedPaths: string[] = [];
     try {
       for (const filename of latest.files) {
-        const fileUrl = `${S3_BANNERS_BASE}/${layoutId}/${hostname}/${filename}`;
+        const fileUrl = `${S3_MEDIAS_BASE}/${layoutId}/banners/${hostname}/${filename}`;
         const absPath = await invoke<string>('sync_banner_from_s3', {
           layoutId,
           hostname,

@@ -21,7 +21,7 @@ export interface MapForceFetchStatus {
   message: string;
 }
 
-const S3_MAPS_BASE = 'https://dl.tti.ninja/gido/medias/maps';
+const S3_MEDIAS_BASE = 'https://dl.tti.ninja/gido/medias';
 
 interface LatestJson {
   file: string;
@@ -35,7 +35,7 @@ function parseFloorFromFilename(filename: string): FloorId | null {
 }
 
 async function fetchLatestJson(mallId: string, hostname: string): Promise<LatestJson | null> {
-  const url = `${S3_MAPS_BASE}/${mallId}/${hostname}/latest.json?_=${Date.now()}`;
+  const url = `${S3_MEDIAS_BASE}/${mallId}/maps/${hostname}/latest.json?_=${Date.now()}`;
   try {
     const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
     const response = await tauriFetch(url, {
@@ -77,7 +77,7 @@ export function useMapForceFetch() {
         return null;
       }
 
-      const fileUrl = `${S3_MAPS_BASE}/${mallId}/${hostname}/${latest.file}`;
+      const fileUrl = `${S3_MEDIAS_BASE}/${mallId}/maps/${hostname}/${latest.file}`;
       setStatus({ status: 'fetching', progress: 10, message: 'マップデータをダウンロード中...' });
 
       let unlisten: UnlistenFn | null = null;

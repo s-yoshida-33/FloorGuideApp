@@ -11,48 +11,48 @@
 #   powershell -ExecutionPolicy Bypass -File .\build\upload-maps.ps1 -MallId "sakaikitahanada-v" -MediaType banners
 #
 # --- maps ---
-# For each hostname directory under medias/maps/{MallId}/{hostname}/:
+# For each hostname directory under medias/{MallId}/maps/{hostname}/:
 #   - Reads the .webp map file(s)
 #   - Uploads with timestamp: {floor}F-map-{timestamp}.webp
 #   - Generates latest.json: { "file": "...", "updated_at": "..." }
-#   - Uploads to S3: s3://tti-distribution/public/gido/medias/maps/{MallId}/{hostname}/
+#   - Uploads to S3: s3://tti-distribution/public/gido/medias/{MallId}/maps/{hostname}/
 #
 # Local source layout:
-#   medias/maps/{MallId}/{hostname}/{floor}F-map.webp
+#   medias/{MallId}/maps/{hostname}/{floor}F-map.webp
 #
 # S3 output layout:
-#   s3://tti-distribution/public/gido/medias/maps/{MallId}/{hostname}/{floor}F-map-{timestamp}.webp
-#   s3://tti-distribution/public/gido/medias/maps/{MallId}/{hostname}/latest.json
+#   s3://tti-distribution/public/gido/medias/{MallId}/maps/{hostname}/{floor}F-map-{timestamp}.webp
+#   s3://tti-distribution/public/gido/medias/{MallId}/maps/{hostname}/latest.json
 #
 # --- open-times ---
-# Reads medias/open-times/{MallId}/open-time.webp
+# Reads medias/{MallId}/open-times/open-time.webp
 #   - Uploads with timestamp: open-time-{timestamp}.webp
 #   - Generates latest.json: { "file": "...", "updated_at": "..." }
-#   - Uploads to S3: s3://tti-distribution/public/gido/medias/open-times/{MallId}/
+#   - Uploads to S3: s3://tti-distribution/public/gido/medias/{MallId}/open-times/
 #
 # Local source layout:
-#   medias/open-times/{MallId}/open-time.webp
+#   medias/{MallId}/open-times/open-time.webp
 #
 # S3 output layout:
-#   s3://tti-distribution/public/gido/medias/open-times/{MallId}/open-time-{timestamp}.webp
-#   s3://tti-distribution/public/gido/medias/open-times/{MallId}/latest.json
+#   s3://tti-distribution/public/gido/medias/{MallId}/open-times/open-time-{timestamp}.webp
+#   s3://tti-distribution/public/gido/medias/{MallId}/open-times/latest.json
 #
 # --- banners ---
-# For each hostname directory under medias/banners/{MallId}/{hostname}/:
+# For each hostname directory under medias/{MallId}/banners/{hostname}/:
 #   - Reads banner-0.webp, banner-1.webp, ... (any number of banners)
 #   - Uploads with timestamp: banner-0-{timestamp}.webp, banner-1-{timestamp}.webp, ...
 #   - Generates latest.json: { "files": [...], "updated_at": "..." }
-#   - Uploads to S3: s3://tti-distribution/public/gido/medias/banners/{MallId}/{hostname}/
+#   - Uploads to S3: s3://tti-distribution/public/gido/medias/{MallId}/banners/{hostname}/
 #
 # Local source layout:
-#   medias/banners/{MallId}/{hostname}/banner-0.webp
-#   medias/banners/{MallId}/{hostname}/banner-1.webp
+#   medias/{MallId}/banners/{hostname}/banner-0.webp
+#   medias/{MallId}/banners/{hostname}/banner-1.webp
 #   ...
 #
 # S3 output layout:
-#   s3://tti-distribution/public/gido/medias/banners/{MallId}/{hostname}/banner-0-{timestamp}.webp
-#   s3://tti-distribution/public/gido/medias/banners/{MallId}/{hostname}/banner-1-{timestamp}.webp
-#   s3://tti-distribution/public/gido/medias/banners/{MallId}/{hostname}/latest.json
+#   s3://tti-distribution/public/gido/medias/{MallId}/banners/{hostname}/banner-0-{timestamp}.webp
+#   s3://tti-distribution/public/gido/medias/{MallId}/banners/{hostname}/banner-1-{timestamp}.webp
+#   s3://tti-distribution/public/gido/medias/{MallId}/banners/{hostname}/latest.json
 
 param(
     [string]$MallId    = "",
@@ -152,7 +152,7 @@ function Upload-WebpToS3 {
 # maps
 # ---------------------------------------------------------------------------
 if ($MediaType -eq "maps" -or $MediaType -eq "all") {
-    $mapsDir = Join-Path $mediasRoot "maps\$MallId"
+    $mapsDir = Join-Path $mediasRoot "$MallId\maps"
 
     if (-not (Test-Path $mapsDir)) {
         Write-Host "Error: Maps directory not found: $mapsDir" -ForegroundColor Red
@@ -172,7 +172,7 @@ if ($MediaType -eq "maps" -or $MediaType -eq "all") {
     foreach ($hostnameDir in $hostnameDirs) {
         $hn     = $hostnameDir.Name
         $srcDir = $hostnameDir.FullName
-        $s3Base = "s3://tti-distribution/public/gido/medias/maps/$MallId/$hn"
+        $s3Base = "s3://tti-distribution/public/gido/medias/$MallId/maps/$hn"
 
         Write-Host "`n[HOSTNAME: $hn]" -ForegroundColor Magenta
 
@@ -201,18 +201,18 @@ if ($MediaType -eq "maps" -or $MediaType -eq "all") {
 # open-times
 # ---------------------------------------------------------------------------
 if ($MediaType -eq "open-times" -or $MediaType -eq "all") {
-    $openTimesDir = Join-Path $mediasRoot "open-times\$MallId"
+    $openTimesDir = Join-Path $mediasRoot "$MallId\open-times"
     $srcFile      = Join-Path $openTimesDir "open-time.webp"
 
     if (-not (Test-Path $srcFile)) {
         Write-Host "Error: open-time.webp not found: $srcFile" -ForegroundColor Red
-        Write-Host "Place the file at: medias\open-times\$MallId\open-time.webp" -ForegroundColor Yellow
+        Write-Host "Place the file at: medias\$MallId\open-times\open-time.webp" -ForegroundColor Yellow
         exit 1
     }
 
     $uploadName = "open-time-$today.webp"
     $updatedAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    $s3Base     = "s3://tti-distribution/public/gido/medias/open-times/$MallId"
+    $s3Base     = "s3://tti-distribution/public/gido/medias/$MallId/open-times"
 
     Write-Host "Processing open-time image for mall: $MallId" -ForegroundColor Cyan
     Write-Host "  File: open-time.webp -> $uploadName" -ForegroundColor Green
@@ -223,7 +223,7 @@ if ($MediaType -eq "open-times" -or $MediaType -eq "all") {
 # banners
 # ---------------------------------------------------------------------------
 if ($MediaType -eq "banners" -or $MediaType -eq "all") {
-    $bannersRoot = Join-Path $mediasRoot "banners\$MallId"
+    $bannersRoot = Join-Path $mediasRoot "$MallId\banners"
 
     if (-not (Test-Path $bannersRoot)) {
         if ($MediaType -eq "banners") {
@@ -244,7 +244,7 @@ if ($MediaType -eq "banners" -or $MediaType -eq "all") {
             foreach ($hostnameDir in $hostnameDirs) {
                 $hn     = $hostnameDir.Name
                 $srcDir = $hostnameDir.FullName
-                $s3Base = "s3://tti-distribution/public/gido/medias/banners/$MallId/$hn"
+                $s3Base = "s3://tti-distribution/public/gido/medias/$MallId/banners/$hn"
 
                 Write-Host "`n[HOSTNAME: $hn]" -ForegroundColor Magenta
 

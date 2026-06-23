@@ -589,26 +589,26 @@ fn validate_path_component(s: &str, label: &str) -> Result<String, String> {
     Ok(s.to_string())
 }
 
-/// Returns and creates the local medias/maps directory for a given mall + hostname.
+/// Returns and creates the local medias/{mall_id}/maps directory for a given mall + hostname.
 fn get_maps_dir_inner(mall_id: &str, hostname: &str) -> Result<PathBuf, String> {
     let safe_mall = validate_path_component(mall_id, "mall_id")?;
     let safe_host = validate_path_component(hostname, "hostname")?;
     let dir = get_app_data_dir()?
-        .join("medias").join("maps")
-        .join(&safe_mall).join(&safe_host);
+        .join("medias").join(&safe_mall).join("maps")
+        .join(&safe_host);
     fs::create_dir_all(&dir)
         .map_err(|e| format!("Failed to create maps dir: {}", e))?;
     Ok(dir)
 }
 
-/// Returns the path to the local medias/maps directory WITHOUT creating it.
+/// Returns the path to the local medias/{mall_id}/maps directory WITHOUT creating it.
 /// Returns None if the directory does not exist.
 fn get_maps_dir_if_exists(mall_id: &str, hostname: &str) -> Option<PathBuf> {
     let safe_mall = validate_path_component(mall_id, "mall_id").ok()?;
     let safe_host = validate_path_component(hostname, "hostname").ok()?;
     let dir = get_app_data_dir().ok()?
-        .join("medias").join("maps")
-        .join(&safe_mall).join(&safe_host);
+        .join("medias").join(&safe_mall).join("maps")
+        .join(&safe_host);
     if dir.is_dir() { Some(dir) } else { None }
 }
 
@@ -716,24 +716,22 @@ async fn sync_map_from_s3(
 // Open-time image sync (medias/open-times/{mall_id}/)
 // ---------------------------------------------------------------------------
 
-/// Returns and creates the local medias/open-times directory for a given mall.
+/// Returns and creates the local medias/{mall_id}/open-times directory for a given mall.
 fn get_open_time_dir_inner(mall_id: &str) -> Result<PathBuf, String> {
     let safe_mall = validate_path_component(mall_id, "mall_id")?;
     let dir = get_app_data_dir()?
-        .join("medias").join("open-times")
-        .join(&safe_mall);
+        .join("medias").join(&safe_mall).join("open-times");
     fs::create_dir_all(&dir)
         .map_err(|e| format!("Failed to create open-times dir: {}", e))?;
     Ok(dir)
 }
 
-/// Returns the path to the local medias/open-times directory WITHOUT creating it.
+/// Returns the path to the local medias/{mall_id}/open-times directory WITHOUT creating it.
 /// Returns None if the directory does not exist.
 fn get_open_time_dir_if_exists(mall_id: &str) -> Option<PathBuf> {
     let safe_mall = validate_path_component(mall_id, "mall_id").ok()?;
     let dir = get_app_data_dir().ok()?
-        .join("medias").join("open-times")
-        .join(&safe_mall);
+        .join("medias").join(&safe_mall).join("open-times");
     if dir.is_dir() { Some(dir) } else { None }
 }
 
@@ -884,13 +882,12 @@ fn list_local_maps(mall_id: String, hostname: String) -> Result<Vec<LocalMapEntr
 // Banner image sync (medias/banners/{layout_id}/{hostname}/)
 // ---------------------------------------------------------------------------
 
-/// Returns and creates the local medias/banners directory for a given layout + hostname.
+/// Returns and creates the local medias/{layout_id}/banners directory for a given layout + hostname.
 fn get_banners_dir_inner(layout_id: &str, hostname: &str) -> Result<PathBuf, String> {
     let safe_layout = validate_path_component(layout_id, "layout_id")?;
     let safe_host = validate_path_component(hostname, "hostname")?;
     let dir = get_app_data_dir()?
-        .join("medias").join("banners")
-        .join(&safe_layout)
+        .join("medias").join(&safe_layout).join("banners")
         .join(&safe_host);
     fs::create_dir_all(&dir)
         .map_err(|e| format!("Failed to create banners dir: {}", e))?;
@@ -902,8 +899,7 @@ fn get_banners_dir_if_exists(layout_id: &str, hostname: &str) -> Option<PathBuf>
     let safe_layout = validate_path_component(layout_id, "layout_id").ok()?;
     let safe_host = validate_path_component(hostname, "hostname").ok()?;
     let dir = get_app_data_dir().ok()?
-        .join("medias").join("banners")
-        .join(&safe_layout)
+        .join("medias").join(&safe_layout).join("banners")
         .join(&safe_host);
     if dir.is_dir() { Some(dir) } else { None }
 }

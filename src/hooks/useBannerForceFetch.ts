@@ -27,7 +27,7 @@ export interface BannerForceFetchStatus {
   message: string;
 }
 
-const S3_BANNERS_BASE = 'https://dl.tti.ninja/gido/medias/banners';
+const S3_MEDIAS_BASE = 'https://dl.tti.ninja/gido/medias';
 
 interface BannerLatestJson {
   files: string[];
@@ -38,7 +38,7 @@ async function fetchLatestJson(
   layoutId: string,
   hostname: string,
 ): Promise<BannerLatestJson | null> {
-  const url = `${S3_BANNERS_BASE}/${layoutId}/${hostname}/latest.json?_=${Date.now()}`;
+  const url = `${S3_MEDIAS_BASE}/${layoutId}/banners/${hostname}/latest.json?_=${Date.now()}`;
   try {
     const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
     const response = await tauriFetch(url, {
@@ -99,7 +99,7 @@ export function useBannerForceFetch() {
 
       for (let i = 0; i < total; i++) {
         const filename = latest.files[i];
-        const fileUrl = `${S3_BANNERS_BASE}/${layoutId}/${hostname}/${filename}`;
+        const fileUrl = `${S3_MEDIAS_BASE}/${layoutId}/banners/${hostname}/${filename}`;
         const progressBase = 10 + Math.round((i / total) * 80);
 
         setStatus({
