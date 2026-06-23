@@ -8,7 +8,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { BaseDirectory, exists, readTextFile, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
 import { logInfo, logError, logWarn } from '../logs/logging';
 
-const S3_OPEN_TIMES_BASE = 'https://dl.tti.ninja/gido/medias/open-times';
+const S3_MEDIAS_BASE = 'https://dl.tti.ninja/gido/medias';
 
 interface OpenTimeMeta {
   lastFile: string;
@@ -21,7 +21,7 @@ interface LatestJson {
 }
 
 const openTimeMetaPath = (mallId: string) =>
-  `medias/open-times/${mallId}/.open-time-meta.json`;
+  `medias/${mallId}/open-times/.open-time-meta.json`;
 
 async function loadOpenTimeMeta(mallId: string): Promise<OpenTimeMeta | null> {
   try {
@@ -37,7 +37,7 @@ async function loadOpenTimeMeta(mallId: string): Promise<OpenTimeMeta | null> {
 
 async function saveOpenTimeMeta(mallId: string, meta: OpenTimeMeta): Promise<void> {
   try {
-    await mkdir(`medias/open-times/${mallId}`, { baseDir: BaseDirectory.AppLocalData, recursive: true });
+    await mkdir(`medias/${mallId}/open-times`, { baseDir: BaseDirectory.AppLocalData, recursive: true });
     await writeTextFile(openTimeMetaPath(mallId), JSON.stringify(meta, null, 2), { baseDir: BaseDirectory.AppLocalData });
   } catch (e) {
     logWarn('OPEN_TIME_SYNC', 'Failed to save open-time meta', { error: String(e) });
@@ -45,7 +45,7 @@ async function saveOpenTimeMeta(mallId: string, meta: OpenTimeMeta): Promise<voi
 }
 
 async function fetchLatestJson(mallId: string): Promise<LatestJson | null> {
-  const url = `${S3_OPEN_TIMES_BASE}/${mallId}/latest.json?_=${Date.now()}`;
+  const url = `${S3_MEDIAS_BASE}/${mallId}/open-times/latest.json?_=${Date.now()}`;
   try {
     const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
     const response = await tauriFetch(url, {
@@ -106,7 +106,7 @@ export function useOpenTimeSync(
     }
 
     // 3. Download new file
-    const fileUrl = `${S3_OPEN_TIMES_BASE}/${mallId}/${latest.file}`;
+    const fileUrl = `${S3_MEDIAS_BASE}/${mallId}/open-times/${latest.file}`;
     logInfo('OPEN_TIME_SYNC', 'Downloading open-time image', { file: latest.file, url: fileUrl });
 
     try {

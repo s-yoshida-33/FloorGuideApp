@@ -20,7 +20,7 @@ export interface OpenTimeForceFetchStatus {
   message: string;
 }
 
-const S3_OPEN_TIMES_BASE = 'https://dl.tti.ninja/gido/medias/open-times';
+const S3_MEDIAS_BASE = 'https://dl.tti.ninja/gido/medias';
 
 interface LatestJson {
   file: string;
@@ -28,7 +28,7 @@ interface LatestJson {
 }
 
 async function fetchLatestJson(mallId: string): Promise<LatestJson | null> {
-  const url = `${S3_OPEN_TIMES_BASE}/${mallId}/latest.json?_=${Date.now()}`;
+  const url = `${S3_MEDIAS_BASE}/${mallId}/open-times/latest.json?_=${Date.now()}`;
   try {
     const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
     const response = await tauriFetch(url, {
@@ -67,7 +67,7 @@ export function useOpenTimeForceFetch() {
         return null;
       }
 
-      const fileUrl = `${S3_OPEN_TIMES_BASE}/${mallId}/${latest.file}`;
+      const fileUrl = `${S3_MEDIAS_BASE}/${mallId}/open-times/${latest.file}`;
       setStatus({ status: 'fetching', progress: 10, message: '営業時間画像をダウンロード中...' });
 
       let unlisten: UnlistenFn | null = null;

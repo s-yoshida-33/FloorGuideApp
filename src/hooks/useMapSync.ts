@@ -9,7 +9,7 @@ import { BaseDirectory, exists, readTextFile, writeTextFile, mkdir } from '@taur
 import type { FloorId } from '../types/floorLayout';
 import { logInfo, logError, logWarn } from '../logs/logging';
 
-const S3_MAPS_BASE = 'https://dl.tti.ninja/gido/medias/maps';
+const S3_MEDIAS_BASE = 'https://dl.tti.ninja/gido/medias';
 
 interface MapMeta {
   lastFile: string;
@@ -29,7 +29,7 @@ function parseFloorFromFilename(filename: string): FloorId | null {
 }
 
 const mapMetaPath = (mallId: string, hostname: string) =>
-  `medias/maps/${mallId}/${hostname}/.map-meta.json`;
+  `medias/${mallId}/maps/${hostname}/.map-meta.json`;
 
 async function loadMapMeta(mallId: string, hostname: string): Promise<MapMeta | null> {
   try {
@@ -45,7 +45,7 @@ async function loadMapMeta(mallId: string, hostname: string): Promise<MapMeta | 
 
 async function saveMapMeta(mallId: string, hostname: string, meta: MapMeta): Promise<void> {
   try {
-    await mkdir(`medias/maps/${mallId}/${hostname}`, { baseDir: BaseDirectory.AppLocalData, recursive: true });
+    await mkdir(`medias/${mallId}/maps/${hostname}`, { baseDir: BaseDirectory.AppLocalData, recursive: true });
     await writeTextFile(mapMetaPath(mallId, hostname), JSON.stringify(meta, null, 2), { baseDir: BaseDirectory.AppLocalData });
   } catch (e) {
     logWarn('MAP_SYNC', 'Failed to save map meta', { error: String(e) });
@@ -53,7 +53,7 @@ async function saveMapMeta(mallId: string, hostname: string, meta: MapMeta): Pro
 }
 
 async function fetchLatestJson(mallId: string, hostname: string): Promise<LatestJson | null> {
-  const url = `${S3_MAPS_BASE}/${mallId}/${hostname}/latest.json?_=${Date.now()}`;
+  const url = `${S3_MEDIAS_BASE}/${mallId}/maps/${hostname}/latest.json?_=${Date.now()}`;
   try {
     const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
     const response = await tauriFetch(url, {
@@ -125,7 +125,7 @@ export function useMapSync(
     }
 
     // 3. Download new file
-    const fileUrl = `${S3_MAPS_BASE}/${mallId}/${hostname}/${latest.file}`;
+    const fileUrl = `${S3_MEDIAS_BASE}/${mallId}/maps/${hostname}/${latest.file}`;
     logInfo('MAP_SYNC', 'Downloading map', { file: latest.file, url: fileUrl });
 
     try {
