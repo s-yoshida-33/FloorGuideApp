@@ -59,7 +59,13 @@ npm run media:upload         # 地図メディアのアップロード（build/r
 - 作業は `dev` を起点に `hotfix/<内容>` または `feature/<内容>` ブランチを作成して行う（git worktreeで作業ディレクトリを分けるのが基本、`C:\dev\floor-guide-Issue\#000.md`参照）
 - 作業完了後はそのブランチをpushしてPRを作成し、`dev`へのマージが完了した時点で対応するIssueをクローズする
 - 過去は`dev`に直接作業・pushする運用だったが、複数リポジトリ・複数タスクの並行作業に対応するため上記のブランチ運用に移行した
-- リリースは`npm run tauri:release`（署名付きビルド＋GitHub Release作成）。自動更新は`dl.tti.ninja`経由のGitHub Releaseで配布。
+- **デフォルトブランチは`main`ではなく`release`**（2026-07-10にリネーム）。`release`への**push**がGitHub Actions（`.github/workflows/build-release.yml`）の本番リリーストリガーになっている。
+- **本番リリース手順**:
+  1. `dev`で`npm run bump:version`を実行し、`package.json`のバージョンを先に上げる（**これを忘れると次のステップでワークフローが失敗する**、4.のガード参照）
+  2. `dev` → `release` へPRを作成・マージ（`gh pr create --base release --head dev` → `gh pr merge`）
+  3. `release`へのpushをトリガーに、GitHub Actionsが署名付きビルド（`npm run tauri:release`）→ S3アップロード（`dl.tti.ninja/public/gido/releases/`、`.exe`/`.exe.sig`/`latest.json`）→ タグ`vX.Y.Z`作成 → GitHub Release作成、まで自動実行する
+  4. ワークフロー冒頭の「Check version not already released」ステップが、同名タグ（`vX.Y.Z`）が既に存在する場合はジョブを失敗させる（1.のバージョン上げ忘れによる既存リリース・S3成果物の無言上書きを防ぐガード）
+- **2026-07-10以前はタグ（`v*`）のpushがリリーストリガーだった**（デフォルトブランチは当時`main`）。「デフォルトブランチへのpushでリリース」という一般的な形に統一するため変更した（Grain-Linkでの移行を横展開）。
 
 ## Architecture
 
