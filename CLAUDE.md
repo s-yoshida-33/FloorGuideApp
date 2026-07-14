@@ -53,6 +53,7 @@ npm run media:upload         # 地図メディアのアップロード（build/r
 - **`tauri.conf.json`のCSP**にAPIサーバーのポートを追加する場合、ここを更新しないと`fetch`がブロックされる。
 - **モール別レイアウト設定**が複数存在する（Sakai Kitahanada / Suzaka / Tsu-Minami等）。設定は`%LOCALAPPDATA%\com.tti.gido\settings.json`。動作確認時はどのモール向け設定で見ているか確認する。
 - **CMS_API.mdのタイトルは「WonderScreen Local API」**だが、これはGido側が実装するローカルAPI仕様のドキュメントであり、WonderScreen CMS本体のAPIではない（命名がやや誤解を招く）。
+- **署名鍵ファイル（`~/TAURI_KEY_PASSWORD.sh`・`.sh.pub`）は、コミット`46186ab`で誤ってgit管理下に追加され、Publicリポジトリの状態でpushされていた**（2026-07-14発覚）。`git-filter-repo`で全履歴・全ブランチ・全タグから完全に除去し、force pushで上書き済み（ローカルチェックアウトも再クローン済み）。`.gitignore`に`~/*`を追加し再混入を防止している。**鍵のローテーションは意図的に未実施**（現時点でこのリポジトリをcloneしているのは開発者本人のみのため優先度を下げている）。今後この鍵をコミットに含めないこと。ローテーションが必要になった場合、既存端末は現行の公開鍵しか信頼しないため、「旧鍵で署名しつつ新しい公開鍵を埋め込んだリリース」を経由する2段階の切り替えが必要になる点に注意。
 
 ## Branches & deploy flow
 
