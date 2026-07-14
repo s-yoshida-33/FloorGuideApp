@@ -1717,6 +1717,17 @@ fn main() {
         }
     }
 
+    // Re-apply fullscreen shortly after startup to force WebView2 to resync its
+    // render surface with the final window bounds. Mirrors the resync that already
+    // happens on WindowEvent::Focused(true) (minimize/restore), which is the only
+    // other place this app forces a fullscreen re-apply.
+    if let Some(window) = app.get_webview_window("main") {
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let _ = window.set_fullscreen(true);
+        });
+    }
+
     app.run(|_app_handle, event| {
         // Prevent the app from exiting when the last window closes.
         // Only FORCE_QUIT (set by tray "終了" or quit_app command) allows exit.
