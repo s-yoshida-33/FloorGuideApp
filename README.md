@@ -13,14 +13,14 @@ ElectronからTauri 2へ移行したことにより、バイナリサイズの�
 
 本アプリケーションは、軽量なRustバックエンドとOSネイティブのWebViewを利用した2層構造を持ちます。
 
-* **Backend (Tauri/Rust)**:
+### **Backend (Tauri/Rust)**:
 * Rust (1.56+)
 * Tauri 2.x
 * 主要クレート・プラグイン: `tauri-plugin-fs`, `tauri-plugin-process`, `tauri-plugin-dialog`, `tauri-plugin-http`, `tauri-plugin-updater`, `reqwest`, `sysinfo` (CPU/メモリ/GPU監視用)
 * 役割: ウィンドウ管理、ローカルファイルシステム操作、外部APIのプロキシ通信（CORS回避）、ログ出力、自動アップデート。
 
 
-* **Frontend (React)**:
+### **Frontend (React)**:
 * React 19, TypeScript
 * ビルドツール: Vite 7 (ポート: `1420`)
 * スタイリング: Tailwind CSS 4
@@ -62,13 +62,13 @@ ElectronからTauri 2へ移行したことにより、バイナリサイズの�
 同一ネットワーク上の外部システムを自動検出します。
 CORS制約を回避するため、Rustの `reqwest` を用いたプロキシコマンド (`fetch_shops_proxy` 等) を経由して通信します。
 
-* **BridgeGround (店舗データ)**:
+### **BridgeGround (店舗データ)**:
 * プロトコル: SSE (エンドポイント: `/api/events`)
 * ポート範囲: `8090 - 8099`
 * 動作: `shops` イベント受信時に店舗リストを更新・キャッシュし、オフライン時は直近のキャッシュで動作（Stale-While-Revalidate）。
 
 
-* **WonderScreen CMS / WSP (サイネージ)**:
+### **WonderScreen CMS / WSP (サイネージ)**:
 * プロトコル: SSE (エンドポイント: `/api/events`)
 * ポート範囲: `8080 - 8089`
 * 動作: `switch` / `update` イベントでメディア切り替え。ローカルパスはTauriの `asset://` プロトコル経由で読み込み。
