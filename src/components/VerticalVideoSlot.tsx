@@ -179,6 +179,16 @@ const VerticalVideoSlot: React.FC = () => {
   React.useLayoutEffect(() => {
     if (!asset) { setIframeActive(false); return; }
 
+    // 無条件デバッグログ: 「前面化」ログが実機で一度も出ない不具合の調査用(Gido Issue #36)。
+    // isWebFeedAsset/isLinkAssetの判定結果そのものをasset全種別で毎回記録することで、
+    // 分岐に入れていない場合(mediaTypeの不一致など)と、分岐には入るがログより前で
+    // returnしている場合を切り分ける
+    logInfo('WEBFEED', 'iframe前面化レイアウト判定', {
+      assetId: asset.id, mediaType: asset.mediaType, src: asset.src,
+      isWebFeed: isWebFeedAsset(asset), isLink: isLinkAsset(asset),
+      iframeAssetId, hasIframeSrc: !!iframeSrc, iframeSrcMatches: iframeAssetId === asset.id,
+    });
+
     if (isLinkAsset(asset)) {
       if (iframeAssetId !== asset.id || !iframeSrc) {
         const ts = Date.now();
