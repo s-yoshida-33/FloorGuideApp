@@ -2,7 +2,7 @@
 import React from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
-import { logWarn, logError, logDebug } from '../logs/logging';
+import { logInfo, logWarn, logError, logDebug } from '../logs/logging';
 import { OptimizedVideo } from './OptimizedVideo';
 import { useAudioSettingsContext } from '../contexts/AudioSettingsContext';
 
@@ -57,10 +57,12 @@ async function waitForWebFeedEntry(rawPath: string | undefined, assetId: string)
     try {
       const exists = await invoke<boolean>('webfeed_entry_exists', { path: rawPath });
       if (exists) {
+        // logInfo(logDebugではなく): 本番ビルドではlogDebugが完全に無効化されるため、
+        // 検証観点1〜3の実機ログ確認にはlogInfo以上が必須(Gido Issue #36で判明)
         if (attempt > 0) {
           logWarn('WEBFEED', 'WEB連携コンテンツの展開先ファイルがリトライ後に出現(検証観点1)', { assetId, rawPath, attempt });
         } else {
-          logDebug('WEBFEED', 'WEB連携コンテンツの展開先ファイルを確認', { assetId, rawPath });
+          logInfo('WEBFEED', 'WEB連携コンテンツの展開先ファイルを確認', { assetId, rawPath });
         }
         return true;
       }
@@ -139,7 +141,7 @@ const VerticalVideoSlot: React.FC = () => {
         };
 
         if (isWebFeedAsset(nextAsset)) {
-          logDebug('WEBFEED', 'WEB連携コンテンツのプリロードを開始', { slotKey, rawPath: nextAsset.rawPath });
+          logInfo('WEBFEED', 'WEB連携コンテンツのプリロードを開始', { slotKey, rawPath: nextAsset.rawPath, src: nextAsset.src });
           waitForWebFeedEntry(nextAsset.rawPath, nextAsset.id).then(exists => {
             if (exists) activate();
           });
@@ -171,6 +173,9 @@ const VerticalVideoSlot: React.FC = () => {
     if (isWebFeedAsset(asset)) {
       if (iframeAssetId === asset.id && iframeSrc) {
         // プリロード側で既に存在確認済み
+        logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード済み)', {
+          assetId: asset.id, iframeSrc, containerSize,
+        });
         setIframeActive(true);
         return;
       }
@@ -180,6 +185,9 @@ const VerticalVideoSlot: React.FC = () => {
         if (cancelled || !exists) return;
         const ts = Date.now();
         const srcWithTs = asset.src.includes('?') ? `${asset.src}&_ts=${ts}` : `${asset.src}?_ts=${ts}`;
+        logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード未完了のため即時確認)', {
+          assetId: asset.id, iframeSrc: srcWithTs, containerSize,
+        });
         setIframeSrc(srcWithTs);
         setIframeAssetId(asset.id);
         setIframeActive(true);
