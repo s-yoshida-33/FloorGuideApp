@@ -146,16 +146,16 @@ const VerticalVideoSlot: React.FC = () => {
 
         const activate = () => {
           const targetSrc = nextAsset.src as string;
-          // WEB連携コンテンツ(ローカルのTauri asset protocol)にはキャッシュバスターのクエリ文字列を
-          // 付けない。実URL(link)と違いローカルファイルには不要な上、Tauriのasset protocolが
-          // クエリ文字列付きのパスを正しく解決できるとは限らないため(展開先自体がsyncごとに
-          // 新しいUUIDディレクトリになるので、そもそもキャッシュバスターが無くても問題ない)
-          const srcToUse = isWebFeedAsset(nextAsset)
-            ? targetSrc
-            : (() => {
-                const ts = Date.now();
-                return targetSrc.includes('?') ? `${targetSrc}&_ts=${ts}` : `${targetSrc}?_ts=${ts}`;
-              })();
+          // WEB連携コンテンツにも毎回キャッシュバスターを付ける。付けないと同一アセットの
+          // 再プリロード時にiframeのsrc文字列が完全に同一になり、Reactのkey(`iframe-${iframeSrc}`)が
+          // 変化せずiframe要素が再生成(リロード)されない。その結果、テンプレート内部の記事
+          // ローテーションタイマーが最初のプリロード以降ずっと動き続けたままになり、CMSの表示枠が
+          // 非表示の間も裏で回り続け、表示のたびにリセットされずセッション経過時間に応じて
+          // どんどんズレが蓄積する不具合を引き起こしていた(Gido Issue #36、実機の
+          // preloadLeadTimeMs計測で発覚)。URLエンコード修正(#36)によりTauriのasset protocolでも
+          // クエリ文字列付きパスの相対解決に問題が無いことを確認済みなので安全に付けられる。
+          const ts = Date.now();
+          const srcToUse = targetSrc.includes('?') ? `${targetSrc}&_ts=${ts}` : `${targetSrc}?_ts=${ts}`;
           setIframeSrc(srcToUse);
           setIframeAssetId(nextAsset.id);
         };
@@ -223,12 +223,14 @@ const VerticalVideoSlot: React.FC = () => {
       let cancelled = false;
       waitForWebFeedEntry(asset.rawPath, asset.id).then(exists => {
         if (cancelled || !exists) return;
-        // キャッシュバスター無し(理由は上のpreload effect内コメント参照)
+        // キャッシュバスターを付ける(理由は上のpreload effect内コメント参照)
+        const ts = Date.now();
+        const srcWithTs = asset.src.includes('?') ? `${asset.src}&_ts=${ts}` : `${asset.src}?_ts=${ts}`;
         webfeedSrcSetAtRef.current = { assetId: asset.id, ts: Date.now() };
         logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード未完了のため即時確認・リード時間0)', {
-          assetId: asset.id, iframeSrc: asset.src, containerSize, preloadLeadTimeMs: 0,
+          assetId: asset.id, iframeSrc: srcWithTs, containerSize, preloadLeadTimeMs: 0,
         });
-        setIframeSrc(asset.src);
+        setIframeSrc(srcWithTs);
         setIframeAssetId(asset.id);
         setIframeActive(true);
       });
