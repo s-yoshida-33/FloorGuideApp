@@ -28,7 +28,19 @@ function deriveWebFeedEntry(zipLocalPath: string): { src: string; rawPath: strin
   const dirPath = zipLocalPath.replace(/\.zip$/i, '');
   const normalized = dirPath.replace(/\\/g, '/');
   const rawPath = `${normalized}/index.html`;
-  return { src: convertFileSrc(rawPath), rawPath };
+
+  // convertFileSrc()はパス全体を1個の不透明なセグメントとしてpercent-encodeする
+  // (`/`も%2Fになる)。単一ファイル(画像/動画)には問題ないが、WEB連携コンテンツは
+  // index.htmlが同ディレクトリのstyle.css/template.js/data.xml等を相対パスで読み込む
+  // ため、ブラウザ側の相対URL解決が効くよう`/`を区切りとして残した形でURLを組み直す
+  // (Rust側のasset protocolハンドラは各セグメントを個別にpercent-decodeしても
+  // 最終的に同じファイルパスへ復元されるため、サーバー側の解決には影響しない)。
+  const opaqueUrl = convertFileSrc(rawPath);
+  const origin = new URL(opaqueUrl).origin;
+  const properPath = rawPath.split('/').map(encodeURIComponent).join('/');
+  const src = `${origin}/${properPath}`;
+
+  return { src, rawPath };
 }
 
 /**
