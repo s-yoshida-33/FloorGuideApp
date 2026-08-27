@@ -80,7 +80,8 @@ export interface WspMediaAsset {
     name: string;
     startTime: string;
     endTime: string;
-    mediaType?: string; // 'video', 'image', etc.
+    mediaType?: string; // 'video', 'image', 'link', 'zip', etc.
     type?: string; // Additional type information
+    rawPath?: string; // Untransformed local filesystem path (zip/webfeed assets only; used for existence checks)
   }
   

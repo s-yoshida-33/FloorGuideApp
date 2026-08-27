@@ -570,6 +570,16 @@ fn read_image_file(file_path: String) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("Failed to read image file: {}", e))
 }
 
+/// Check whether a WEB連携コンテンツ(zip)展開先ファイル exists on disk yet.
+/// Used to detect the timing gap between the SSE `item_changed` event arriving and the
+/// player having finished extracting the zip (Gido Issue #36,検証観点1).
+/// This bypasses the webview `fs:scope` capability (extraction lives outside
+/// $APPDATA/$HOME) by doing the check in Rust rather than via the fs plugin.
+#[tauri::command]
+fn webfeed_entry_exists(path: String) -> bool {
+    std::path::Path::new(&path).is_file()
+}
+
 // ---------------------------------------------------------------------------
 // S3 map sync commands
 // ---------------------------------------------------------------------------
@@ -1665,6 +1675,7 @@ fn main() {
             get_image_path,
             delete_image_file,
             read_image_file,
+            webfeed_entry_exists,
             get_system_info,
             quit_app,
             webview_ping,
