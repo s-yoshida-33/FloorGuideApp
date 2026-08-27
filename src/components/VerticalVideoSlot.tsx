@@ -120,6 +120,12 @@ const VerticalVideoSlot: React.FC = () => {
   // プリロードの重複実行を防ぐための「スロット記憶用Ref」
   const lastPreloadedSlotRef = React.useRef<string>('');
 
+  // WEB連携コンテンツのiframe src確定(=内部の記事ローテーションタイマーが動き始めるとみられる時刻)
+  // から実際に前面化されるまでのリード時間を計測する(切り替えロジックの検証用、Gido Issue #36。
+  // 前面化までの間にプリロード中のiframe内で記事ローテーションが進んでしまっている場合、
+  // 最初の記事が15秒未満で切り替わる・末尾に想定外の記事が混入する、といった現象の説明になる)
+  const webfeedSrcSetAtRef = React.useRef<{ assetId: string; ts: number } | null>(null);
+
   // 1. 次のアセットがURL/WEB連携コンテンツだと判明した瞬間に裏側で事前読み込みを開始する
   // (※どちらもロードに時間がかかるため、引き続きプリロードを行います。WEB連携コンテンツは
   // 展開先ファイルの存在確認が取れてからiframeへ読み込む)
@@ -151,7 +157,13 @@ const VerticalVideoSlot: React.FC = () => {
         if (isWebFeedAsset(nextAsset)) {
           logInfo('WEBFEED', 'WEB連携コンテンツのプリロードを開始', { slotKey, rawPath: nextAsset.rawPath, src: nextAsset.src });
           waitForWebFeedEntry(nextAsset.rawPath, nextAsset.id).then(exists => {
-            if (exists) activate();
+            if (exists) {
+              webfeedSrcSetAtRef.current = { assetId: nextAsset.id, ts: Date.now() };
+              logInfo('WEBFEED', 'WEB連携コンテンツiframeのsrcを確定(プリロード完了、内部タイマーが動き出す想定時刻)', {
+                assetId: nextAsset.id,
+              });
+              activate();
+            }
           });
         } else {
           logDebug('CMS_DELIVERY', 'Preloading link content for upcoming slot', { slotKey, src: nextAsset.src });
@@ -181,8 +193,12 @@ const VerticalVideoSlot: React.FC = () => {
     if (isWebFeedAsset(asset)) {
       if (iframeAssetId === asset.id && iframeSrc) {
         // プリロード側で既に存在確認済み
+        const srcSetAt = webfeedSrcSetAtRef.current;
+        const preloadLeadTimeMs = srcSetAt && srcSetAt.assetId === asset.id ? Date.now() - srcSetAt.ts : null;
         logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード済み)', {
           assetId: asset.id, iframeSrc, containerSize,
+          preloadLeadTimeMs, // srcを確定させてから前面化するまでの経過時間(=内部タイマーが
+                              // 先行して進んでいたと考えられる時間。切り替えロジック調査用)
         });
         setIframeActive(true);
         return;
@@ -192,8 +208,9 @@ const VerticalVideoSlot: React.FC = () => {
       waitForWebFeedEntry(asset.rawPath, asset.id).then(exists => {
         if (cancelled || !exists) return;
         // キャッシュバスター無し(理由は上のpreload effect内コメント参照)
-        logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード未完了のため即時確認)', {
-          assetId: asset.id, iframeSrc: asset.src, containerSize,
+        webfeedSrcSetAtRef.current = { assetId: asset.id, ts: Date.now() };
+        logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード未完了のため即時確認・リード時間0)', {
+          assetId: asset.id, iframeSrc: asset.src, containerSize, preloadLeadTimeMs: 0,
         });
         setIframeSrc(asset.src);
         setIframeAssetId(asset.id);
