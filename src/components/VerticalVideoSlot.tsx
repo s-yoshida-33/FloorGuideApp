@@ -132,6 +132,46 @@ const VerticalVideoSlot: React.FC = () => {
   // 最初の記事が15秒未満で切り替わる・末尾に想定外の記事が混入する、といった現象の説明になる)
   const webfeedSrcSetAtRef = React.useRef<{ assetId: string; ts: number } | null>(null);
 
+  // WEB連携コンテンツ: postMessageハンドシェイクで「実際に前面化されたタイミング」を
+  // テンプレート側(template.js)に伝え、記事ローテーションタイマーの開始をそこまで遅らせて
+  // もらう(Gido Issue #36、切り替えロジック対応)。
+  // iframe → Gido: {type:'gido:ready'}(テンプレートの初期化が完了し、合図を待てる状態になった)
+  // Gido → iframe: {type:'gido:activate'}(実際に前面化された。ここでタイマーを開始してよい)
+  // どちらが先に届いても正しく合流するよう、両方向の到着状況をiframeSrc単位でrefに記録する。
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const webfeedReadySrcRef = React.useRef<string | null>(null);
+  const webfeedActivatedSrcRef = React.useRef<string | null>(null);
+
+  const sendWebfeedActivate = React.useCallback((src: string) => {
+    if (webfeedActivatedSrcRef.current === src) return;
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    try {
+      const targetOrigin = new URL(src).origin;
+      win.postMessage({ type: 'gido:activate' }, targetOrigin);
+      webfeedActivatedSrcRef.current = src;
+      logInfo('WEBFEED', 'WEB連携コンテンツへactivate信号を送信', { src });
+    } catch (err) {
+      logError('WEBFEED', 'activate信号の送信に失敗', { src, error: err instanceof Error ? err.message : String(err) });
+    }
+  }, []);
+
+  // iframeからのgido:readyを待ち受け、既に前面化済みなら即座にgido:activateを返す
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== 'gido:ready') return;
+      if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
+      if (!iframeSrc) return;
+      webfeedReadySrcRef.current = iframeSrc;
+      logInfo('WEBFEED', 'WEB連携コンテンツからgido:readyを受信', { iframeSrc, iframeActive });
+      if (iframeActive) {
+        sendWebfeedActivate(iframeSrc);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [iframeSrc, iframeActive, sendWebfeedActivate]);
+
   // 1. 次のアセットがURL/WEB連携コンテンツだと判明した瞬間に裏側で事前読み込みを開始する
   // (※どちらもロードに時間がかかるため、引き続きプリロードを行います。WEB連携コンテンツは
   // 展開先ファイルの存在確認が取れてからiframeへ読み込む)
@@ -217,6 +257,11 @@ const VerticalVideoSlot: React.FC = () => {
                               // 先行して進んでいたと考えられる時間。切り替えロジック調査用)
         });
         setIframeActive(true);
+        // プリロード中に既にgido:readyが届いていれば、前面化と同時にactivateを返す
+        // (readyが未着の場合は上のmessageリスナーがready到着時に送る)
+        if (webfeedReadySrcRef.current === iframeSrc) {
+          sendWebfeedActivate(iframeSrc);
+        }
         return;
       }
       setIframeActive(false);
@@ -412,6 +457,7 @@ const VerticalVideoSlot: React.FC = () => {
       {/* Link content / WEB連携コンテンツ iframe. */}
       {iframeSrc && (
         <iframe
+          ref={iframeRef}
           key={`iframe-${iframeSrc}`}
           src={iframeSrc}
           style={{
