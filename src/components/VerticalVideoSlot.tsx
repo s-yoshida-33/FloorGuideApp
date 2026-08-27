@@ -133,10 +133,18 @@ const VerticalVideoSlot: React.FC = () => {
         lastPreloadedSlotRef.current = slotKey;
 
         const activate = () => {
-          const ts = Date.now();
           const targetSrc = nextAsset.src as string;
-          const srcWithTs = targetSrc.includes('?') ? `${targetSrc}&_ts=${ts}` : `${targetSrc}?_ts=${ts}`;
-          setIframeSrc(srcWithTs);
+          // WEB連携コンテンツ(ローカルのTauri asset protocol)にはキャッシュバスターのクエリ文字列を
+          // 付けない。実URL(link)と違いローカルファイルには不要な上、Tauriのasset protocolが
+          // クエリ文字列付きのパスを正しく解決できるとは限らないため(展開先自体がsyncごとに
+          // 新しいUUIDディレクトリになるので、そもそもキャッシュバスターが無くても問題ない)
+          const srcToUse = isWebFeedAsset(nextAsset)
+            ? targetSrc
+            : (() => {
+                const ts = Date.now();
+                return targetSrc.includes('?') ? `${targetSrc}&_ts=${ts}` : `${targetSrc}?_ts=${ts}`;
+              })();
+          setIframeSrc(srcToUse);
           setIframeAssetId(nextAsset.id);
         };
 
@@ -183,12 +191,11 @@ const VerticalVideoSlot: React.FC = () => {
       let cancelled = false;
       waitForWebFeedEntry(asset.rawPath, asset.id).then(exists => {
         if (cancelled || !exists) return;
-        const ts = Date.now();
-        const srcWithTs = asset.src.includes('?') ? `${asset.src}&_ts=${ts}` : `${asset.src}?_ts=${ts}`;
+        // キャッシュバスター無し(理由は上のpreload effect内コメント参照)
         logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード未完了のため即時確認)', {
-          assetId: asset.id, iframeSrc: srcWithTs, containerSize,
+          assetId: asset.id, iframeSrc: asset.src, containerSize,
         });
-        setIframeSrc(srcWithTs);
+        setIframeSrc(asset.src);
         setIframeAssetId(asset.id);
         setIframeActive(true);
       });
