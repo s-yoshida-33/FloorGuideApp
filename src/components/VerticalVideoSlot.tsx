@@ -21,7 +21,13 @@ const isExternalLinkUrl = (src: string | undefined): boolean =>
   !!src &&
   /^https?:\/\//i.test(src) &&
   !/^https?:\/\/localhost(:\d+)?/i.test(src) &&
-  !/^https?:\/\/127\./i.test(src);
+  !/^https?:\/\/127\./i.test(src) &&
+  // Tauriのasset protocol(convertFileSrc、例: http://asset.localhost/...)も除外する。
+  // ホスト名が"asset.localhost"であり上のlocalhost除外(完全一致)にはマッチしないため、
+  // 別途除外しないとWEB連携コンテンツ(zip)がisLinkAssetとして誤判定されてしまう
+  // (Gido Issue #36: isWebFeedAssetの分岐に一度も入れず、前面化ログ・キャッシュバスター
+  // 回避が効かない不具合の原因だった)
+  !/^https?:\/\/asset\.localhost(:\d+)?/i.test(src);
 
 const isImageAsset = (asset: any): boolean => 
   !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)([\?#].*)?$/i.test(asset.src)));
