@@ -2,7 +2,7 @@
 import React from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
-import { logInfo, logWarn, logError, logDebug } from '../logs/logging';
+import { logWarn, logError, logDebug } from '../logs/logging';
 import { OptimizedVideo } from './OptimizedVideo';
 import { useAudioSettingsContext } from '../contexts/AudioSettingsContext';
 
@@ -63,12 +63,10 @@ async function waitForWebFeedEntry(rawPath: string | undefined, assetId: string)
     try {
       const exists = await invoke<boolean>('webfeed_entry_exists', { path: rawPath });
       if (exists) {
-        // logInfo(logDebugではなく): 本番ビルドではlogDebugが完全に無効化されるため、
-        // 検証観点1〜3の実機ログ確認にはlogInfo以上が必須(Gido Issue #36で判明)
         if (attempt > 0) {
-          logWarn('WEBFEED', 'WEB連携コンテンツの展開先ファイルがリトライ後に出現(検証観点1)', { assetId, rawPath, attempt });
+          logWarn('WEBFEED', 'WEB連携コンテンツの展開先ファイルがリトライ後に出現', { assetId, rawPath, attempt });
         } else {
-          logInfo('WEBFEED', 'WEB連携コンテンツの展開先ファイルを確認', { assetId, rawPath });
+          logDebug('WEBFEED', 'WEB連携コンテンツの展開先ファイルを確認', { assetId, rawPath });
         }
         return true;
       }
@@ -81,7 +79,7 @@ async function waitForWebFeedEntry(rawPath: string | undefined, assetId: string)
       await new Promise(resolve => setTimeout(resolve, WEBFEED_CHECK_RETRY_DELAYS_MS[attempt]));
     }
   }
-  logError('WEBFEED', 'WEB連携コンテンツの展開先ファイルが見つからない(検証観点2: 命名規則を要確認)', { assetId, rawPath });
+  logError('WEBFEED', 'WEB連携コンテンツの展開先ファイルが見つからない', { assetId, rawPath });
   return false;
 }
 
@@ -126,12 +124,6 @@ const VerticalVideoSlot: React.FC = () => {
   // プリロードの重複実行を防ぐための「スロット記憶用Ref」
   const lastPreloadedSlotRef = React.useRef<string>('');
 
-  // WEB連携コンテンツのiframe src確定(=内部の記事ローテーションタイマーが動き始めるとみられる時刻)
-  // から実際に前面化されるまでのリード時間を計測する(切り替えロジックの検証用、Gido Issue #36。
-  // 前面化までの間にプリロード中のiframe内で記事ローテーションが進んでしまっている場合、
-  // 最初の記事が15秒未満で切り替わる・末尾に想定外の記事が混入する、といった現象の説明になる)
-  const webfeedSrcSetAtRef = React.useRef<{ assetId: string; ts: number } | null>(null);
-
   // WEB連携コンテンツ: postMessageハンドシェイクで「実際に前面化されたタイミング」を
   // テンプレート側(template.js)に伝え、記事ローテーションタイマーの開始をそこまで遅らせて
   // もらう(Gido Issue #36、切り替えロジック対応)。
@@ -150,7 +142,7 @@ const VerticalVideoSlot: React.FC = () => {
       const targetOrigin = new URL(src).origin;
       win.postMessage({ type: 'gido:activate' }, targetOrigin);
       webfeedActivatedSrcRef.current = src;
-      logInfo('WEBFEED', 'WEB連携コンテンツへactivate信号を送信', { src });
+      logDebug('WEBFEED', 'WEB連携コンテンツへactivate信号を送信', { src });
     } catch (err) {
       logError('WEBFEED', 'activate信号の送信に失敗', { src, error: err instanceof Error ? err.message : String(err) });
     }
@@ -163,7 +155,6 @@ const VerticalVideoSlot: React.FC = () => {
       if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
       if (!iframeSrc) return;
       webfeedReadySrcRef.current = iframeSrc;
-      logInfo('WEBFEED', 'WEB連携コンテンツからgido:readyを受信', { iframeSrc, iframeActive });
       if (iframeActive) {
         sendWebfeedActivate(iframeSrc);
       }
@@ -201,15 +192,9 @@ const VerticalVideoSlot: React.FC = () => {
         };
 
         if (isWebFeedAsset(nextAsset)) {
-          logInfo('WEBFEED', 'WEB連携コンテンツのプリロードを開始', { slotKey, rawPath: nextAsset.rawPath, src: nextAsset.src });
+          logDebug('WEBFEED', 'WEB連携コンテンツのプリロードを開始', { slotKey, rawPath: nextAsset.rawPath, src: nextAsset.src });
           waitForWebFeedEntry(nextAsset.rawPath, nextAsset.id).then(exists => {
-            if (exists) {
-              webfeedSrcSetAtRef.current = { assetId: nextAsset.id, ts: Date.now() };
-              logInfo('WEBFEED', 'WEB連携コンテンツiframeのsrcを確定(プリロード完了、内部タイマーが動き出す想定時刻)', {
-                assetId: nextAsset.id,
-              });
-              activate();
-            }
+            if (exists) activate();
           });
         } else {
           logDebug('CMS_DELIVERY', 'Preloading link content for upcoming slot', { slotKey, src: nextAsset.src });
@@ -225,16 +210,6 @@ const VerticalVideoSlot: React.FC = () => {
   React.useLayoutEffect(() => {
     if (!asset) { setIframeActive(false); return; }
 
-    // 無条件デバッグログ: 「前面化」ログが実機で一度も出ない不具合の調査用(Gido Issue #36)。
-    // isWebFeedAsset/isLinkAssetの判定結果そのものをasset全種別で毎回記録することで、
-    // 分岐に入れていない場合(mediaTypeの不一致など)と、分岐には入るがログより前で
-    // returnしている場合を切り分ける
-    logInfo('WEBFEED', 'iframe前面化レイアウト判定', {
-      assetId: asset.id, mediaType: asset.mediaType, src: asset.src,
-      isWebFeed: isWebFeedAsset(asset), isLink: isLinkAsset(asset),
-      iframeAssetId, hasIframeSrc: !!iframeSrc, iframeSrcMatches: iframeAssetId === asset.id,
-    });
-
     if (isLinkAsset(asset)) {
       if (iframeAssetId !== asset.id || !iframeSrc) {
         const ts = Date.now();
@@ -249,13 +224,6 @@ const VerticalVideoSlot: React.FC = () => {
     if (isWebFeedAsset(asset)) {
       if (iframeAssetId === asset.id && iframeSrc) {
         // プリロード側で既に存在確認済み
-        const srcSetAt = webfeedSrcSetAtRef.current;
-        const preloadLeadTimeMs = srcSetAt && srcSetAt.assetId === asset.id ? Date.now() - srcSetAt.ts : null;
-        logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード済み)', {
-          assetId: asset.id, iframeSrc, containerSize,
-          preloadLeadTimeMs, // srcを確定させてから前面化するまでの経過時間(=内部タイマーが
-                              // 先行して進んでいたと考えられる時間。切り替えロジック調査用)
-        });
         setIframeActive(true);
         // プリロード中に既にgido:readyが届いていれば、前面化と同時にactivateを返す
         // (readyが未着の場合は上のmessageリスナーがready到着時に送る)
@@ -271,10 +239,6 @@ const VerticalVideoSlot: React.FC = () => {
         // キャッシュバスターを付ける(理由は上のpreload effect内コメント参照)
         const ts = Date.now();
         const srcWithTs = asset.src.includes('?') ? `${asset.src}&_ts=${ts}` : `${asset.src}?_ts=${ts}`;
-        webfeedSrcSetAtRef.current = { assetId: asset.id, ts: Date.now() };
-        logInfo('WEBFEED', 'WEB連携コンテンツiframeを前面化(プリロード未完了のため即時確認・リード時間0)', {
-          assetId: asset.id, iframeSrc: srcWithTs, containerSize, preloadLeadTimeMs: 0,
-        });
         setIframeSrc(srcWithTs);
         setIframeAssetId(asset.id);
         setIframeActive(true);
