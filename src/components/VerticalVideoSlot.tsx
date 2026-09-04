@@ -1,5 +1,6 @@
 // src/components/VerticalVideoSlot.tsx
 import React from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useCurrentAsset } from '../hooks/useCurrentAsset';
 import { logWarn, logError, logDebug } from '../logs/logging';
 import { OptimizedVideo } from './OptimizedVideo';
@@ -20,7 +21,13 @@ const isExternalLinkUrl = (src: string | undefined): boolean =>
   !!src &&
   /^https?:\/\//i.test(src) &&
   !/^https?:\/\/localhost(:\d+)?/i.test(src) &&
-  !/^https?:\/\/127\./i.test(src);
+  !/^https?:\/\/127\./i.test(src) &&
+  // Tauriのasset protocol(convertFileSrc、例: http://asset.localhost/...)も除外する。
+  // ホスト名が"asset.localhost"であり上のlocalhost除外(完全一致)にはマッチしないため、
+  // 別途除外しないとWEB連携コンテンツ(zip)がisLinkAssetとして誤判定されてしまう
+  // (Gido Issue #36: isWebFeedAssetの分岐に一度も入れず、前面化ログ・キャッシュバスター
+  // 回避が効かない不具合の原因だった)
+  !/^https?:\/\/asset\.localhost(:\d+)?/i.test(src);
 
 const isImageAsset = (asset: any): boolean => 
   !!asset && (asset.mediaType === 'image' || (!!asset.src && /\.(jpg|jpeg|png|gif|bmp|webp|svg)([\?#].*)?$/i.test(asset.src)));
@@ -28,11 +35,53 @@ const isImageAsset = (asset: any): boolean =>
 const isVideoAsset = (asset: any): boolean => 
   !!asset && (asset.mediaType === 'video' || (!!asset.src && /\.(mp4|webm|ogg|mov)([\?#].*)?$/i.test(asset.src)));
 
-const isLinkAsset = (asset: any): boolean => 
+const isLinkAsset = (asset: any): boolean =>
   !!asset && (
-    asset.mediaType === 'link' || 
+    asset.mediaType === 'link' ||
     (isExternalLinkUrl(asset.src) && !isImageAsset(asset) && !isVideoAsset(asset))
   );
+
+// WEB連携コンテンツ(dump_html webfeed)。CMS上はMedia種別`zip`として配信される
+// (Gido Issue #36)。プレイヤー側が展開済みのindex.htmlをiframeで表示する点はisLinkAssetと同じ。
+const isWebFeedAsset = (asset: any): boolean =>
+  !!asset && asset.mediaType === 'zip';
+
+// iframeレイヤーで描画するアセット全般(外部リンクURL + WEB連携コンテンツ)
+const isIframeContentAsset = (asset: any): boolean =>
+  isLinkAsset(asset) || isWebFeedAsset(asset);
+
+// WEB連携コンテンツの展開先index.htmlが存在するまで最大約7.7秒リトライで待つ
+// (検証観点1: SSEイベント到達時点でプレイヤー側の展開が完了しているとは限らないため)
+const WEBFEED_CHECK_RETRY_DELAYS_MS = [200, 500, 1000, 2000, 4000];
+
+async function waitForWebFeedEntry(rawPath: string | undefined, assetId: string): Promise<boolean> {
+  if (!rawPath) {
+    logError('WEBFEED', 'WEB連携コンテンツのrawPathが無いため存在確認をスキップ', { assetId });
+    return false;
+  }
+  for (let attempt = 0; attempt <= WEBFEED_CHECK_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const exists = await invoke<boolean>('webfeed_entry_exists', { path: rawPath });
+      if (exists) {
+        if (attempt > 0) {
+          logWarn('WEBFEED', 'WEB連携コンテンツの展開先ファイルがリトライ後に出現', { assetId, rawPath, attempt });
+        } else {
+          logDebug('WEBFEED', 'WEB連携コンテンツの展開先ファイルを確認', { assetId, rawPath });
+        }
+        return true;
+      }
+    } catch (err) {
+      logError('WEBFEED', '展開先ファイルの存在確認呼び出しに失敗', {
+        assetId, rawPath, attempt, error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    if (attempt < WEBFEED_CHECK_RETRY_DELAYS_MS.length) {
+      await new Promise(resolve => setTimeout(resolve, WEBFEED_CHECK_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+  logError('WEBFEED', 'WEB連携コンテンツの展開先ファイルが見つからない', { assetId, rawPath });
+  return false;
+}
 
 const VerticalVideoSlot: React.FC = () => {
   const { audioSettings } = useAudioSettingsContext();
@@ -75,30 +124,92 @@ const VerticalVideoSlot: React.FC = () => {
   // プリロードの重複実行を防ぐための「スロット記憶用Ref」
   const lastPreloadedSlotRef = React.useRef<string>('');
 
-  // 1. 次のアセットがURLだと判明した瞬間に裏側で事前読み込みを開始する
-  // (※URLコンテンツはロードに時間がかかるため、引き続きプリロードを行います)
+  // WEB連携コンテンツ: postMessageハンドシェイクで「実際に前面化されたタイミング」を
+  // テンプレート側(template.js)に伝え、記事ローテーションタイマーの開始をそこまで遅らせて
+  // もらう(Gido Issue #36、切り替えロジック対応)。
+  // iframe → Gido: {type:'gido:ready'}(テンプレートの初期化が完了し、合図を待てる状態になった)
+  // Gido → iframe: {type:'gido:activate'}(実際に前面化された。ここでタイマーを開始してよい)
+  // どちらが先に届いても正しく合流するよう、両方向の到着状況をiframeSrc単位でrefに記録する。
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const webfeedReadySrcRef = React.useRef<string | null>(null);
+  const webfeedActivatedSrcRef = React.useRef<string | null>(null);
+
+  const sendWebfeedActivate = React.useCallback((src: string) => {
+    if (webfeedActivatedSrcRef.current === src) return;
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    try {
+      const targetOrigin = new URL(src).origin;
+      win.postMessage({ type: 'gido:activate' }, targetOrigin);
+      webfeedActivatedSrcRef.current = src;
+      logDebug('WEBFEED', 'WEB連携コンテンツへactivate信号を送信', { src });
+    } catch (err) {
+      logError('WEBFEED', 'activate信号の送信に失敗', { src, error: err instanceof Error ? err.message : String(err) });
+    }
+  }, []);
+
+  // iframeからのgido:readyを待ち受け、既に前面化済みなら即座にgido:activateを返す
   React.useEffect(() => {
-    if (isLinkAsset(asset)) return;
-    
-    if (nextAsset && isLinkAsset(nextAsset)) {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== 'gido:ready') return;
+      if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
+      if (!iframeSrc) return;
+      webfeedReadySrcRef.current = iframeSrc;
+      if (iframeActive) {
+        sendWebfeedActivate(iframeSrc);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [iframeSrc, iframeActive, sendWebfeedActivate]);
+
+  // 1. 次のアセットがURL/WEB連携コンテンツだと判明した瞬間に裏側で事前読み込みを開始する
+  // (※どちらもロードに時間がかかるため、引き続きプリロードを行います。WEB連携コンテンツは
+  // 展開先ファイルの存在確認が取れてからiframeへ読み込む)
+  React.useEffect(() => {
+    if (isIframeContentAsset(asset)) return;
+
+    if (nextAsset && isIframeContentAsset(nextAsset)) {
       const slotKey = `${asset?.id || 'null'}-${asset?.startTime || 'null'}-${nextAsset.id}`;
-      
+
       if (lastPreloadedSlotRef.current !== slotKey) {
         lastPreloadedSlotRef.current = slotKey;
-        logDebug('CMS_DELIVERY', 'Preloading link content for upcoming slot', { slotKey, src: nextAsset.src });
-        
-        const ts = Date.now();
-        const targetSrc = nextAsset.src as string;
-        const srcWithTs = targetSrc.includes('?') ? `${targetSrc}&_ts=${ts}` : `${targetSrc}?_ts=${ts}`;
-        setIframeSrc(srcWithTs);
-        setIframeAssetId(nextAsset.id);
+
+        const activate = () => {
+          const targetSrc = nextAsset.src as string;
+          // WEB連携コンテンツにも毎回キャッシュバスターを付ける。付けないと同一アセットの
+          // 再プリロード時にiframeのsrc文字列が完全に同一になり、Reactのkey(`iframe-${iframeSrc}`)が
+          // 変化せずiframe要素が再生成(リロード)されない。その結果、テンプレート内部の記事
+          // ローテーションタイマーが最初のプリロード以降ずっと動き続けたままになり、CMSの表示枠が
+          // 非表示の間も裏で回り続け、表示のたびにリセットされずセッション経過時間に応じて
+          // どんどんズレが蓄積する不具合を引き起こしていた(Gido Issue #36、実機の
+          // preloadLeadTimeMs計測で発覚)。URLエンコード修正(#36)によりTauriのasset protocolでも
+          // クエリ文字列付きパスの相対解決に問題が無いことを確認済みなので安全に付けられる。
+          const ts = Date.now();
+          const srcToUse = targetSrc.includes('?') ? `${targetSrc}&_ts=${ts}` : `${targetSrc}?_ts=${ts}`;
+          setIframeSrc(srcToUse);
+          setIframeAssetId(nextAsset.id);
+        };
+
+        if (isWebFeedAsset(nextAsset)) {
+          logDebug('WEBFEED', 'WEB連携コンテンツのプリロードを開始', { slotKey, rawPath: nextAsset.rawPath, src: nextAsset.src });
+          waitForWebFeedEntry(nextAsset.rawPath, nextAsset.id).then(exists => {
+            if (exists) activate();
+          });
+        } else {
+          logDebug('CMS_DELIVERY', 'Preloading link content for upcoming slot', { slotKey, src: nextAsset.src });
+          activate();
+        }
       }
     }
   }, [asset?.id, asset?.startTime, nextAsset?.id, nextAsset?.src]);
 
   // 2. ブラウザが描画する直前に、iframeを前面（アクティブ）に切り替える
+  // WEB連携コンテンツはプリロードが間に合わなかった場合に備え、活性化前に展開先ファイルの
+  // 存在を再確認する(未確認のまま前面化すると空白/壊れたiframeが表示されてしまうため)
   React.useLayoutEffect(() => {
     if (!asset) { setIframeActive(false); return; }
+
     if (isLinkAsset(asset)) {
       if (iframeAssetId !== asset.id || !iframeSrc) {
         const ts = Date.now();
@@ -107,14 +218,40 @@ const VerticalVideoSlot: React.FC = () => {
         setIframeAssetId(asset.id);
       }
       setIframeActive(true);
-    } else {
-      setIframeActive(false);
+      return;
     }
+
+    if (isWebFeedAsset(asset)) {
+      if (iframeAssetId === asset.id && iframeSrc) {
+        // プリロード側で既に存在確認済み
+        setIframeActive(true);
+        // プリロード中に既にgido:readyが届いていれば、前面化と同時にactivateを返す
+        // (readyが未着の場合は上のmessageリスナーがready到着時に送る)
+        if (webfeedReadySrcRef.current === iframeSrc) {
+          sendWebfeedActivate(iframeSrc);
+        }
+        return;
+      }
+      setIframeActive(false);
+      let cancelled = false;
+      waitForWebFeedEntry(asset.rawPath, asset.id).then(exists => {
+        if (cancelled || !exists) return;
+        // キャッシュバスターを付ける(理由は上のpreload effect内コメント参照)
+        const ts = Date.now();
+        const srcWithTs = asset.src.includes('?') ? `${asset.src}&_ts=${ts}` : `${asset.src}?_ts=${ts}`;
+        setIframeSrc(srcWithTs);
+        setIframeAssetId(asset.id);
+        setIframeActive(true);
+      });
+      return () => { cancelled = true; };
+    }
+
+    setIframeActive(false);
   }, [asset?.id, asset?.mediaType, asset?.src, iframeAssetId, iframeSrc]);
 
-  // 3. 今のコンテンツも次のコンテンツもURLでなくなった場合、速やかにiframeを破棄してメモリを空ける
+  // 3. 今のコンテンツも次のコンテンツもiframe対象でなくなった場合、速やかにiframeを破棄してメモリを空ける
   React.useEffect(() => {
-    if (!isLinkAsset(asset) && !isLinkAsset(nextAsset)) {
+    if (!isIframeContentAsset(asset) && !isIframeContentAsset(nextAsset)) {
       setIframeSrc(null);
       setIframeAssetId(null);
     }
@@ -151,8 +288,8 @@ const VerticalVideoSlot: React.FC = () => {
     const video = videoRef.current;
     if (!video || !asset) return;
     const isImage = isImageAsset(asset);
-    const isLink = isLinkAsset(asset);
-    if (isImage || isLink) return;
+    const isIframeContent = isIframeContentAsset(asset);
+    if (isImage || isIframeContent) return;
 
     if (isScheduleTransitioning) {
       if (!video.paused) {
@@ -175,8 +312,8 @@ const VerticalVideoSlot: React.FC = () => {
   React.useEffect(() => {
     if (!asset) return;
     const isImage = isImageAsset(asset);
-    const isLink = isLinkAsset(asset);
-    if (isImage || isLink) return;
+    const isIframeContent = isIframeContentAsset(asset);
+    if (isImage || isIframeContent) return;
 
     freezeTimerRef.current = window.setInterval(() => {
       const video = videoRef.current;
@@ -274,16 +411,17 @@ const VerticalVideoSlot: React.FC = () => {
   }
 
   const isImage = isImageAsset(asset);
-  const isLink = isLinkAsset(asset);
+  const isIframeContent = isIframeContentAsset(asset);
 
   return (
     <div
       ref={outerContainerRef}
       style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#000' }}
     >
-      {/* Link content iframe. */}
+      {/* Link content / WEB連携コンテンツ iframe. */}
       {iframeSrc && (
         <iframe
+          ref={iframeRef}
           key={`iframe-${iframeSrc}`}
           src={iframeSrc}
           style={{
@@ -301,7 +439,7 @@ const VerticalVideoSlot: React.FC = () => {
       )}
 
       {/* Video & Image layer */}
-      {!iframeActive && !isLink && (
+      {!iframeActive && !isIframeContent && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1, background: '#000' }}>
           {!asset ? (
             <div style={{

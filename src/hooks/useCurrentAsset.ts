@@ -19,6 +19,31 @@ const MAX_RETRY_DELAY_MS = 60000;
 const NULL_GRACE_PERIOD_MS = 30000;
 
 /**
+ * WEB連携コンテンツ(zip)の展開先エントリポイントを解決する。
+ * プレイヤー側がZIPと同じUUID名・拡張子無しのディレクトリに展開済みコンテンツを
+ * 配置する前提(実機確認済み)で、`<uuid>.zip` → `<uuid>/index.html` を導出する。
+ * 実際に展開が完了しているかどうかはここでは確認しない(呼び出し側でタイミング検証を行う)。
+ */
+function deriveWebFeedEntry(zipLocalPath: string): { src: string; rawPath: string } {
+  const dirPath = zipLocalPath.replace(/\.zip$/i, '');
+  const normalized = dirPath.replace(/\\/g, '/');
+  const rawPath = `${normalized}/index.html`;
+
+  // convertFileSrc()はパス全体を1個の不透明なセグメントとしてpercent-encodeする
+  // (`/`も%2Fになる)。単一ファイル(画像/動画)には問題ないが、WEB連携コンテンツは
+  // index.htmlが同ディレクトリのstyle.css/template.js/data.xml等を相対パスで読み込む
+  // ため、ブラウザ側の相対URL解決が効くよう`/`を区切りとして残した形でURLを組み直す
+  // (Rust側のasset protocolハンドラは各セグメントを個別にpercent-decodeしても
+  // 最終的に同じファイルパスへ復元されるため、サーバー側の解決には影響しない)。
+  const opaqueUrl = convertFileSrc(rawPath);
+  const origin = new URL(opaqueUrl).origin;
+  const properPath = rawPath.split('/').map(encodeURIComponent).join('/');
+  const src = `${origin}/${properPath}`;
+
+  return { src, rawPath };
+}
+
+/**
  * Convert a TimelineStreamEvent into a CurrentAsset.
  * Uses convertFileSrc for local paths (Tauri asset protocol).
  */
@@ -26,10 +51,16 @@ function mapStreamEventToAsset(event: TimelineStreamEvent): CurrentAsset | null 
   if (!event.current_media_id) return null;
 
   const localPath = event.current_media_local_path || '';
+  const mediaType = event.current_media_type || '';
   let src = '';
+  let rawPath: string | undefined;
   if (localPath) {
     if (localPath.startsWith('http://') || localPath.startsWith('https://')) {
       src = localPath;
+    } else if (mediaType === 'zip') {
+      const entry = deriveWebFeedEntry(localPath);
+      src = entry.src;
+      rawPath = entry.rawPath;
     } else {
       // Use Tauri asset protocol instead of file://
       const normalized = localPath.replace(/\\/g, '/');
@@ -40,14 +71,15 @@ function mapStreamEventToAsset(event: TimelineStreamEvent): CurrentAsset | null 
   return {
     id: event.current_media_id,
     src,
+    rawPath,
     duration: 0,
     width: 0,
     height: 0,
     name: event.current_media_name || '',
     startTime: '',
     endTime: '',
-    mediaType: event.current_media_type || '',
-    type: event.current_media_type || '',
+    mediaType,
+    type: mediaType,
   };
 }
 
@@ -55,10 +87,20 @@ function mapStreamEventToNextAsset(event: TimelineStreamEvent): CurrentAsset | n
   if (!event.next_media_id || !event.next_media_local_path) return null;
 
   const localPath = event.next_media_local_path;
+  // Note: TimelineStreamEvent does not carry a next_media_type field, so a zip
+  // (WEB連携コンテンツ) entry cannot be distinguished here by type alone. Fall back to
+  // detecting it by the `.zip` extension, matching how current_media_local_path looks
+  // for zip assets (see the item_changed sample in Gido Issue #36).
+  const isZip = /\.zip$/i.test(localPath);
   let src = '';
+  let rawPath: string | undefined;
   if (localPath) {
     if (localPath.startsWith('http://') || localPath.startsWith('https://')) {
       src = localPath;
+    } else if (isZip) {
+      const entry = deriveWebFeedEntry(localPath);
+      src = entry.src;
+      rawPath = entry.rawPath;
     } else {
       const normalized = localPath.replace(/\\/g, '/');
       src = convertFileSrc(normalized);
@@ -68,14 +110,15 @@ function mapStreamEventToNextAsset(event: TimelineStreamEvent): CurrentAsset | n
   return {
     id: event.next_media_id,
     src,
+    rawPath,
     duration: 0,
     width: 0,
     height: 0,
     name: '',
     startTime: '',
     endTime: '',
-    mediaType: '',
-    type: '',
+    mediaType: isZip ? 'zip' : '',
+    type: isZip ? 'zip' : '',
   };
 }
 

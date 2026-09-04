@@ -39,3 +39,7 @@ src-tauri/target/
 
 # Temporary files
 tmp/
+
+# Tauri signing key (must never be committed — see git history cleanup 2026-07-14)
+~/*
+!~/.gitkeep
